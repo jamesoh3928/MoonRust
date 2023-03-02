@@ -45,7 +45,36 @@ Users will able to interact with the program by running REPL (Read-Eval-Print Lo
 
 ### Intended Components
 
-@Matt I need your help on this one
+#### **Parser**
+
+The parser takes the input program as a string and produces an
+Abstract Syntax Tree (AST). Ours will be built on top of
+[Nom](https://github.com/rust-bakery/nom), a parser combinator library
+that provides some essential building-block functions for parsing
+small components of the input.
+
+Our parser will consist of specialized functions that parse individual
+components of the input. These functions will roughly correspond to the
+pieces of syntax defined in the Lua Reference Manual. The signature of
+each function will look something like:
+
+```rust
+fn parse_syntax(input: &str) -> IResult<&str, AST, ParseErr> {...}
+```
+
+The AST type will be an `enum` where each variant represents a piece
+of syntax. Each variant can also have data associated with it. For
+example, a `Number` variant would hold that value of that number.
+Additionally, Since pieces of syntax can contain other sub-pieces of
+syntax, a variant may hold a `Box<AST>`.
+
+#### **Execution**
+
+TODO
+
+#### **Entrypoint and Repl**
+
+TODO
 
 ### Testing
 
