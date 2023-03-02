@@ -1,56 +1,80 @@
 # MoonRust
+
 ![alt text](assets/moon.jpg)
+
 MoonRust is Rust implementation of Lua interpreter. Lua means "moon" in Portuguese.
 
-
 ## What is Lua?
-Lua is a robust, fast, and lightweight scripting language that can be used on different platforms. It is widely used in embedded systems and games because of its performance. Lua’s interpreter can be compiled with ANSI C compiler (standardized C since 1989). 
 
-Use cases: Roblox, Adobe Photoshop, World of Warcraft, Angry Birds
+Lua is a robust, fast, lightweight, and cross-platform scripting language
+designed to be embedded into other applications. It accomplishes this by
+providing an API allowing C applications to interface it with. It's fairly minimal as well, making it easy to learn, but it's also fairly extensible
+for cases where more advanced features are needed. For these reasons,
+Lua has become a popular choice for video game programmers and is
+natively supported by Roblox, Garry's Mod, World of Warcraft, and more.
 
-Official docs: https://www.lua.org/ 
+Official docs: https://www.lua.org/
 
 ## Why build a Lua interpreter with Rust?
-Well, we are taking a programming language course after all, so our main purpose is to enhance our understanding of Rust. We also wanted to build something that can appeal to Rust's strengths (memory safety and high performance). If an interpreter is keep causing memory issues and is slow, no developer would want to use it!
 
-We wanted to scope the project so that it's doable in one semester. Lua is very lightweight (official C implementation only contains 30000), but a language that is widely used. If you check [Lua wiki](http://lua-users.org/wiki/LuaImplementations) page, there are many different implementations of Lua, but Rust is still missing! At this point, we decided to create a Lua interpreter in Rust! Also, it will be super fun to create your interpreter :).
+We have two main motivations for why we decided on this project. First,
+we want to demonstrate our understanding of Rust by building a practical,
+real-world application. Second, compilers and interpreters sit at the
+heart of every programming language, and it's critical that they are
+fast and memory-safe. Otherwise, programmers would become rightfully
+annoyed with slow compile times and hidden bugs that have nothing to do
+with their programs. Thus, Rust feels like the natural choice to build
+an interpreter. Additionally, we find compilers and interpreters to be a
+fascinating discipline. This project presents an opportunity to learn the
+topic hands on.
+
+We wanted to scope the project so that it's doable in one semester. Lua is very small (official C implementation only contains 30000 lines), but widely used. The [Lua wiki](http://lua-users.org/wiki/LuaImplementations) page shows there are many different implementations of Lua, but none in Rust. For these reasons, Lua felt like the right choice for a source
+language.
 
 ## Proposal
-Following is our proposal for this project.
+
+The following is our proposal for this project.
+
 ### Goal
+
 The goal of this project is to build a Lua interpreter that will be interacted with REPL. The details of functionality can be found under the MVP section.
 
 ### Use Cases
+
 Users will able to interact with the program by running REPL (Read-Eval-Print Loop). When the `cargo -q run` command is entered, REPL will start and users will be able to write the Lua program they want to execute.
 
 ### Intended Components
+
 @Matt I need your help on this one
 
 ### Testing
+
 @Matt I also need help on this lol
 
 ### Minimum Viable Product
+
 **Pasrsing/Lexsing**:
 
 [Keywords in Lua](https://www.lua.org/manual/5.1/manual.html#8:~:text=The%20following-,keywords,-are%20reserved%20and)
 
 We will implement the full syntax of Lua specified in [Lua's Reference Manual](https://www.lua.org/manual/5.1/manual.html#8)
+
 ```
 chunk ::= {stat [`;´]} [laststat [`;´]]
 
 block ::= chunk
 
-stat ::=  varlist `=´ explist | 
-        functioncall | 
-        do block end | 
-        while exp do block end | 
-        repeat block until exp | 
-        if exp then block {elseif exp then block} [else block] end | 
-        for Name `=´ exp `,´ exp [`,´ exp] do block end | 
-        for namelist in explist do block end | 
-        function funcname funcbody | 
-        local function Name funcbody | 
-        local namelist [`=´ explist] 
+stat ::=  varlist `=´ explist |
+        functioncall |
+        do block end |
+        while exp do block end |
+        repeat block until exp |
+        if exp then block {elseif exp then block} [else block] end |
+        for Name `=´ exp `,´ exp [`,´ exp] do block end |
+        for namelist in explist do block end |
+        function funcname funcbody |
+        local function Name funcbody |
+        local namelist [`=´ explist]
 
 laststat ::= return [explist] | break
 
@@ -58,20 +82,20 @@ funcname ::= Name {`.´ Name} [`:´ Name]
 
 varlist ::= var {`,´ var}
 
-var ::=  Name | prefixexp `[´ exp `]´ | prefixexp `.´ Name 
+var ::=  Name | prefixexp `[´ exp `]´ | prefixexp `.´ Name
 
 namelist ::= Name {`,´ Name}
 
 explist ::= {exp `,´} exp
 
-exp ::=  nil | false | true | Number | String | `...´ | function | 
-        prefixexp | tableconstructor | exp binop exp | unop exp 
+exp ::=  nil | false | true | Number | String | `...´ | function |
+        prefixexp | tableconstructor | exp binop exp | unop exp
 
 prefixexp ::= var | functioncall | `(´ exp `)´
 
-functioncall ::=  prefixexp args | prefixexp `:´ Name args 
+functioncall ::=  prefixexp args | prefixexp `:´ Name args
 
-args ::=  `(´ [explist] `)´ | tableconstructor | String 
+args ::=  `(´ [explist] `)´ | tableconstructor | String
 
 function ::= function funcbody
 
@@ -87,8 +111,8 @@ field ::= `[´ exp `]´ `=´ exp | Name `=´ exp | exp
 
 fieldsep ::= `,´ | `;´
 
-binop ::= `+´ | `-´ | `*´ | `/´ | `^´ | `%´ | `..´ | 
-        `<´ | `<=´ | `>´ | `>=´ | `==´ | `~=´ | 
+binop ::= `+´ | `-´ | `*´ | `/´ | `^´ | `%´ | `..´ |
+        `<´ | `<=´ | `>´ | `>=´ | `==´ | `~=´ |
         and | or
 
 unop ::= `-´ | not | `#´
@@ -96,20 +120,21 @@ unop ::= `-´ | not | `#´
 
 **Semantics**:
 [Official Lua Semantics](https://www.lua.org/manual/5.1/manual.html#2)
+
 1. Values and Types
-There are 8 basic types in Lua:  nil, boolean, number, string, function, userdata, thread, and table, but we are going to implement 6 of them excluding userdata and thread.
+   There are 8 basic types in Lua: nil, boolean, number, string, function, userdata, thread, and table, but we are going to implement 6 of them excluding userdata and thread.
 
 2. Variables
-Users will be able to assign variables.
+   Users will be able to assign variables.
 
 3. Statements
-Chunks, Blocks, Assignment, Control Structures, For Statement, Function Calls as Statements, Local Declarations will be implemented.
+   Chunks, Blocks, Assignment, Control Structures, For Statement, Function Calls as Statements, Local Declarations will be implemented.
 
 4. Expressions
-Arithmetic Operators, Relational Operators, Logical Operators, Concatenation, The Length Operator, Precedence, Table Constructors, Function Calls, Function Definitions will be implemented. 
+   Arithmetic Operators, Relational Operators, Logical Operators, Concatenation, The Length Operator, Precedence, Table Constructors, Function Calls, Function Definitions will be implemented.
 
 5. Visibility Rules
-Lua is a lexically scoped language, and our interpreter will follow the visibility rules of Lua. Example from Lua's reference manual:
+   Lua is a lexically scoped language, and our interpreter will follow the visibility rules of Lua. Example from Lua's reference manual:
 
 ```
 x = 10                -- global variable
@@ -127,11 +152,12 @@ print(x)              --> 10  (the global one)
 ```
 
 ### Expected Challenges
+
 1. Lua allows shared state unlike Rust's ownership rule
 2. None of our teammates know Lua so a learning curve is expected
 
-
 ### Stretch Goals
+
 1. Implement userdata, thread
 2. Garabage collector
 3. Environments
@@ -139,12 +165,15 @@ print(x)              --> 10  (the global one)
 5. Coroutines
 
 ### Expected Functionality By Checkpoint
-By checkpoint, we are expecting to finish 
+
+By checkpoint, we are expecting to finish
+
 ## Team members:
+
 - James Oh
 - Matthew DellaNeve
 - Renee Veit
 
+# TODO
 
-# TODO #
 1. Check the scope of the project (what do you guys think?)
