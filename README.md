@@ -43,7 +43,35 @@ The goal of this project is to build a Lua interpreter that will be interacted w
 
 Users will able to interact with the program by running REPL (Read-Eval-Print Loop). When the `cargo -q run` command is entered, REPL will start and users will be able to write the Lua program they want to execute.
 
+For example, say a user wanted to calculate the area and perimeter of an equilateral triangle. They would type the following code into their terminal:
+
+```
+print("Find the area of an equilateral triangle:")
+
+-- Define variables
+local height, base, area
+
+-- Initialize variables
+base = 10
+height = 8.66
+
+-- Basic Arithmetic
+area = (base * height) / 2
+
+-- Print Result
+print("Area of triangle: ", area)
+```
+
+Then our program would output the following result:
+
+```
+Find the area of an equilateral triangle:
+Area of triangle: 	43.3
+```
+
 ### Intended Components
+
+The three parts of interpreting (tokenizing, parsing, and execution) into their own separate modules. Each module will have their own main function for tokenizing, parsing, and execution respectively, as well as additional helper methods for various checks on the input. 
 
 #### **Parser**
 
@@ -150,19 +178,19 @@ unop ::= `-´ | not | `#´
 **Semantics**:
 [Official Lua Semantics](https://www.lua.org/manual/5.1/manual.html#2)
 
-1. Values and Types
+1. Values and Types: 
    There are 8 basic types in Lua: nil, boolean, number, string, function, userdata, thread, and table, but we are going to implement 6 of them excluding userdata and thread.
 
-2. Variables
+2. Variables: 
    Users will be able to assign variables.
 
-3. Statements
+3. Statements: 
    Chunks, Blocks, Assignment, Control Structures, For Statement, Function Calls as Statements, Local Declarations will be implemented.
 
-4. Expressions
+4. Expressions: 
    Arithmetic Operators, Relational Operators, Logical Operators, Concatenation, The Length Operator, Precedence, Table Constructors, Function Calls, Function Definitions will be implemented.
 
-5. Visibility Rules
+5. Visibility Rules: 
    Lua is a lexically scoped language, and our interpreter will follow the visibility rules of Lua. Example from Lua's reference manual:
 
 ```
@@ -195,7 +223,7 @@ print(x)              --> 10  (the global one)
 
 ### Expected Functionality By Checkpoint
 
-By checkpoint, we are expecting to finish
+By the checkpoint, a fully functional interpreter based on the specification above is expected. 
 
 ## Team members:
 
