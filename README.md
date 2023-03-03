@@ -223,7 +223,7 @@ print(x)              --> 10  (the global one)
 
 ### Expected Functionality By Checkpoint
 
-By the checkpoint, a fully functional interpreter based on the specification above is expected. 
+By the checkpoint, a fully functional parser as well as half of the interpreter requirements are expected to be complete. 
 
 ## Team members:
 
