@@ -69,7 +69,7 @@ Find the area of an equilateral triangle:
 Area of triangle: 	43.3
 ```
 
-<!-- TODO: Renee one more usecase (maybe little more lua specific code - have block and if statment) -->
+<!-- TODO: Renee one more usecase (maybe little more lua specific code - have block and if statment). Also, make sure we specify users to input the file. -->
 
 ### Intended Components
 
