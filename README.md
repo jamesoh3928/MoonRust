@@ -92,37 +92,54 @@ each function will look something like:
 fn parse_syntax(input: &str) -> IResult<&str, AST, ParseErr> {...}
 ```
 
-#### Data Types
-<!-- TODO (james) Enum that holds values for values that have copy traits, and Rc for non-copy traits -->
-```
-Enum DataType {
-   Table(table: Table),
-   Nil(),
-   Boolean(bool: bool),
-   Number(n: usize),
-   LuaString(s: String), 
+#### **Data Types**
+We are going to implement 6 different Lua data types specified in the MVP section with the following `enum`.
+```rust
+Enum LValue {
+   LTable(table: Table),
+   Nil,
+   LBool(b: bool),
+   LNum(n: usize),
+   LString(s: String), 
    Function(f: fn),
 }
 ```
 
-** Variable **
-```
-var: Rc<DataType>
-```
-<!-- TODO (james): add more explanation -->
-
-Options for Table:
-```
-Table(Vec<Name: DataType, Rc<LValue>>)
+#### Options for Table:
+For the `table` type, we are currently considering two different approaches. One is storing a vector that contains a tuple of name and corresponding Lua value, and we would just iterate through the vector and find a tuple matching the first value in the tuple. Note that the type of "name" of the value stored in the table is `LValue` because, in Lua, any kind of expression can be key in the table. This option will be a lot cleaner to implement, but the performance of accessing an element in the table will be inefficient.
+```rust
+Table(Vec<(LValue, Rc<LValue>>))
 ```
 
+The second option is using a `HashTable` where the key is `LValue` and the value will be `Rc<LValue>`. This will make accessing elements in the table faster, but we might run into some obstacles in making `LValue` hashable.
+```rust
+Struct Table(t: HashMap<LValue, Rc<LValue>>)
 ```
+
+TODO (James): might have to use this option, if not delete them
+```rust
 Struct Table {
-   strTable: HashMap<LuaString, dyn DataType>,
-   boolTable: HashMap<Boolean, dyn DataType>,
+   strTable: HashMap<LString, Rc<LValue>>,
+   boolTable: HashMap<LBool, Rc<LValue>>,
    ....
 }
 ```
+
+**Variable**
+The variable will be pointing at `LValue`, and since Lua allows multiple variables owning the same values, we will wrap this with `Rc`.
+```rust
+struct LVar(Rc<LValue>)
+```
+
+** Function **
+```rust
+struct LFunction {
+   name: String,
+   arguments: Vec<dyn DataType>,
+   statement: Vec<AST>,
+}
+```
+The `eval` method of `LFunction` will return `Vec<dyn DataType>` since Lua allows functions to return different types of values.
 
 <!-- TODO (Matt): following BNF grammar -->
 ```
@@ -139,26 +156,29 @@ example, a `Number` variant would hold that value of that number.
 Additionally, Since pieces of syntax can contain other sub-pieces of
 syntax, a variant may hold a `Box<AST>`.
 
-#### **Execution/Semantics**
-We defined semantics we are going to implement in MVP section. Each semantic rules will have each eval method.
-
+#### **Semantics: Evaluation/Execution**
+We defined the semantics that we are going to implement in the MVP section. All expressions will implement their own `eval` methods. For example, `LBool` will have the following `eval` method.
 ```rust
-fn eval(self, input: &str) -> IResult<&str, AST, ParseErr> {...}
-```
-
-** Function **
-```
-struct LuaFunction {
-   name: String,
-   arguments: Vec<dyn DataType>,
-   statement: Vec<AST>,
+fn eval(&self) -> LBool {
+   self.b
 }
+```
+According to BNF grammar from Lua's reference manual, following are possible expressions:
 
-<!-- TODO (James): return vector of datatypes -->
+```
+nil | false | true | Numeral | LiteralString | ‘...’ | functiondef | prefixexp | tableconstructor | exp binop exp | unop exp 
 ```
 
-** Control Structures **
+For statements, we will have `exec` methods. Since the statment will be executed exactly once, the `exec` method will take ownership of `self`.
+```rust
+fn exec(self) -> LValue {
+   ...
+}
 ```
+
+**Control Structures**
+The control structure (if statement) will contain the following data.
+```rust
 struct Control {
    exps: Vec<exp>,
    blocks: Vec<block>,
@@ -166,15 +186,10 @@ struct Control {
 }
 ```
 
-** Expression ** 
-Straight forward, but table constructor
-
-** Visibility Rules **
-
 ### Testing
 <!-- TODO: Renee -->
 Test `parse_syntax`
-Test all `eval` methods for all semantics.
+Test all `eval` methods for expressions and `exec` methods for statments.
 
 We might consider using `test_case`
 
@@ -182,9 +197,9 @@ We might consider using `test_case`
 
 **Pasrsing/Lexsing**:
 
-[Keywords in Lua](https://www.lua.org/manual/5.1/manual.html#8:~:text=The%20following-,keywords,-are%20reserved%20and)
+[Keywords in Lua](https://www.lua.org/manual/5.4/manual.html#8:~:text=The%20following-,keywords,-are%20reserved%20and)
 
-We will implement the full syntax of Lua specified in [Lua's Reference Manual](https://www.lua.org/manual/5.1/manual.html#8)
+We will implement the full syntax of Lua specified in [Lua's Reference Manual](https://www.lua.org/manual/5.4/manual.html#8)
 
 ```
 chunk ::= {stat [`;´]} [laststat [`;´]]
@@ -246,7 +261,7 @@ unop ::= `-´ | not | `#´
 ```
 
 **Semantics**:
-[Official Lua Semantics](https://www.lua.org/manual/5.1/manual.html#2)
+[Official Lua Semantics](https://www.lua.org/manual/5.4/manual.html#2)
 
 1. Values and Types: 
    There are 8 basic types in Lua: nil, boolean, number, string, function, userdata, thread, and table, but we are going to implement 6 of them **excluding userdata and thread**.
@@ -279,16 +294,10 @@ print(x)              --> 10  (the global one)
 ```
 
 ### Expected Challenges
-
-1. Lua allows shared state unlike Rust's ownership rule
+1. Lua allows shared state unlike Rust's ownership rule (We will be using a lot of `Rc`s)
 2. None of our teammates know Lua so a learning curve is expected
-3. When implementing table, make sure it follows Lua's rule.
-```
-x = 10
-Table { 'a': x, 'b': 10 }
-x = 11
-```
-4. Control statements: Lua's false rule
+3. Control statements: Lua's false rule
+4. Implementing a table constructor might be challenging since there are many different ways to specify key and value for Lua's table.
 
 ### Stretch Goals
 
@@ -297,7 +306,7 @@ x = 11
 3. Environments
 4. Metatables
 5. Coroutines
-6. REPL
+6. Other use cases: REPL, etc
 
 ### Expected Functionality By Checkpoint
 
