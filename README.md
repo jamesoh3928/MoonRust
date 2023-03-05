@@ -41,9 +41,9 @@ The goal of this project is to build a Lua interpreter that will be interacted w
 
 ### Use Cases
 
-Users will able to interact with the program by running REPL (Read-Eval-Print Loop). When the `cargo -q run` command is entered, REPL will start and users will be able to write the Lua program they want to execute.
+Users will able to run Lua program by specifiying Lua file. When the `cargo -q run [filename]` command is entered, interpreter will execute the code inside the file.
 
-For example, say a user wanted to calculate the area and perimeter of an equilateral triangle. They would type the following code into their terminal:
+For example, say a user wanted to calculate the area and perimeter of an equilateral triangle. They would read the following code from the file:
 
 ```
 print("Find the area of an equilateral triangle:")
@@ -69,6 +69,8 @@ Find the area of an equilateral triangle:
 Area of triangle: 	43.3
 ```
 
+<!-- TODO: Renee one more usecase (maybe little more lua specific code - have block and if statment) -->
+
 ### Intended Components
 
 The three parts of interpreting (tokenizing, parsing, and execution) into their own separate modules. Each module will have their own main function for tokenizing, parsing, and execution respectively, as well as additional helper methods for various checks on the input. 
@@ -90,23 +92,91 @@ each function will look something like:
 fn parse_syntax(input: &str) -> IResult<&str, AST, ParseErr> {...}
 ```
 
+#### Data Types
+<!-- TODO (james) Enum that holds values for values that have copy traits, and Rc for non-copy traits -->
+```
+Enum DataType {
+   Table(table: Table),
+   Nil(),
+   Boolean(bool: bool),
+   Number(n: usize),
+   LuaString(s: String), 
+   Function(f: fn),
+}
+```
+
+** Variable **
+```
+var: Rc<DataType>
+```
+<!-- TODO (james): add more explanation -->
+
+Options for Table:
+```
+Table(Vec<Name: DataType, Rc<LValue>>)
+```
+
+```
+Struct Table {
+   strTable: HashMap<LuaString, dyn DataType>,
+   boolTable: HashMap<Boolean, dyn DataType>,
+   ....
+}
+```
+
+<!-- TODO (Matt): following BNF grammar -->
+```
+enum AST {
+   Variable(name: String, value: data_types),
+   Block(...)
+   Chunk(...)
+   .....,
+}
+```
 The AST type will be an `enum` where each variant represents a piece
 of syntax. Each variant can also have data associated with it. For
 example, a `Number` variant would hold that value of that number.
 Additionally, Since pieces of syntax can contain other sub-pieces of
 syntax, a variant may hold a `Box<AST>`.
 
-#### **Execution**
+#### **Execution/Semantics**
+We defined semantics we are going to implement in MVP section. Each semantic rules will have each eval method.
 
-TODO
+```rust
+fn eval(self, input: &str) -> IResult<&str, AST, ParseErr> {...}
+```
 
-#### **Entrypoint and Repl**
+** Function **
+```
+struct LuaFunction {
+   name: String,
+   arguments: Vec<dyn DataType>,
+   statement: Vec<AST>,
+}
 
-TODO
+<!-- TODO (James): return vector of datatypes -->
+```
+
+** Control Structures **
+```
+struct Control {
+   exps: Vec<exp>,
+   blocks: Vec<block>,
+   else_block: Option<block>
+}
+```
+
+** Expression ** 
+Straight forward, but table constructor
+
+** Visibility Rules **
 
 ### Testing
+<!-- TODO: Renee -->
+Test `parse_syntax`
+Test all `eval` methods for all semantics.
 
-@Matt I also need help on this lol
+We might consider using `test_case`
 
 ### Minimum Viable Product
 
@@ -179,13 +249,13 @@ unop ::= `-´ | not | `#´
 [Official Lua Semantics](https://www.lua.org/manual/5.1/manual.html#2)
 
 1. Values and Types: 
-   There are 8 basic types in Lua: nil, boolean, number, string, function, userdata, thread, and table, but we are going to implement 6 of them excluding userdata and thread.
+   There are 8 basic types in Lua: nil, boolean, number, string, function, userdata, thread, and table, but we are going to implement 6 of them **excluding userdata and thread**.
 
 2. Variables: 
    Users will be able to assign variables.
 
 3. Statements: 
-   Chunks, Blocks, Assignment, Control Structures, For Statement, Function Calls as Statements, Local Declarations will be implemented.
+   Chunks, Blocks, Assignment, Control Structures, For Statement, Function Calls as Statements, Local Declarations will be implemented **excluding chunks (loading external sources)**.
 
 4. Expressions: 
    Arithmetic Operators, Relational Operators, Logical Operators, Concatenation, The Length Operator, Precedence, Table Constructors, Function Calls, Function Definitions will be implemented.
@@ -212,14 +282,22 @@ print(x)              --> 10  (the global one)
 
 1. Lua allows shared state unlike Rust's ownership rule
 2. None of our teammates know Lua so a learning curve is expected
+3. When implementing table, make sure it follows Lua's rule.
+```
+x = 10
+Table { 'a': x, 'b': 10 }
+x = 11
+```
+4. Control statements: Lua's false rule
 
 ### Stretch Goals
 
-1. Implement userdata, thread
+1. Implement chunks, userdata, thread
 2. Garabage collector
 3. Environments
 4. Metatables
 5. Coroutines
+6. REPL
 
 ### Expected Functionality By Checkpoint
 
@@ -230,7 +308,3 @@ By the checkpoint, a fully functional parser as well as half of the interpreter 
 - James Oh
 - Matthew DellaNeve
 - Renee Veit
-
-# TODO
-
-1. Check the scope of the project (what do you guys think?)
