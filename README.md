@@ -126,9 +126,9 @@ Struct Table {
 ```
 
 **Variable**
-The variable will be pointing at `LValue`, and since Lua allows multiple variables owning the same values, we will wrap this with `Rc`.
+The variable will be pointing at `LValue`, and since Lua allows multiple variables owning the same values, we will wrap this with `Rc`. Also, since the new type can be defined on the new variable, we would have to use trait object.
 ```rust
-struct LVar(Rc<LValue>)
+struct LVar(Rc<dyn LValue>)
 ```
 
 ** Function **
