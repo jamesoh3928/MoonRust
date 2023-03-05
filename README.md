@@ -309,8 +309,7 @@ print(x)              --> 10  (the global one)
 6. Other use cases: REPL, etc
 
 ### Expected Functionality By Checkpoint
-
-By the checkpoint, a fully functional parser as well as half of the interpreter requirements are expected to be complete. 
+By the checkpoint, a fully functional parser should be implemented, and "Values and Types" and "Variable" from the semantics section should be functional as well.
 
 ## Team members:
 
