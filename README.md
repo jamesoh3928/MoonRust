@@ -69,6 +69,42 @@ Find the area of an equilateral triangle:
 Area of triangle: 	43.3
 ```
 
+Or if a user wanted to find the maximum and minimum two numbers, the following code would be read in from the file:
+
+```
+function min_and_max(num1, num2)
+  --- block 1: find max value
+  do
+    if (num1 > num2) then
+      result = num1;
+   else
+      result = num2;
+   end
+    print("Max value = ", result)
+  end
+  --- block 2: find min value
+  do
+    if (num1 < num2) then
+      result = num1;
+   else
+      result = num2;
+   end 
+    print("Min value = ", result)
+  end
+end
+
+min_and_max(4, 11)
+```
+
+Then our program would output the following:
+
+```
+Output:
+
+Max value = 	11
+Min value = 	4
+```
+
 <!-- TODO: Renee one more usecase (maybe little more lua specific code - have block and if statment). Also, make sure we specify users to input the file. -->
 
 ### Intended Components
@@ -318,12 +354,24 @@ struct Control {
 
 ### Testing
 
-<!-- TODO: Renee -->
+1. The Lexer (Tokenizing Step)
+We will create an exhaustive test suite to make sure the input is tokenized according to the language grammar. Tokens will be mapped to a specific token type, and we will make sure the tokenizer recognizes all possible variations of a type. Here is example test suite for local and global variables in Lua:
 
-Test `parse_syntax`
-Test all `eval` methods for expressions and `exec` methods for statments.
+```
+local d , f = 2 ,9     --declaration of d and f as local variables. 
+d , f = 4, 1;          --declaration of d and f as global variables. 
+d, f = 17              --[[declaration of d and f as global variables. 
+                           Here value of f is nil --]]
+10 = 20                -- error
+```
 
-We might consider using `test_case`
+2. The Parser (AST Creation)
+To test the parser (i.e. the `parse_syntax`, `eval`, and `exec` methods) we will compare the parser generated AST to a predefined AST representing the expected output. Expressions will be tested with the `eval` methods and statements will be tested with the `exec` methods. 
+
+3. The Interpreter (Execution)
+To test the interpreter we will make sure the commands executed using the AST produce the desired output. 
+
+We will make sure each stage rejects bad inputs and reports specific error messages describing why. We might consider using `test_case`
 
 ### Minimum Viable Product
 
