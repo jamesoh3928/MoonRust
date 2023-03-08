@@ -88,7 +88,7 @@ function min_and_max(num1, num2)
       result = num1;
    else
       result = num2;
-   end 
+   end
     print("Min value = ", result)
   end
 end
@@ -134,14 +134,8 @@ abstract syntax tree (described in the next section). If the parse fails, the fu
 
 We are going to implement 6 different Lua data types specified in the MVP section with the following `enum`.
 
-(TODO: The name "LValue" seems a little incorrect. It suggests that we're using it on the left-hand
-side of an assignment (i.e. l-value), which I don't think is the intent here (unless this was really meant to say "Lua Value"))
-
-(TODO: Numerals aren't simply integers. They could be integers OR floats. We could either try
-to accomodate this, or we can just ignore floats for the time being)
-
 ```rust
-Enum LValue {
+enum LuaValue {
    LTable(Table),
    Nil,
    LBool(bool),
@@ -157,32 +151,30 @@ For the `table` type, we are currently considering two different approaches. One
 performance compared to a standard key-value collection.
 
 ```rust
-struct Table(Vec<(LValue, Rc<LValue>>))
+struct Table(Vec<(LuaValue, Rc<LuaValue>>))
 ```
 
-The second option is using a `HashMap` where the key is `LValue` and the value will be `Rc<LValue>`. This will make accessing elements in the table faster, but we might run into some obstacles in making `LValue` hashable (for example, floating point values do not implement `Hash` by default in Rust).
+The second option is using a `HashMap` where the key is `LValue` and the value will be `Rc<LuaValue>`. This will make accessing elements in the table faster, but we might run into some obstacles in making `LuaValue` hashable (for example, floating point values do not implement `Hash` by default in Rust).
 
 ```rust
-struct Table(HashMap<LValue, Rc<LValue>>)
+struct Table(HashMap<LuaValue, Rc<LuaValue>>)
 ```
-
-TODO (James): might have to use this option, if not delete them
 
 ```rust
 struct Table {
-   strTable: HashMap<LString, Rc<LValue>>,
-   boolTable: HashMap<LBool, Rc<LValue>>,
+   strTable: HashMap<String, Rc<LuaValue>>,
+   boolTable: HashMap<bool, Rc<LuaValue>>,
    ....
 }
 ```
 
 **Variable**
 
-A variable will point to an `LValue`, and since Lua allows multiple variables to point at the
+A variable will point to a `LuaValue`, and since Lua allows multiple variables to point at the
 same piece of data and potentially modify it, we will wrap this with `Rc` and `RefCell`.
 
 ```rust
-struct LVar(Rc<LValue>)
+struct LuaVar(Rc<LuaValue>)
 ```
 
 **Function**
@@ -194,7 +186,7 @@ to execute when the function is called.
 actually care about the type of the arguments until we perform an operation that needs the type)
 
 ```rust
-struct LFunction {
+struct LuaFunction {
    name: String,
    arity: usize, /// The number of arguments
    statement: Vec<AST>,
@@ -214,22 +206,20 @@ one root block. In the real implementation of Lua, this is not the whole story s
 chunks and modules that complicate this notion. For our purposes, we only expect a Lua program to
 be one block in a single file. Listed below are the relevant types for the AST:
 
-(TODO: Fill in the missing parts)
-
 ```rust
 enum Statement {
-   // semicolon?
-   Assignment((Vec<String>, Vec<Expression>)),
-   FunctionCall(...),
+   Semicolon,
+   Assignment((Vec<Var>, Vec<Expression>)),
+   FunctionCall((PrefixExp, Option<String>)),
    Break,
    DoBlock(Block),
    While((Expression, Block)),
    Repeat((Block, Expression)),
-   If((Expression, Block, ...)),
+   If((Expression, Block, Vec<(Expression, Block)>, Option<Block>)),
    ForNum((String, i64, i64, Option<i64>)),
-   ForGeneric((..., Vec<Expression>, Block)),
-   FunctionDecl(...),
-   LocalFuncDef(...)
+   ForGeneric((Vec<String>, Vec<Expression>, Block)),
+   FunctionDecl((String, ParList, Block)),
+   LocalFuncDecl((String, ParList, Block))
 }
 ```
 
@@ -238,12 +228,13 @@ enum Expression {
    Nil,
    False,
    True,
-   Numeral(...),
+   NumeralInt(i64),
+   NumeralFloat(f64),
    LiteralString(String),
    DotDotDot, /// Used for a variable number of arguments in things like functions
-   FunctionDef(...),
-   PrefixExp(...),
-   TableConstructor(Vec<(..., ...)>),
+   FunctionDef((ParList, Block)),
+   PrefixExp(PrefixExp),
+   TableConstructor(Vec<Field>),
    BinaryOp((Expression, BinOp, Expression)),
    UnaryOp((UnOp, Expression))
 }
@@ -285,6 +276,34 @@ enum UnOp {
 ```
 
 ```rust
+enum PrefixExp {
+   Var(Var),
+   FunctionCall(...),
+   Exp(Expression)
+}
+```
+
+```rust
+struct ParList(Vec<String>, bool) // boolean flag is true if there are varargs
+```
+
+```rust
+enum Field {
+   BracketedAssign((Expression, Expression)),
+   NameAssign((String, Expression)),
+   UnnamedAssign(Expression)
+}
+```
+
+```rust
+enum Var {
+   NameVar(String),
+   BracketVar((PrefixExp, Exp)),
+   DotVar((PrefixExp, String))
+}
+```
+
+```rust
 struct Block {
    statements: Vec<Statement>,
    return_stat: Option<Vec<Expression>>
@@ -319,63 +338,30 @@ large number of variants, most of the work will be delegated to helper methods f
 (e.g. `eval_assignment`, `eval_binary_op`, ...). The main `eval` method of each will simply
 pattern match on each variant and call the appropriate function.
 
-<!-- We defined the semantics that we are going to implement in the MVP section. All expressions will implement their own `eval` methods. For example, `LBool` will have the following `eval` method.
-
-```rust
-fn eval(&self) -> LBool {
-   self.b
-}
-```
-
-According to BNF grammar from Lua's reference manual, following are possible expressions:
-
-```
-nil | false | true | Numeral | LiteralString | ‘...’ | functiondef | prefixexp | tableconstructor | exp binop exp | unop exp
-```
-
-For statements, we will have `exec` methods. Since the statment will be executed exactly once, the `exec` method will take ownership of `self`.
-
-```rust
-fn exec(self) -> LValue {
-   ...
-}
-```
-
-**Control Structures**
-The control structure (if statement) will contain the following data.
-
-```rust
-struct Control {
-   exps: Vec<exp>,
-   blocks: Vec<block>,
-   else_block: Option<block>
-}
-``` -->
-
 ### Testing
 
 1. The Lexer (Tokenizing Step)
-We will create an exhaustive test suite to make sure the input is tokenized according to the language grammar. Tokens will be mapped to a specific token type, and we will make sure the tokenizer recognizes all possible variations of a type. Here is example test suite for local and global variables in Lua:
+   We will create an exhaustive test suite to make sure the input is tokenized according to the language grammar. Tokens will be mapped to a specific token type, and we will make sure the tokenizer recognizes all possible variations of a type. Here is example test suite for local and global variables in Lua:
 
 ```
-local d , f = 2 ,9     --declaration of d and f as local variables. 
-d , f = 4, 1;          --declaration of d and f as global variables. 
-d, f = 17              --[[declaration of d and f as global variables. 
+local d , f = 2 ,9     --declaration of d and f as local variables.
+d , f = 4, 1;          --declaration of d and f as global variables.
+d, f = 17              --[[declaration of d and f as global variables.
                            Here value of f is nil --]]
 10 = 20                -- error
 ```
 
 2. The Parser (AST Creation)
-To test the parser (i.e. the `parse_syntax`, `eval`, and `exec` methods) we will compare the parser generated AST to a predefined AST representing the expected output. Expressions will be tested with the `eval` methods and statements will be tested with the `exec` methods. 
+   To test the parser (i.e. the `parse_syntax`, `eval`, and `exec` methods) we will compare the parser generated AST to a predefined AST representing the expected output. Expressions will be tested with the `eval` methods and statements will be tested with the `exec` methods.
 
 3. The Interpreter (Execution)
-To test the interpreter we will make sure the commands executed using the AST produce the desired output. 
+   To test the interpreter we will make sure the commands executed using the AST produce the desired output.
 
 We will make sure each stage rejects bad inputs and reports specific error messages describing why. We might consider using `test_case`
 
 ### Minimum Viable Product
 
-**Pasrsing/Lexsing**:
+**Pasrsing**:
 
 [Keywords in Lua](https://www.lua.org/manual/5.4/manual.html#8:~:text=The%20following-,keywords,-are%20reserved%20and)
 
