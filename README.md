@@ -136,11 +136,11 @@ We are going to implement 6 different Lua data types specified in the MVP sectio
 
 ```rust
 enum LuaValue {
-   LTable(Table),
-   Nil,
-   LBool(bool),
-   LNum(usize),
-   LString(String),
+   LuaTable(Table),
+   LuaNil,
+   LuaBool(bool),
+   LuaNum([u8; 8]), // Represent numerals as an array of 8 bytes
+   LuaString(String),
    Function(fn),
 }
 ```
@@ -228,8 +228,7 @@ enum Expression {
    Nil,
    False,
    True,
-   NumeralInt(i64),
-   NumeralFloat(f64),
+   Numeral([u8; 8]),
    LiteralString(String),
    DotDotDot, /// Used for a variable number of arguments in things like functions
    FunctionDef((ParList, Block)),
@@ -316,9 +315,7 @@ struct AST(Block)
 
 #### **Semantics: Evaluation/Execution**
 
-The implementation of an `AST` will consist of an `eval` method that executed the code inside
-the top-level block. Since most of the work will be delegated to the `Block` struct, this method
-will be very simple:
+The implementation of an `AST` will consist of an `eval` method that executed the code inside the top-level block. Since most of the work will be delegated to the `Block` struct, this method will be very simple:
 
 ```rust
 impl AST {
@@ -328,10 +325,7 @@ impl AST {
 }
 ```
 
-The `Block` struct will implement its own `eval` method. It will step through each statement and
-execute them. Additionally, it will manage the data currently in its scope as it executes. If the
-block has a return statement, it will evaluate the expressions inside of it and return the result
-as the return value of `eval`.
+The `Block` struct will implement its own `eval` method. It will step through each statement and execute them. Additionally, it will manage the data currently in its scope as it executes. If the block has a return statement, it will evaluate the expressions inside of it and return the result as the return value of `eval`.
 
 `Statement` and `Expression` will also have their own `eval` methods. However, since each has a
 large number of variants, most of the work will be delegated to helper methods for each variant
