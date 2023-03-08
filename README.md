@@ -105,8 +105,6 @@ Max value = 	11
 Min value = 	4
 ```
 
-<!-- TODO: Renee one more usecase (maybe little more lua specific code - have block and if statment). Also, make sure we specify users to input the file. -->
-
 ### Intended Components
 
 The project will consist of two library crates, the parser and the evaluator, and a binary crate that acts as the entry point to the program.
@@ -117,7 +115,7 @@ The parser takes the input program as a string and produces an Abstract Syntax T
 be built on top of [Nom](https://github.com/rust-bakery/nom), a parser combinator library
 that provides some essential building-block functions for parsing small components of the input. We
 can use these to write our own parsing functions for parts of Lua and build those up into a parser for
-the whole language (or at least what we will be implementing). These functions will roughly
+the subset of the language we will be implementing. These functions will roughly
 correspond to the pieces of syntax defined in the Lua Reference Manual. The signature of
 each function will look something like
 
@@ -126,7 +124,7 @@ fn parse_syntax(input: &str) -> IResult<&str, AST, ParseErr> {...}
 ```
 
 where `input` is the current text to parse, and `IResult` is Nom's wrapper around a `Result`
-that, if the parse is successful, will return `Ok` of the input that wasn't consumed and an
+that, if the parse is successful, will return `Ok` with the input that wasn't consumed and an
 abstract syntax tree (described in the next section). If the parse fails, the function returns
 `Err` with a `ParseErr`.
 
@@ -147,14 +145,13 @@ enum LuaValue {
 
 #### Options for Table:
 
-For the `table` type, we are currently considering two different approaches. One is storing a vector that contains a pair of a key and corresponding Lua value. To get or update a value at a given key, we would iterate through the vector and find the pair where the first element is the key. Note that the type of a key stored in the table is an `LValue` because in Lua, any value (barring `nil`) can be a key in the table. This option will be a lot cleaner to implement, but it will have poor
-performance compared to a standard key-value collection.
+For the `table` type, we are currently considering two different approaches. One is storing a vector that contains a pair of a key and corresponding Lua value. To get or update a value at a given key, we would iterate through the vector and find the pair where the first element is the key. Note that the type of a key stored in the table is an `LuaValue` because in Lua, any value (barring `nil`) can be a key in the table. This option will be a lot cleaner to implement, but it will have poor performance compared to a standard key-value collection.
 
 ```rust
 struct Table(Vec<(LuaValue, Rc<LuaValue>>))
 ```
 
-The second option is using a `HashMap` where the key is `LValue` and the value will be `Rc<LuaValue>`. This will make accessing elements in the table faster, but we might run into some obstacles in making `LuaValue` hashable (for example, floating point values do not implement `Hash` by default in Rust).
+The second option is using a `HashMap` where the key is `LuaValue` and the value will be `Rc<LuaValue>`. This will make accessing elements in the table faster. Initially, we didn't know how to make the `LuaValue` hashable with regards to Lua numbers. This is because Lua numbers can be integers or floats, and Rust doesn't have a default `Hash` function for floating point values. To get around this, we were advised to read in the floats as bytes (via to_be_bytes()) and then create our own function to hash those values. 
 
 ```rust
 struct Table(HashMap<LuaValue, Rc<LuaValue>>)
@@ -346,12 +343,12 @@ d, f = 17              --[[declaration of d and f as global variables.
 ```
 
 2. The Parser (AST Creation)
-   To test the parser (i.e. the `parse_syntax`, `eval`, and `exec` methods) we will compare the parser generated AST to a predefined AST representing the expected output. Expressions will be tested with the `eval` methods and statements will be tested with the `exec` methods.
+   To test the parser (i.e. the `parse_syntax` method) we will compare the parser generated AST to a predefined AST representing the expected output. 
 
 3. The Interpreter (Execution)
-   To test the interpreter we will make sure the commands executed using the AST produce the desired output.
+   To test the interpreter (i.e. the `eval` method) we will make sure the commands executed using the AST produce the desired output. Both expressions and statementns will be tested with their respective `eval` methods.
 
-We will make sure each stage rejects bad inputs and reports specific error messages describing why. We might consider using `test_case`
+We will make sure each stage rejects bad inputs and reports specific error messages describing why. We might consider using `test_case`.
 
 ### Minimum Viable Product
 
@@ -457,8 +454,7 @@ print(x)              --> 10  (the global one)
 
 1. Lua allows shared state unlike Rust's ownership rule (We will be using a lot of `Rc`s)
 2. None of our teammates know Lua so a learning curve is expected
-3. Control statements: Lua treats everything that is not `nil` or `false` as true when evaluating
-   conditions.
+3. Control statements: Lua treats everything that is not `nil` or `false` as true when evaluating conditions.
 4. Implementing a table constructor might be challenging since there are many different ways to specify a key and value for Lua's table. In other words, Lua's flexibility makes things harder
    for us to implement.
 
