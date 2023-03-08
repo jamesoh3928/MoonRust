@@ -148,19 +148,20 @@ enum LuaValue {
 For the `table` type, we are currently considering two different approaches. One is storing a vector that contains a pair of a key and corresponding Lua value. To get or update a value at a given key, we would iterate through the vector and find the pair where the first element is the key. Note that the type of a key stored in the table is an `LuaValue` because in Lua, any value (barring `nil`) can be a key in the table. This option will be a lot cleaner to implement, but it will have poor performance compared to a standard key-value collection.
 
 ```rust
-struct Table(Vec<(LuaValue, Rc<LuaValue>>))
+struct Table(Vec<(LuaValue, Rc<RefCell<LuaValue>>>))
 ```
 
 The second option is using a `HashMap` where the key is `LuaValue` and the value will be `Rc<LuaValue>`. This will make accessing elements in the table faster. Initially, we didn't know how to make the `LuaValue` hashable with regards to Lua numbers. This is because Lua numbers can be integers or floats, and Rust doesn't have a default `Hash` function for floating point values. To get around this, we were advised to read in the floats as bytes (via to_be_bytes()) and then create our own function to hash those values. 
 
 ```rust
-struct Table(HashMap<LuaValue, Rc<LuaValue>>)
+struct Table(HashMap<LuaValue, Rc<RefCell<LuaValue>>>)
 ```
 
+We predict the above option will work fine, but for some reason, if having `LuaValue` as a key in HashMap is not possible, we might have to consider the following option.
 ```rust
 struct Table {
-   strTable: HashMap<String, Rc<LuaValue>>,
-   boolTable: HashMap<bool, Rc<LuaValue>>,
+   strTable: HashMap<String, Rc<RefCell<LuaValue>>>,
+   boolTable: HashMap<bool, Rc<RefCell<LuaValue>>>,
    ....
 }
 ```
@@ -171,7 +172,7 @@ A variable will point to a `LuaValue`, and since Lua allows multiple variables t
 same piece of data and potentially modify it, we will wrap this with `Rc` and `RefCell`.
 
 ```rust
-struct LuaVar(Rc<LuaValue>)
+struct LuaVar(Rc<RefCell<LuaValue>>)
 ```
 
 **Function**
@@ -312,17 +313,17 @@ struct AST(Block)
 
 #### **Semantics: Evaluation/Execution**
 
-The implementation of an `AST` will consist of an `eval` method that executed the code inside the top-level block. Since most of the work will be delegated to the `Block` struct, this method will be very simple:
+The implementation of an `AST` will consist of an `exec` method that executed the code inside the top-level block. Since most of the work will be delegated to the `Block` struct, this method will be very simple:
 
 ```rust
 impl AST {
-   pub fn eval(&self) {
-      self.0.eval();
+   pub fn exec(&self) {
+      self.0.exec();
    }
 }
 ```
 
-The `Block` struct will implement its own `eval` method. It will step through each statement and execute them. Additionally, it will manage the data currently in its scope as it executes. If the block has a return statement, it will evaluate the expressions inside of it and return the result as the return value of `eval`.
+The `Block` struct will implement its own `exec` method. It will step through each statement and execute them. Additionally, it will manage the data currently in its scope as it executes. If the block has a return statement, it will evaluate the expressions inside of it and return the result as the return value of `eval`.
 
 `Statement` and `Expression` will also have their own `eval` methods. However, since each has a
 large number of variants, most of the work will be delegated to helper methods for each variant
@@ -331,22 +332,15 @@ pattern match on each variant and call the appropriate function.
 
 ### Testing
 
-1. The Lexer (Tokenizing Step)
-   We will create an exhaustive test suite to make sure the input is tokenized according to the language grammar. Tokens will be mapped to a specific token type, and we will make sure the tokenizer recognizes all possible variations of a type. Here is example test suite for local and global variables in Lua:
+1. The Parser (AST Creation)
+   To test the parser (i.e. the `parse_syntax` method), we will compare the parser-generated AST to a predefined AST representing the expected output. 
 
-```
-local d , f = 2 ,9     --declaration of d and f as local variables.
-d , f = 4, 1;          --declaration of d and f as global variables.
-d, f = 17              --[[declaration of d and f as global variables.
-                           Here value of f is nil --]]
-10 = 20                -- error
-```
+   For example, if we input `my_function(a, b, c)`, that would output an "Ok" containing the rest of the string that wasn't consumed (in this case, the empty string), and the `AST` that was created as a result. In our test, we could assert that the returned string is empty and that the returned `AST` contains the variant FunctionCall. Because that variant has associated data, we'd need to also check that those are also what we expect.
 
-2. The Parser (AST Creation)
-   To test the parser (i.e. the `parse_syntax` method) we will compare the parser generated AST to a predefined AST representing the expected output. 
+   We will also test that the function will fail on bad input, in other words, when a garbage input string is given, we will have to assert statements to check if the function returned `Err`.
 
-3. The Interpreter (Execution)
-   To test the interpreter (i.e. the `eval` method) we will make sure the commands executed using the AST produce the desired output. Both expressions and statementns will be tested with their respective `eval` methods.
+2. The Evaluator (Evaluation/Execution)
+   To test if the interpreter is executing correctly, we will test `eval` method on different types of expressions and check if it returns expected values. For statements, we will test `exec` method if it executes expected instructions.
 
 We will make sure each stage rejects bad inputs and reports specific error messages describing why. We might consider using `test_case`.
 
