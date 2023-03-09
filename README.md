@@ -350,7 +350,7 @@ We will make sure each stage rejects bad inputs and reports specific error messa
 
 [Keywords in Lua](https://www.lua.org/manual/5.4/manual.html#8:~:text=The%20following-,keywords,-are%20reserved%20and)
 
-We will implement the full syntax of Lua specified in [Lua's Reference Manual](https://www.lua.org/manual/5.4/manual.html#8)
+We will implement the full syntax of Lua except chunk, specified in [Lua's Reference Manual](https://www.lua.org/manual/5.4/manual.html#8)
 
 ```
 chunk ::= {stat [`;´]} [laststat [`;´]]
