@@ -37,7 +37,7 @@ The following is our proposal for this project.
 
 ### Goal
 
-The goal of this project is to build an interpreter that will execute a subset of Lua given a file to read. The details of functionality can be found under the MVP section.
+The goal of this project is to build an interpreter that will execute a subset of Lua given a file to read. The details of functionality can be found under the MVP section. (Note: our implementation logic might differ from Lua's reference implementation since we are not supporting the full features of Lua. Our interpreter should be able to run a simple Lua standalone program).
 
 ### Use Cases
 
@@ -353,6 +353,7 @@ We will make sure each stage rejects bad inputs and reports specific error messa
 We will implement the full syntax of Lua except chunk, specified in [Lua's Reference Manual](https://www.lua.org/manual/5.4/manual.html#8)
 
 ```
+<!-- Not going to implement chunk in MVP -->
 chunk ::= {stat [`;´]} [laststat [`;´]]
 
 block ::= chunk
