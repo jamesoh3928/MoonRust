@@ -1,0 +1,14 @@
+Excellent proposal!
+
+Interesting project.  I've spoken to each of you individually about the project,
+so I won't say much else here.
+
+The scope is fine and you will probably have more than enough with the parser
+and basic evaluator using `Rc<RevCell<LuaValue>>`.  You might consider including
+some statistics gathering (such as using the `stats_alloc` crate as is done in
+both Prog02 and Prog04b) so you can measure the effect that different changes in
+representations have on your interpreter, even if they are limited to some
+different choices in how to represent tables.
+
+
+Score: 10/10
