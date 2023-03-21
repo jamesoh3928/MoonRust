@@ -1,4 +1,4 @@
-// TODO: added lot of Boxes to avoid infinite recursion, but not sure if this is the best way to do it
+// TODO: added lot of `Box`es to avoid infinite recursion, but not sure if this is the best way to do it
 enum Statement {
     Semicolon,
     Assignment((Vec<Var>, Vec<Expression>)),
@@ -85,4 +85,19 @@ struct Block {
     return_stat: Option<Vec<Expression>>,
 }
 
-struct AST(Block);
+pub struct AST(Block);
+
+
+// TODO: add unit tests?
+// #[cfg(test)]
+// mod tests {
+//     #[test]
+//     fn exploration() {
+//         assert_eq!(2 + 2, 4);
+//     }
+
+//     #[test]
+//     fn another() {
+//         panic!("Make this test fail");
+//     }
+// }

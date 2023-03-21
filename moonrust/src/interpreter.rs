@@ -1,4 +1,7 @@
-// TODO: probably have to create files for each datatype inorder to make exec/eval functions for each of them
+use std::{cell::RefCell, rc::Rc};
+use crate::parser::AST;
+
+// TODO: probably have to create files for each datatype in order to make exec/eval functions for each of them
 enum LuaValue {
     LuaTable(Table),
     LuaNil,
@@ -17,4 +20,4 @@ struct LuaFunction {
 
 struct LuaVar(Rc<RefCell<LuaValue>>);
 
- struct Table(Vec<(LuaValue, Rc<RefCell<LuaValue>>)>);
+struct Table(Vec<(LuaValue, Rc<RefCell<LuaValue>>)>);
