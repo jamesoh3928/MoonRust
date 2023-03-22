@@ -1,7 +1,10 @@
-use std::{cell::RefCell, rc::Rc};
-use crate::parser::AST;
+use crate::ast::*;
+use std::{
+    cell::RefCell,
+    collections::{HashMap, LinkedList},
+    rc::Rc,
+};
 
-// TODO: probably have to create files for each datatype in order to make exec/eval functions for each of them
 enum LuaValue {
     LuaTable(Table),
     LuaNil,
@@ -11,13 +14,46 @@ enum LuaValue {
     Function(LuaFunction),
 }
 
-struct LuaFunction {
+pub struct LuaFunction {
     name: String,
-    arity: usize,
-    /// The number of arguments
+    arity: usize, // The number of arguments
     statement: Vec<AST>,
 }
 
 struct LuaVar(Rc<RefCell<LuaValue>>);
 
-struct Table(Vec<(LuaValue, Rc<RefCell<LuaValue>>)>);
+struct Table(HashMap<LuaValue, Rc<RefCell<LuaValue>>>);
+
+// TODO: double check environment implementation
+// Dr. Fluet's advice: env: Vec<Table<String, Data>>, type Env = (Table<String, Data>, Vec<Table<String, Data>>)
+struct EnvTable(Vec<(String, LuaVar)>);
+struct Env(LinkedList<EnvTable>);
+
+impl AST {
+    fn exec(&self) {
+        self.0.exec();
+    }
+}
+
+impl Block {
+    fn exec(&self) {
+        // TODO: keep track of variables in a scope (probably a hashmap)
+        for statement in &self.statements {
+            statement.exec();
+        }
+    }
+}
+
+impl Statement {
+    fn exec(&self) {
+        // TODO: implement exec for each statement (probably huge match statement)
+        unimplemented!()
+    }
+}
+
+impl Expression {
+    fn eval(&self) -> LuaValue {
+        // TODO: implement eval for each expression (probably huge match statement)
+        unimplemented!()
+    }
+}
