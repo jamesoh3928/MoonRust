@@ -1,3 +1,4 @@
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Semicolon,
     Assignment((Vec<Var>, Vec<Expression>)),
@@ -13,6 +14,7 @@ pub enum Statement {
     LocalFuncDecl((String, ParList, Block)),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Expression {
     Nil,
     False,
@@ -27,6 +29,7 @@ pub enum Expression {
     UnaryOp((UnOp, Box<Expression>)),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum BinOp {
     Add,
     Sub,
@@ -51,6 +54,7 @@ pub enum BinOp {
     LogicalOr,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum UnOp {
     Negate,
     LogicalNot,
@@ -58,31 +62,38 @@ pub enum UnOp {
     BitNot,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum PrefixExp {
     Var(Var),
     // FunctionCall(Expression::DotDotDot), // TODO: @Matt question? Were you expecting DotDotDot to be here?
     Exp(Expression),
 }
 
+#[derive(Debug, PartialEq)]
 pub struct ParList(Vec<String>, bool); // boolean flag is true if there are varargs
 
+#[derive(Debug, PartialEq)]
 pub enum Field {
     BracketedAssign((Expression, Expression)),
     NameAssign((String, Expression)),
     UnnamedAssign(Expression),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Var {
     NameVar(String),
     BracketVar((Box<PrefixExp>, Expression)),
     DotVar((Box<PrefixExp>, String)),
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Block {
     pub statements: Vec<Statement>,
     pub return_stat: Option<Vec<Expression>>,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct ASTParseError(String);
 
+#[derive(Debug, PartialEq)]
 pub struct AST(pub Block);

@@ -1,3 +1,6 @@
+pub mod expression;
+pub mod util;
+
 // TODO: added lot of `Box`es to avoid infinite recursion, but not sure if this is the best way to do it
 use crate::ast::*;
 use std::str::FromStr;
