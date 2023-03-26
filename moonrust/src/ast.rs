@@ -1,6 +1,5 @@
 #[derive(Debug, PartialEq)]
 pub enum Statement {
-    Semicolon,
     Assignment((Vec<Var>, Vec<Expression>)),
     FunctionCall((PrefixExp, Option<String>)),
     Break,

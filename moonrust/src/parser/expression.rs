@@ -21,6 +21,10 @@ fn parse_true(input: &str) -> ResultExpr {
     map(ws(tag("true")), |_| Expression::True)(input)
 }
 
+fn parse_numeral(input: &str) -> ResultExpr {
+    unimplemented!()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
