@@ -1,7 +1,7 @@
 use crate::ast::*;
 use std::{
     cell::RefCell,
-    collections::{HashMap, LinkedList},
+    collections::{HashMap},
     rc::Rc,
 };
 
@@ -27,7 +27,8 @@ struct Table(HashMap<LuaValue, Rc<RefCell<LuaValue>>>);
 // TODO: double check environment implementation
 // Dr. Fluet's advice: env: Vec<Table<String, Data>>, type Env = (Table<String, Data>, Vec<Table<String, Data>>)
 struct EnvTable(Vec<(String, LuaVar)>);
-struct Env(LinkedList<EnvTable>);
+// Insert None between each EnvTable to represent a new scope
+struct Env(Option<Vec<EnvTable>>);
 
 impl AST {
     fn exec(&self) {

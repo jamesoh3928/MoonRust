@@ -18,7 +18,7 @@ pub enum Expression {
     Nil,
     False,
     True,
-    Numeral([u8; 8]),
+    Numeral(Numeral),
     LiteralString(String),
     DotDotDot, // Used for a variable number of arguments in things like functions
     FunctionDef((ParList, Block)),
@@ -59,6 +59,13 @@ pub enum UnOp {
     LogicalNot,
     Length,
     BitNot,
+}
+
+// In parsing, we store numeral in i64 and f64, but in interpreting, we store them as [u8; 8]
+#[derive(Debug, PartialEq)]
+pub enum Numeral {
+    Integer(i64),
+    Float(f64),
 }
 
 #[derive(Debug, PartialEq)]
