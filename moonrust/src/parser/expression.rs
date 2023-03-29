@@ -1,12 +1,26 @@
-use nom::{branch::alt, bytes::complete::tag, combinator::{map}, IResult, character::complete::i64, number::complete::double};
+use nom::{
+    branch::alt,
+    bytes::complete::tag,
+    character::complete::{char, i64},
+    combinator::{map, opt},
+    number::complete::double,
+    sequence::{delimited, pair, preceded, terminated},
+    IResult,
+};
 
-use super::util::*;
-use crate::ast::{Expression, Numeral};
+use super::{parse_block, parse_namelist, parse_parlist, util::*};
+use crate::ast::{Block, Expression, Numeral, ParList};
 
 type ResultExpr<'a> = IResult<&'a str, Expression>;
 
 pub fn parse_exp(input: &str) -> ResultExpr {
-    alt((parse_nil, parse_false, parse_true, parse_numeral))(input)
+    alt((
+        parse_nil,
+        parse_false,
+        parse_true,
+        parse_numeral,
+        parse_literal_string,
+    ))(input)
 }
 
 fn parse_nil(input: &str) -> ResultExpr {
@@ -23,35 +37,44 @@ fn parse_true(input: &str) -> ResultExpr {
 
 fn parse_numeral(input: &str) -> ResultExpr {
     // TODO: other formats of floats
-    if input.contains('.') {
-        return parse_float(input);
-    } else {
-        return parse_integer(input);
-    }
+    alt((parse_float, parse_integer))(input)
 }
 
 fn parse_integer(input: &str) -> ResultExpr {
-    map(ws(i64), |numeral: i64| 
-        Expression::Numeral(Numeral::Integer(numeral)))(input)
+    map(ws(i64), |numeral: i64| {
+        Expression::Numeral(Numeral::Integer(numeral))
+    })(input)
 }
 
 fn parse_float(input: &str) -> ResultExpr {
-    map(ws(double), |numeral: f64| Expression::Numeral(Numeral::Float(numeral)))(input)
+    map(ws(double), |numeral: f64| {
+        Expression::Numeral(Numeral::Float(numeral))
+    })(input)
 }
 
 fn parse_literal_string(input: &str) -> ResultExpr {
     // LiteralString(String),
-    unimplemented!()
+    // TODO(?): I'm ignoring string literals that aren't in double quotes for now
+    map(ws(parse_string), |s| Expression::LiteralString(s))(input)
 }
 
-fn parse_dot_dot_dot(input: &str) -> ResultExpr {
+pub fn parse_dot_dot_dot(input: &str) -> ResultExpr {
     // DotDotDot, // Used for a variable number of arguments in things like functions
-    unimplemented!()
+    map(tag("..."), |_| Expression::DotDotDot)(input)
 }
 
 fn parse_fn_def(input: &str) -> ResultExpr {
     // FunctionDef((ParList, Block)),
-    unimplemented!()
+    map(preceded(ws(tag("function")), parse_funcbody), |result| {
+        Expression::FunctionDef(result)
+    })(input)
+}
+
+fn parse_funcbody(input: &str) -> IResult<&str, (ParList, Block)> {
+    terminated(
+        pair(delimited(char('('), parse_parlist, char(')')), parse_block),
+        ws(tag("end")),
+    )(input)
 }
 
 fn parse_prefix_exp(input: &str) -> ResultExpr {
@@ -111,12 +134,35 @@ mod tests {
         assert_eq!(result, Ok(("", Expression::Numeral(Numeral::Integer(123)))));
 
         let result = parse_exp("    -123  ");
-        assert_eq!(result, Ok(("", Expression::Numeral(Numeral::Integer(-123)))));
+        assert_eq!(
+            result,
+            Ok(("", Expression::Numeral(Numeral::Integer(-123))))
+        );
 
         let result = parse_exp("    1.23  ");
         assert_eq!(result, Ok(("", Expression::Numeral(Numeral::Float(1.23)))));
 
         let result = parse_exp("    -1.23e-4  ");
-        assert_eq!(result, Ok(("", Expression::Numeral(Numeral::Float(-1.23e-4)))));
+        assert_eq!(
+            result,
+            Ok(("", Expression::Numeral(Numeral::Float(-1.23e-4))))
+        );
+    }
+
+    #[test]
+    fn accepts_string_literals() {
+        let result = parse_exp("    \"Foo bar baz!\"     ");
+        assert_eq!(
+            result,
+            Ok(("", Expression::LiteralString(String::from("Foo bar baz!"))))
+        );
+
+        let data = "\"tab:\\tafter tab, newline:\\nnew line, quote: \\\", emoji: \\u{1F602}, newline:\\nescaped whitespace: \\    abc\"";
+        let expected = "tab:\tafter tab, newline:\nnew line, quote: \", emoji: 😂, newline:\nescaped whitespace: abc";
+        let result = parse_exp(data);
+        assert_eq!(
+            result,
+            Ok(("", Expression::LiteralString(String::from(expected))))
+        );
     }
 }

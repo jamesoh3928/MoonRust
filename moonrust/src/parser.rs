@@ -3,9 +3,12 @@ pub mod statement;
 pub mod util;
 
 use nom::{
+    branch::alt,
+    bytes::complete::tag,
+    character::complete::char,
     combinator::{map, opt},
-    multi::many0,
-    sequence::pair,
+    multi::{many0, separated_list1},
+    sequence::{pair, preceded},
     IResult,
 };
 
@@ -13,7 +16,11 @@ use nom::{
 use crate::ast::*;
 use std::str::FromStr;
 
-use self::statement::{parse_return, parse_stmt};
+use self::{
+    expression::parse_dot_dot_dot,
+    statement::{parse_return, parse_stmt},
+    util::{identifier, ws},
+};
 
 /// Just to simplify the return type of each parse function
 type ParseResult<'a, T> = IResult<&'a str, T>;
@@ -42,6 +49,25 @@ fn parse_block(input: &str) -> ParseResult<Block> {
             return_stat,
         },
     )(input)
+}
+
+fn parse_namelist(input: &str) -> IResult<&str, Vec<String>> {
+    map(separated_list1(ws(tag(",")), identifier), |result| {
+        result.into_iter().map(String::from).collect()
+    })(input)
+}
+
+fn parse_parlist(input: &str) -> IResult<&str, ParList> {
+    alt((
+        map(
+            pair(
+                parse_namelist,
+                opt(preceded(ws(char(',')), parse_dot_dot_dot)),
+            ),
+            |result| ParList(result.0, result.1.is_some()),
+        ),
+        map(parse_dot_dot_dot, |_| ParList(Vec::new(), true)),
+    ))(input)
 }
 
 // TODO: add unit tests?

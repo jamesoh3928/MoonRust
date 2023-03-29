@@ -76,7 +76,7 @@ pub enum PrefixExp {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ParList(Vec<String>, bool); // boolean flag is true if there are varargs
+pub struct ParList(pub Vec<String>, pub bool); // boolean flag is true if there are varargs
 
 #[derive(Debug, PartialEq)]
 pub enum Field {
