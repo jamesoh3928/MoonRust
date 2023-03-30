@@ -1,7 +1,7 @@
 #[derive(Debug, PartialEq)]
 pub enum Statement {
     Assignment((Vec<Var>, Vec<Expression>)),
-    FunctionCall((PrefixExp, Option<String>)),
+    FunctionCall(FunctionCall),
     Break,
     DoBlock(Block),
     While((Expression, Block)),
@@ -71,8 +71,14 @@ pub enum Numeral {
 #[derive(Debug, PartialEq)]
 pub enum PrefixExp {
     Var(Var),
-    // FunctionCall(Expression::DotDotDot), // TODO: @Matt question? Were you expecting DotDotDot to be here?
+    FunctionCall(FunctionCall),
     Exp(Expression),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum FunctionCall {
+    Standard((Box<PrefixExp>,)), // TODO: Fill in rest
+    Method((Box<PrefixExp>,)),
 }
 
 #[derive(Debug, PartialEq)]

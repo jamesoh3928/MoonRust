@@ -1,7 +1,7 @@
 use nom::character::complete::char;
 use nom::combinator::value;
 
-use crate::ast::{Expression, Statement};
+use crate::ast::{Expression, FunctionCall, Statement};
 
 use super::ParseResult;
 
@@ -17,4 +17,8 @@ pub fn parse_return(input: &str) -> ParseResult<Vec<Expression>> {
 /// semantic information.
 fn parse_semicolon(input: &str) -> ParseResult<()> {
     value((), char(';'))(input)
+}
+
+pub fn parse_functioncall(input: &str) -> ParseResult<FunctionCall> {
+    unimplemented!()
 }
