@@ -105,7 +105,4 @@ pub struct Block {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ASTParseError(String);
-
-#[derive(Debug, PartialEq)]
 pub struct AST(pub Block);

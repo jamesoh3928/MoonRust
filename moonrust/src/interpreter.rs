@@ -1,9 +1,8 @@
 use crate::ast::*;
-use std::{
-    cell::RefCell,
-    collections::{HashMap},
-    rc::Rc,
-};
+use std::fmt;
+use std::fmt::{Display, Formatter};
+
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 enum LuaValue {
     LuaTable(Table),
@@ -31,8 +30,9 @@ struct EnvTable(Vec<(String, LuaVar)>);
 struct Env(Option<Vec<EnvTable>>);
 
 impl AST {
-    fn exec(&self) {
-        self.0.exec();
+    pub fn exec(&self) -> Result<(), ASTExecError> {
+        unimplemented!();
+        // self.0.exec();
     }
 }
 
@@ -56,5 +56,13 @@ impl Expression {
     fn eval(&self) -> LuaValue {
         // TODO: implement eval for each expression (probably huge match statement)
         unimplemented!()
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ASTExecError(String);
+impl Display for ASTExecError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
