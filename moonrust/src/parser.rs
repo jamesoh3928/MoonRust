@@ -2,6 +2,8 @@ pub mod common;
 pub mod expression;
 pub mod statement;
 pub mod util;
+use std::fmt;
+use std::fmt::{Display, Formatter};
 
 use nom::{combinator::map, IResult};
 
@@ -26,6 +28,14 @@ impl FromStr for AST {
 /// Parse the input program file into an AST.
 pub fn parse(input: &str) -> ParseResult<AST> {
     map(parse_block, |block| AST(block))(input)
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ASTParseError(String);
+impl Display for ASTParseError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
 }
 
 // TODO: add unit tests?
