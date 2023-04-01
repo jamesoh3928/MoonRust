@@ -73,7 +73,7 @@ fn parse_fn_def(input: &str) -> ParseResult<Expression> {
     })(input)
 }
 
-fn parse_funcbody(input: &str) -> ParseResult<(ParList, Block)> {
+pub fn parse_funcbody(input: &str) -> ParseResult<(ParList, Block)> {
     terminated(
         pair(delimited(char('('), parse_parlist, char(')')), parse_block),
         ws(tag("end")),

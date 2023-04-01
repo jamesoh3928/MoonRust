@@ -4,13 +4,15 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     combinator::map,
-    sequence::{delimited, pair, preceded, terminated},
+    sequence::{delimited, pair, preceded, terminated, tuple},
 };
 
 use super::{
     util::*,
     ParseResult,
 };
+
+use crate::parser::expression;
 
 use crate::ast::{Expression, FunctionCall, Statement};
 
@@ -66,7 +68,9 @@ fn parse_for_generic(input: &str) -> ParseResult<Statement> {
 
 fn parse_function_decl(input: &str) -> ParseResult<Statement> {
     // FunctionDecl((String, ParList, Block))
-    unimplemented!()
+    map( tuple( (ws(parse_string), preceded(ws(tag("function")), expression::parse_funcbody)) ),  
+    |result| Statement::FunctionDecl(result) )(input)
+
 }
 
 fn local_func_decl(input: &str) -> ParseResult<Statement> {
