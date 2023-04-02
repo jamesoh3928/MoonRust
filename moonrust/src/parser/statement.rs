@@ -8,6 +8,7 @@ use nom::{
     sequence::{delimited, pair, preceded, terminated, tuple},
 };
 
+use super::expression::parse_table_constructor;
 use super::{
     util::*,
     ParseResult,
@@ -41,11 +42,10 @@ fn parse_assignment(input: &str) -> ParseResult<Statement> {
 
 fn parse_args(input: &str) -> ParseResult<Args> {
 
-    alt( 
-
-        (map( separated_list1(ws(char(',')), expression::parse_exp), |result| Args::ExpList(result) )),
-
-     )(input)
+    alt((
+        map( separated_list1(ws(char(',')), expression::parse_exp), |result| Args::ExpList(result) ),
+        map( parse_table_constructor, |result| Args::TableConstructor(result))
+    ))(input)
 }
 pub fn functioncall(input: &str) -> ParseResult<FunctionCall> {
     // FunctionCall((PrefixExp, Option<String>))
@@ -56,8 +56,6 @@ pub fn functioncall(input: &str) -> ParseResult<FunctionCall> {
 pub fn parse_functioncall_statement(input: &str) -> ParseResult<Statement> {
     // FunctionCall((PrefixExp, Option<String>))
     map( tuple( (ws(expression::parse_prefixexp), ws(parse_string)) ),  |result| Statement::FunctionCall(result))(input)
-    unimplemented!()
-
 }
 
 fn parse_break(input: &str) -> ParseResult<Statement> {
