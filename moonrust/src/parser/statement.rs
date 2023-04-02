@@ -16,6 +16,15 @@ use crate::parser::expression;
 
 use crate::ast::{Expression, FunctionCall, Statement};
 
+pub fn parse_statement(input: &str) -> ParseResult<Statement> {
+
+    alt((
+        //parse_semicolon,
+        //parse_assignment(input),
+        parse_function_decl,
+        //local_func_decl(input),
+    ))(input)
+}
 /// Parse a single semicolon. Toss the result since it provides no
 /// semantic information.
 fn parse_semicolon(input: &str) -> ParseResult<()> {
@@ -69,13 +78,15 @@ fn parse_for_generic(input: &str) -> ParseResult<Statement> {
 fn parse_function_decl(input: &str) -> ParseResult<Statement> {
     // FunctionDecl((String, ParList, Block))
     map( tuple( (ws(parse_string), preceded(ws(tag("function")), expression::parse_funcbody)) ),  
-    |result| Statement::FunctionDecl(result) )(input)
+    |result| Statement::FunctionDecl( (result.0, result.1.0, result.1.1)) )(input)
 
 }
 
 fn local_func_decl(input: &str) -> ParseResult<Statement> {
     // LocalFuncDecl((String, ParList, Block))
-    unimplemented!()
+    map( tuple( (ws(parse_string), preceded(ws(tag("function")), expression::parse_funcbody)) ),  
+    |result| Statement::LocalFuncDecl( (result.0, result.1.0, result.1.1)) )(input)
+
 }
 
 pub fn parse_stmt(input: &str) -> ParseResult<Statement> {
