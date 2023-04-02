@@ -7,7 +7,7 @@ pub enum Statement {
     While((Expression, Block)),
     Repeat((Block, Expression)),
     If((Expression, Block, Vec<(Expression, Block)>, Option<Block>)),
-    ForNum((String, i64, i64, Option<i64>)),
+    ForNum((String, i64, i64, Option<i64>, Block)),
     ForGeneric((Vec<String>, Vec<Expression>, Block)),
     FunctionDecl((String, ParList, Block)),
     LocalFuncDecl((String, ParList, Block)),
@@ -77,8 +77,15 @@ pub enum PrefixExp {
 
 #[derive(Debug, PartialEq)]
 pub enum FunctionCall {
-    Standard((Box<PrefixExp>,)), // TODO: Fill in rest
-    Method((Box<PrefixExp>,)),
+    Standard((Box<PrefixExp>, Args)), 
+    Method((Box<PrefixExp>, String, Args)),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Args {
+    ExpList(Vec<Expression>),
+    TableConstructor(Vec<Field>),
+    LiteralString(String),
 }
 
 #[derive(Debug, PartialEq)]

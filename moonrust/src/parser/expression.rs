@@ -88,7 +88,7 @@ pub fn parse_funcbody(input: &str) -> ParseResult<(ParList, Block)> {
     )(input)
 }
 
-fn parse_prefixexp(input: &str) -> ParseResult<PrefixExp> {
+pub fn parse_prefixexp(input: &str) -> ParseResult<PrefixExp> {
     // PrefixExp(Box<PrefixExp>),
     alt((
         map(parse_var, |var| PrefixExp::Var(var)),

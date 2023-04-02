@@ -1,5 +1,6 @@
 use nom::character::complete::char;
 use nom::combinator::value;
+use nom::multi::{many1, separated_list1};
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -13,16 +14,18 @@ use super::{
 };
 
 use crate::parser::expression;
+use crate::parser::common;
+use crate::ast::{Expression, FunctionCall, Statement, Args};
 
-use crate::ast::{Expression, FunctionCall, Statement};
-
-pub fn parse_statement(input: &str) -> ParseResult<Statement> {
+pub fn parse_stmt(input: &str) -> ParseResult<Statement> {
 
     alt((
         //parse_semicolon,
-        //parse_assignment(input),
+        parse_assignment,
         parse_function_decl,
-        //local_func_decl(input),
+        parse_break,
+        parse_do_block,
+        local_func_decl,
     ))(input)
 }
 /// Parse a single semicolon. Toss the result since it provides no
@@ -36,9 +39,25 @@ fn parse_assignment(input: &str) -> ParseResult<Statement> {
     unimplemented!()
 }
 
-pub fn parse_functioncall(input: &str) -> ParseResult<FunctionCall> {
+fn parse_args(input: &str) -> ParseResult<Args> {
+
+    alt( 
+
+        (map( separated_list1(ws(char(',')), expression::parse_exp), |result| Args::ExpList(result) )),
+
+     )(input)
+}
+pub fn functioncall(input: &str) -> ParseResult<FunctionCall> {
     // FunctionCall((PrefixExp, Option<String>))
+    // map( tuple( (ws(expression::parse_prefixexp), ws(parse_string)) ),  |result| FunctionCall(result))(input)
+
+}
+
+pub fn parse_functioncall_statement(input: &str) -> ParseResult<Statement> {
+    // FunctionCall((PrefixExp, Option<String>))
+    map( tuple( (ws(expression::parse_prefixexp), ws(parse_string)) ),  |result| Statement::FunctionCall(result))(input)
     unimplemented!()
+
 }
 
 fn parse_break(input: &str) -> ParseResult<Statement> {
@@ -47,11 +66,12 @@ fn parse_break(input: &str) -> ParseResult<Statement> {
 
 fn parse_do_block(input: &str) ->ParseResult<Statement> {
     // DoBlock(Block)
-    unimplemented!()
+    map(expression::parse_funcbody, |block| Statement::DoBlock(block.1))(input)
 }
 
 fn parse_while(input: &str) -> ParseResult<Statement> {
     // While((Expression, Block))
+
     unimplemented!()
 }
 
@@ -66,7 +86,9 @@ fn parse_if(input: &str) -> ParseResult<Statement> {
 }
 
 fn parse_for_num(input: &str) -> ParseResult<Statement> {
-    // ForNum((String, i64, i64, Option<i64>))
+    // ForNum((String, i64, i64, Option<i64>, Block))
+    map( tuple( (preceded(ws(tag("for")), second  )) )  )(input)
+
     unimplemented!()
 }
 
@@ -76,9 +98,9 @@ fn parse_for_generic(input: &str) -> ParseResult<Statement> {
 }
 
 fn parse_function_decl(input: &str) -> ParseResult<Statement> {
-    // FunctionDecl((String, ParList, Block))
-    map( tuple( (ws(parse_string), preceded(ws(tag("function")), expression::parse_funcbody)) ),  
-    |result| Statement::FunctionDecl( (result.0, result.1.0, result.1.1)) )(input)
+    // FunctionDecl((String, ParList, Block)) where String = name of function being declared
+    map( tuple( (ws(tag("function")), ws(identifier), preceded(common::parse_parlist, expression::parse_funcbody)) ),  
+    |result| Statement::FunctionDecl( (String::from(result.1), result.2.0, result.2.1)) )(input)
 
 }
 
@@ -89,16 +111,7 @@ fn local_func_decl(input: &str) -> ParseResult<Statement> {
 
 }
 
-pub fn parse_stmt(input: &str) -> ParseResult<Statement> {
-    unimplemented!()
-}
-
 pub fn parse_return(input: &str) -> ParseResult<Vec<Expression>> {
     unimplemented!()
 }
-
-
-
-
-
 
