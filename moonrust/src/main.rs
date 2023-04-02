@@ -38,7 +38,10 @@ fn main() {
     };
 
     // Execute the program
-    match ast.exec() {
+    // Initialize environment
+    // TODO: create new file for environment
+    let mut env = moonrust::interpreter::Env::new();
+    match ast.exec(&mut env) {
         Ok(_) => (),
         Err(err) => {
             eprintln!("Runtime error [{err}]");
