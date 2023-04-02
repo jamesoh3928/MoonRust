@@ -92,8 +92,8 @@ fn parse_if(input: &str) -> ParseResult<Statement> {
 fn parse_for_num(input: &str) -> ParseResult<Statement> {
     // ForNum((String, Expression, Expression, Option<Expression>, Block))
     /* NOT SURE HOW TO DO OPTION<EXPRESSION> */
-    map( tuple( (preceded(ws(tag("for")), tuple( (expression::parse_exp, expression::parse_exp, common::parse_block) ))) ), |result| Statement::ForNum(result) )(input)
-
+    //map( tuple( (preceded(ws(tag("for")), tuple( (expression::parse_exp, expression::parse_exp, common::parse_block) ))) ), |result| Statement::ForNum(result) )(input)
+    unimplemented!()
 }
 
 fn parse_for_generic(input: &str) -> ParseResult<Statement> {
