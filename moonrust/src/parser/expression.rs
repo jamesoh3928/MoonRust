@@ -123,15 +123,22 @@ fn parse_fieldlist(input: &str) -> ParseResult<Vec<Field>> {
     separated_list1(ws(alt((char(','), char(';')))), parse_field)(input)
 }
 
-fn parse_table_constructor(input: &str) -> ParseResult<Expression> {
+pub fn parse_table_constructor(input: &str) -> ParseResult<Vec<Field>> {
     // TableConstructor(Vec<Field>),
     map(
         delimited(ws(char('{')), opt(parse_fieldlist), ws(char('}'))),
         |result| match result {
-            Some(fields) => Expression::TableConstructor(fields),
-            None => Expression::TableConstructor(Vec::new()),
+            Some(fields) => fields,
+            None => Vec::new(),
         },
     )(input)
+}
+
+fn parse_table_constructor_exp(input: &str) -> ParseResult<Expression> {
+    // TableConstructor(Vec<Field>),
+    map(parse_table_constructor, |result| {
+        Expression::TableConstructor(result)
+    })(input)
 }
 
 fn parse_binop(input: &str) -> ParseResult<BinOp> {
