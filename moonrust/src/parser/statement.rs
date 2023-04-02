@@ -44,18 +44,24 @@ fn parse_args(input: &str) -> ParseResult<Args> {
 
     alt((
         map( separated_list1(ws(char(',')), expression::parse_exp), |result| Args::ExpList(result) ),
-        map( parse_table_constructor, |result| Args::TableConstructor(result))
+        map( parse_table_constructor, |result| Args::TableConstructor(result)),
+        map( parse_string, |result|  Args::LiteralString(result)),
     ))(input)
 }
 pub fn functioncall(input: &str) -> ParseResult<FunctionCall> {
     // FunctionCall((PrefixExp, Option<String>))
-    // map( tuple( (ws(expression::parse_prefixexp), ws(parse_string)) ),  |result| FunctionCall(result))(input)
+
+    alt(( 
+        map( tuple( (ws(expression::parse_prefixexp), ws(parse_args)) ),  |result| FunctionCall::Standard((Box::new(result.0), result.1))),
+        map( tuple( (ws(expression::parse_prefixexp), ws(char(':')), ws(identifier), ws(parse_args)) ),  |result| FunctionCall::Method((Box::new(result.0), String::from(result.2), result.3))),
+
+    ))(input)
 
 }
 
 pub fn parse_functioncall_statement(input: &str) -> ParseResult<Statement> {
     // FunctionCall((PrefixExp, Option<String>))
-    map( tuple( (ws(expression::parse_prefixexp), ws(parse_string)) ),  |result| Statement::FunctionCall(result))(input)
+    map( functioncall, |result| Statement::FunctionCall(result) )(input)
 }
 
 fn parse_break(input: &str) -> ParseResult<Statement> {
@@ -84,10 +90,10 @@ fn parse_if(input: &str) -> ParseResult<Statement> {
 }
 
 fn parse_for_num(input: &str) -> ParseResult<Statement> {
-    // ForNum((String, i64, i64, Option<i64>, Block))
-    map( tuple( (preceded(ws(tag("for")), common::parse_block)) )  )(input)
+    // ForNum((String, Expression, Expression, Option<Expression>, Block))
+    /* NOT SURE HOW TO DO OPTION<EXPRESSION> */
+    map( tuple( (preceded(ws(tag("for")), tuple( (expression::parse_exp, expression::parse_exp, common::parse_block) ))) ), |result| Statement::ForNum(result) )(input)
 
-    unimplemented!()
 }
 
 fn parse_for_generic(input: &str) -> ParseResult<Statement> {

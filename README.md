@@ -214,7 +214,7 @@ enum Statement {
    While((Expression, Block)),
    Repeat((Block, Expression)),
    If((Expression, Block, Vec<(Expression, Block)>, Option<Block>)),
-   ForNum((String, i64, i64, Option<i64>)),
+   ForNum((String, Expression, Expression, Option<Expression>, Block)), // for i = 1+2+3, ...
    ForGeneric((Vec<String>, Vec<Expression>, Block)),
    FunctionDecl((String, ParList, Block)),
    LocalFuncDecl((String, ParList, Block))
@@ -230,10 +230,10 @@ enum Expression {
    LiteralString(String),
    DotDotDot, /// Used for a variable number of arguments in things like functions
    FunctionDef((ParList, Block)),
-   PrefixExp(PrefixExp),
+   PrefixExp(Box<PrefixExp>),
    TableConstructor(Vec<Field>),
-   BinaryOp((Expression, BinOp, Expression)),
-   UnaryOp((UnOp, Expression))
+   BinaryOp((Box<Expression>, BinOp, Box<Expression>)),
+   UnaryOp((UnOp, Box<Expression>))
 }
 ```
 
@@ -281,7 +281,24 @@ enum PrefixExp {
 ```
 
 ```rust
-struct ParList(Vec<String>, bool) // boolean flag is true if there are varargs
+pub enum FunctionCall {
+    Standard((Box<PrefixExp>, Args)), 
+    Method((Box<PrefixExp>, String, Args)),
+}
+```
+
+```rust
+#[derive(Debug, PartialEq)]
+pub enum Args {
+    ExpList(Vec<Expression>),
+    TableConstructor(Vec<Field>),
+    LiteralString(String),
+}
+```
+
+```rust
+#[derive(Debug, PartialEq)]
+pub struct ParList(pub Vec<String>, pub bool); // boolean flag is true if there are varargs
 ```
 
 ```rust

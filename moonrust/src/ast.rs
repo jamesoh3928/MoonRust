@@ -7,7 +7,7 @@ pub enum Statement {
     While((Expression, Block)),
     Repeat((Block, Expression)),
     If((Expression, Block, Vec<(Expression, Block)>, Option<Block>)),
-    ForNum((String, i64, i64, Option<i64>, Block)),
+    ForNum((String, Expression, Expression, Option<Expression>, Block)), // for i = 1+2+3, ...
     ForGeneric((Vec<String>, Vec<Expression>, Block)),
     FunctionDecl((String, ParList, Block)),
     LocalFuncDecl((String, ParList, Block)),
