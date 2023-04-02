@@ -87,7 +87,7 @@ fn parse_if(input: &str) -> ParseResult<Statement> {
 
 fn parse_for_num(input: &str) -> ParseResult<Statement> {
     // ForNum((String, i64, i64, Option<i64>, Block))
-    map( tuple( (preceded(ws(tag("for")), second  )) )  )(input)
+    map( tuple( (preceded(ws(tag("for")), common::parse_block)) )  )(input)
 
     unimplemented!()
 }
@@ -106,8 +106,8 @@ fn parse_function_decl(input: &str) -> ParseResult<Statement> {
 
 fn local_func_decl(input: &str) -> ParseResult<Statement> {
     // LocalFuncDecl((String, ParList, Block))
-    map( tuple( (ws(parse_string), preceded(ws(tag("function")), expression::parse_funcbody)) ),  
-    |result| Statement::LocalFuncDecl( (result.0, result.1.0, result.1.1)) )(input)
+    map( tuple( (ws(tag("function")), ws(identifier), preceded(common::parse_parlist, expression::parse_funcbody)) ),  
+    |result| Statement::LocalFuncDecl( (String::from(result.1), result.2.0, result.2.1)) )(input)
 
 }
 
