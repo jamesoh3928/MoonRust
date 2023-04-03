@@ -6,7 +6,7 @@ use nom::{
     },
     character::complete::{alpha1, alphanumeric1, char, multispace0, multispace1, one_of},
     combinator::{map, map_opt, map_res, opt, recognize, value, verify},
-    error::{FromExternalError, ParseError},
+    error::ParseError,
     multi::{fold_many0, many0, many0_count, many1},
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,

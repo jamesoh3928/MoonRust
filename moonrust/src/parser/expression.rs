@@ -30,7 +30,7 @@ pub fn parse_exp(input: &str) -> ParseResult<Expression> {
         // map(parse_prefixexp, |result| {
         //     Expression::PrefixExp(Box::new(result))
         // }),
-        parse_table_constructor,
+        parse_table_constructor_exp,
     ))(input)
 }
 
