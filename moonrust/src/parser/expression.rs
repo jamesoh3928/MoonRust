@@ -183,7 +183,7 @@ fn parse_float(input: &str) -> ParseResult<Expression> {
     })(input)
 }
 
-fn parse_literal_string(input: &str) -> ParseResult<Expression> {
+pub fn parse_literal_string(input: &str) -> ParseResult<Expression> {
     // LiteralString(String),
     // TODO(?): I'm ignoring string literals that aren't in double quotes for now
     map(ws(parse_string), |s| Expression::LiteralString(s))(input)
