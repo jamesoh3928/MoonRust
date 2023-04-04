@@ -99,6 +99,7 @@ fn parse_if(input: &str) -> ParseResult<Statement> {
     unimplemented!()
 }
 
+// use opt!
 fn parse_for_num(input: &str) -> ParseResult<Statement> {
     // ForNum((String, Expression, Expression, Option<Expression>, Block))
     /* NOT SURE HOW TO DO OPTION<EXPRESSION> */

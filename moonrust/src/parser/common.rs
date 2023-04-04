@@ -28,6 +28,7 @@ pub fn parse_block(input: &str) -> IResult<&str, Block> {
     )(input)
 }
 
+// use for explist!
 fn parse_namelist(input: &str) -> IResult<&str, Vec<String>> {
     map(separated_list1(ws(tag(",")), identifier), |result| {
         result.into_iter().map(String::from).collect()
