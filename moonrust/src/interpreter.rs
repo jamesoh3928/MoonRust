@@ -7,7 +7,7 @@ use std::{cell::RefCell, rc::Rc};
 pub mod environment;
 
 #[derive(Debug, PartialEq)]
-enum LuaVal {
+pub enum LuaVal {
     LuaTable(Table),
     LuaNil,
     LuaBool(bool),
@@ -32,10 +32,6 @@ impl LuaValue {
         LuaValue(Rc::new(RefCell::new(val)))
     }
 
-    pub fn get(&self) -> LuaVal {
-        *self.0.borrow()
-    }
-
     pub fn clone(&self) -> LuaValue {
         LuaValue(Rc::clone(&self.0))
     }
@@ -43,7 +39,7 @@ impl LuaValue {
 
 // TODO: Or use hashmap representation?
 #[derive(Debug, PartialEq)]
-struct Table(Vec<(LuaVal, LuaValue)>);
+pub struct Table(Vec<(LuaVal, LuaValue)>);
 
 impl AST {
     pub fn exec(self, env: &mut Env) -> Result<(), ASTExecError> {
@@ -58,19 +54,22 @@ impl Block {
         env.extend_env();
 
         // Execute each statement
-        for statement in &self.statements {
+        for statement in self.statements {
             statement.exec(env)?;
         }
 
         // Optional return statement
-        let explist = match self.return_stat {
+        let mut explist = match self.return_stat {
             Some(explist) => explist,
             None => vec![],
         };
 
-        let return_val = vec![LuaValue::new(LuaVal::LuaNil); explist.len()];
-        for i in 0..explist.len() {
-            return_val[i] = explist[i].eval(env)?;
+        let mut return_val = vec![LuaValue::new(LuaVal::LuaNil); explist.len()];
+        let length = explist.len();
+        explist.reverse();
+        for i in 0..length {
+            let exp = explist.pop().unwrap();
+            return_val[i] = exp.eval(env)?;
         }
 
         // Remove environment when exiting a scope
@@ -83,13 +82,15 @@ impl Block {
 impl Statement {
     fn exec(self, env: &mut Env) -> Result<(), ASTExecError> {
         match self {
-            Statement::Assignment((varlist, explist)) => {
+            Statement::Assignment((mut varlist, mut explist)) => {
                 assert!(varlist.len() == explist.len());
-                for i in 0..varlist.len() {
-                    let var = explist[i].eval(env)?;
-                    match varlist[i] {
+                let length = varlist.len();
+                for i in 0..length {
+                    let val = explist.pop().unwrap().eval(env)?;
+                    let var = varlist.pop().unwrap();
+                    match var {
                         Var::NameVar(name) => {
-                            env.insert(name, var);
+                            env.insert(name, val);
                         }
                         // TODO: assignments for tables
                         Var::BracketVar((name, exp)) => {
@@ -231,7 +232,7 @@ mod tests {
         ];
         let stat = Statement::Assignment((varlist, explist));
         assert_eq!(stat.exec(&mut env), Ok(()));
-        assert_eq!(env.get("a").unwrap().get(), LuaVal::LuaNum(a.to_be_bytes()));
-        assert_eq!(env.get("b").unwrap().get(), LuaVal::LuaNum(b.to_be_bytes()));
+        assert_eq!(*env.get("a").unwrap().0.borrow(), LuaVal::LuaNum(a.to_be_bytes()));
+        assert_eq!(*env.get("b").unwrap().0.borrow(), LuaVal::LuaNum(b.to_be_bytes()));
     }
 }

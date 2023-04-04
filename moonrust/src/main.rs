@@ -1,4 +1,5 @@
 use clap::Parser;
+use moonrust::interpreter::environment;
 use moonrust;
 use std::fs;
 use std::process;
@@ -7,7 +8,6 @@ use std::process;
 #[command(about, long_about = None)]
 struct Args {
     /// Path of the file to run
-    // #[arg(short, long)]
     #[clap(value_name = "FILE.lua")]
     file: String,
 }
@@ -40,7 +40,8 @@ fn main() {
     // Execute the program
     // Initialize environment
     // TODO: create new file for environment
-    let mut env = moonrust::interpreter::Env::new();
+    let mut env = environment::Env::new();
+    // let mut env = moonrust::interpreter::Env::new();
     match ast.exec(&mut env) {
         Ok(_) => (),
         Err(err) => {
