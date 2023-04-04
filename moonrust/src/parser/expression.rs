@@ -1,10 +1,13 @@
+use std::{iter, result};
+
 use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{char, i64},
     combinator::{map, opt},
-    multi::separated_list1,
+    multi::{many0, separated_list1},
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
+    Parser,
 };
 
 use super::{
@@ -16,23 +19,140 @@ use super::{
 };
 use crate::ast::{BinOp, Block, Expression, Field, Numeral, ParList, PrefixExp, UnOp};
 
+// pub fn parse_exp(input: &str) -> ParseResult<Expression> {
+//     alt((
+//         parse_nil,
+//         parse_false,
+//         parse_true,
+//         parse_binop_exp,
+//         parse_unary_op_exp,
+//         parse_numeral,
+//         parse_literal_string,
+//         parse_dot_dot_dot,
+//         // parse_fn_def,
+//         // map(parse_prefixexp, |result| {
+//         //     Expression::PrefixExp(Box::new(result))
+//         // }),
+//         parse_table_constructor_exp,
+//     ))(input)
+// }
+
 pub fn parse_exp(input: &str) -> ParseResult<Expression> {
+    unimplemented!()
+}
+
+fn parse_or_exp(input: &str) -> ParseResult<Expression> {
+    unimplemented!()
+}
+
+fn parse_and_exp(input: &str) -> ParseResult<Expression> {
+    unimplemented!()
+}
+
+fn parse_rel_exp(input: &str) -> ParseResult<Expression> {
+    unimplemented!()
+}
+
+fn parse_concat_expr(input: &str) -> ParseResult<Expression> {
+    map(
+        pair(parse_add_exp, many0(preceded(ws(tag("..")), parse_add_exp))),
+        |result| foldr_op_exp(result.0, BinOp::Concat, result.1),
+    )(input)
+}
+
+fn parse_add_exp(input: &str) -> ParseResult<Expression> {
+    map(
+        pair(parse_mult_exp, many0(pair(parse_add_op, parse_mult_exp))),
+        |result| fold_exp(result.0, result.1),
+    )(input)
+}
+
+fn parse_add_op(input: &str) -> ParseResult<BinOp> {
+    ws(alt((
+        map(char('+'), |_| BinOp::Add),
+        map(char('-'), |_| BinOp::Sub),
+    )))(input)
+}
+
+fn parse_mult_exp(input: &str) -> ParseResult<Expression> {
+    map(
+        pair(parse_unary_exp, many0(pair(parse_mult_op, parse_unary_exp))),
+        |result| fold_exp(result.0, result.1),
+    )(input)
+}
+
+/// Fold (in a left-associative manner) a list of binary operators and expressions into a single expression.
+/// An initial expression must be given to start the fold.
+fn fold_exp(init: Expression, op_and_exps: Vec<(BinOp, Expression)>) -> Expression {
+    op_and_exps.into_iter().fold(init, |acc, op_and_exp| {
+        Expression::BinaryOp((Box::new(acc), op_and_exp.0, Box::new(op_and_exp.1)))
+    })
+}
+
+/// Fold (in a right-associative manner) a list of expressions given an initial expression and a binary operator.
+fn foldr_op_exp(init: Expression, op: BinOp, exps: Vec<Expression>) -> Expression {
+    iter::once(init)
+        .chain(exps.into_iter())
+        .rfold(None, |acc, exp| match acc {
+            None => Some(exp),
+            Some(acc_exp) => Some(Expression::BinaryOp((Box::new(exp), op, Box::new(acc_exp)))),
+        })
+        .unwrap() // We'll definitely have at least one element, so None is impossible
+}
+
+fn parse_mult_op(input: &str) -> ParseResult<BinOp> {
+    ws(alt((
+        map(char('*'), |_| BinOp::Mult),
+        map(char('/'), |_| BinOp::Div),
+        map(tag("//"), |_| BinOp::IntegerDiv),
+        map(char('%'), |_| BinOp::Mod),
+    )))(input)
+}
+
+fn parse_unary_exp(input: &str) -> ParseResult<Expression> {
+    alt((
+        map(preceded(ws(char('-')), parse_unary_exp), |result| {
+            Expression::UnaryOp((UnOp::Negate, Box::new(result)))
+        }),
+        map(preceded(ws(tag("not")), parse_unary_exp), |result| {
+            Expression::UnaryOp((UnOp::LogicalNot, Box::new(result)))
+        }),
+        map(preceded(ws(char('#')), parse_pow_exp), |result| {
+            Expression::UnaryOp((UnOp::Length, Box::new(result)))
+        }),
+        map(preceded(ws(char('~')), parse_unary_exp), |result| {
+            Expression::UnaryOp((UnOp::BitNot, Box::new(result)))
+        }),
+        parse_pow_exp,
+    ))(input)
+}
+
+fn parse_pow_exp(input: &str) -> ParseResult<Expression> {
+    map(
+        pair(parse_atom, many0(preceded(ws(char('^')), parse_atom))),
+        |result| foldr_op_exp(result.0, BinOp::Pow, result.1),
+    )(input)
+}
+
+/// 1 ^ (2 ^ (3 ^ 5))
+
+fn parse_atom(input: &str) -> ParseResult<Expression> {
     alt((
         parse_nil,
-        parse_false,
         parse_true,
-        parse_binop_exp,
-        parse_unary_op_exp,
+        parse_false,
         parse_numeral,
         parse_literal_string,
         parse_dot_dot_dot,
-        // parse_fn_def,
-        // map(parse_prefixexp, |result| {
-        //     Expression::PrefixExp(Box::new(result))
-        // }),
+        parse_fn_def,
+        map(parse_prefixexp, |result| {
+            Expression::PrefixExp(Box::new(result))
+        }),
         parse_table_constructor_exp,
     ))(input)
 }
+
+/// ------------------------------------------------------------------
 
 fn parse_nil(input: &str) -> ParseResult<Expression> {
     map(ws(tag("nil")), |_| Expression::Nil)(input)

@@ -28,7 +28,7 @@ pub enum Expression {
     UnaryOp((UnOp, Box<Expression>)),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum BinOp {
     Add,
     Sub,
@@ -77,7 +77,7 @@ pub enum PrefixExp {
 
 #[derive(Debug, PartialEq)]
 pub enum FunctionCall {
-    Standard((Box<PrefixExp>, Args)), 
+    Standard((Box<PrefixExp>, Args)),
     Method((Box<PrefixExp>, String, Args)),
 }
 
