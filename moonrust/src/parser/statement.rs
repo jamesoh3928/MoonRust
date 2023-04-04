@@ -86,13 +86,12 @@ fn parse_do_block(input: &str) -> ParseResult<Statement> {
 
 fn parse_while(input: &str) -> ParseResult<Statement> {
     // While((Expression, Block))
-
-    unimplemented!()
+    map( tuple(( expression::parse_exp, expression::parse_funcbody)), |result| Statement::While(( result.0, result.1.1) ))(input)
 }
 
 fn parse_repeat(input: &str) -> ParseResult<Statement> {
     // Repeat((Block, Expression))
-    unimplemented!()
+    map( tuple((expression::parse_funcbody, expression::parse_exp )), |result| Statement::Repeat((result.0.1, result.1)) )(input)
 }
 
 fn parse_if(input: &str) -> ParseResult<Statement> {
@@ -100,6 +99,7 @@ fn parse_if(input: &str) -> ParseResult<Statement> {
     unimplemented!()
 }
 
+// use opt!
 fn parse_for_num(input: &str) -> ParseResult<Statement> {
     // ForNum((String, Expression, Expression, Option<Expression>, Block))
     /* NOT SURE HOW TO DO OPTION<EXPRESSION> */
