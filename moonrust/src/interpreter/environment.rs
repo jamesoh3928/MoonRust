@@ -44,7 +44,9 @@ impl EnvTable {
 pub struct Env(Vec<Option<EnvTable>>);
 impl Env {
     pub fn new() -> Self {
-        Env(vec![])
+        let mut env = Env(vec![]);
+        env.extend_env();
+        env
     }
 
     pub fn get(&self, name: &str) -> Option<&LuaValue> {
