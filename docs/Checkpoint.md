@@ -35,7 +35,9 @@ There are many other syntactic sugars in Lua (such as table constructors and dif
 - **TODO: Matt**
 
 ### 2. Parser -  Statements
-- **TODO: Renee**
+All of the Lua statements defined in our AST are implemented in `statement.rs`. The public `parse_stmt()` goes through each parse function and returns the result of the first successful parse. 
+
+Each parse function needs to be individually tested before being integrated into the larger project. 
 
 ### 3. Interpreter
 The big structure of the interpreter is defined in `interpreter.rs`. As the file gets larger, we might distribute code into multiple files. All of the structure for evaluating expressions, executing statements, and calling exec on `AST` is done. Semantics for basic variable assignments and numeral, string, and boolean expressions have been completed with unit tests added to the bottom of the file. 
