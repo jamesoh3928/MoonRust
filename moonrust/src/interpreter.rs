@@ -83,14 +83,23 @@ impl Statement {
     fn exec(self, env: &mut Env) -> Result<(), ASTExecError> {
         match self {
             Statement::Assignment((mut varlist, mut explist)) => {
-                assert!(varlist.len() == explist.len());
-                let length = varlist.len();
-                for i in 0..length {
+                // If there are more values than needed, the excess values are thrown away.
+                while varlist.len() < explist.len() {
+                    varlist.pop();
+                }
+                // If there are fewer values than needed, the list is extended with nil's
+                while varlist.len() > explist.len() {
+                    explist.push(Expression::Nil);
+                }
+                // First get all the results instead of inserting into the environment
+                // to ensure that all expressions are evaluated with original values
+                let mut results = vec![];
+                while explist.len() > 0 {
                     let val = explist.pop().unwrap().eval(env)?;
                     let var = varlist.pop().unwrap();
                     match var {
                         Var::NameVar(name) => {
-                            env.insert(name, val);
+                            results.push((name, val));
                         }
                         // TODO: assignments for tables
                         Var::BracketVar((name, exp)) => {
@@ -101,17 +110,25 @@ impl Statement {
                         }
                     }
                 }
+
+                // Insert into the environment
+                for (name, val) in results {
+                    env.insert(name, val);
+                }
             }
             Statement::FunctionCall(funcall) => {
                 unimplemented!()
             }
             Statement::Break => {
+                // TODO: should just break innermost loop for while, repeat, or for (how can we do this?)
                 unimplemented!()
             }
             Statement::DoBlock(block) => {
                 unimplemented!()
             }
             Statement::While((exp, block)) => {
+                // TODO: have to do it so that we don't lose exp and block....
+                // Execute block until exp returns false
                 unimplemented!()
             }
             Statement::Repeat((block, exp)) => {
@@ -149,11 +166,12 @@ impl Expression {
                 Numeral::Float(f) => LuaValue::new(LuaVal::LuaNum(f.to_be_bytes())),
             },
             Expression::LiteralString(s) => LuaValue::new(LuaVal::LuaString(s)),
+            // TODO: DotDotDot?
             Expression::DotDotDot => unimplemented!(),
-            Expression::FunctionDef((parlist, block)) => unimplemented!(),
-            Expression::PrefixExp(prefixexp) => unimplemented!(),
+            Expression::FunctionDef((parlist, block)) => {unimplemented!()},
+            Expression::PrefixExp(prefixexp) => {unimplemented!()},
             Expression::TableConstructor(fields) => unimplemented!(),
-            Expression::BinaryOp((left, op, right)) => unimplemented!(),
+            Expression::BinaryOp((left, op, right)) => {unimplemented!()},
             Expression::UnaryOp((op, exp)) => unimplemented!(),
         };
         Ok(val)
