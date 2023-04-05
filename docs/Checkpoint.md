@@ -60,6 +60,10 @@ Options:
   -h, --help  Print help
 ```
 
+### Some of the **lessons** we learned while implementing the interpreter.
+- Rust ownership rules make developers think about data flows. However, sometimes it can be tough to do certain things (such as function calls I mentioned in the question below).
+- Left recursive made it challenging to parse some expressions!
+- Some tricks with visibility of modules (eg. declare `ast` module private, but declare `ast::AST` public)
 
 ## Additional Details
 - List of dependencies added: 
