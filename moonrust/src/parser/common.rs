@@ -15,7 +15,7 @@ use crate::ast::{
 
 use super::{
     expression::parse_exp,
-    statement::{parse_functioncall, parse_return, parse_stmt},
+    statement::{parse_return, parse_stmt},
     util::{identifier, parse_string, ws},
     ParseResult,
 };

@@ -1,5 +1,5 @@
 use nom::character::complete::char;
-use nom::combinator::{opt, value};
+use nom::combinator::{fail, opt, value, verify};
 use nom::multi::{many0, separated_list1};
 use nom::{
     branch::alt,
@@ -19,7 +19,10 @@ pub fn parse_stmt(input: &str) -> ParseResult<Statement> {
     alt((
         //parse_semicolon,
         parse_assignment,
-        parse_functioncall_statement,
+        map(
+            verify(parse_var, |result| !result.tail.is_empty()),
+            |result| Statement::FunctionCall(result),
+        ),
         parse_break,
         parse_while,
         parse_repeat,
@@ -49,31 +52,31 @@ fn parse_assignment(input: &str) -> ParseResult<Statement> {
     )(input)
 }
 
-pub fn parse_functioncall(input: &str) -> ParseResult<FunctionCall> {
-    // FunctionCall((PrefixExp, Option<String>))
+// pub fn parse_functioncall(input: &str) -> ParseResult<FunctionCall> {
+//     // FunctionCall((PrefixExp, Option<String>))
 
-    alt((
-        map(tuple((ws(parse_prefixexp), ws(parse_args))), |result| {
-            FunctionCall::Standard((Box::new(result.0), result.1))
-        }),
-        map(
-            tuple((
-                ws(parse_prefixexp),
-                ws(char(':')),
-                ws(identifier),
-                ws(parse_args),
-            )),
-            |result| FunctionCall::Method((Box::new(result.0), String::from(result.2), result.3)),
-        ),
-    ))(input)
-}
+//     alt((
+//         map(tuple((ws(parse_prefixexp), ws(parse_args))), |result| {
+//             FunctionCall::Standard((Box::new(result.0), result.1))
+//         }),
+//         map(
+//             tuple((
+//                 ws(parse_prefixexp),
+//                 ws(char(':')),
+//                 ws(identifier),
+//                 ws(parse_args),
+//             )),
+//             |result| FunctionCall::Method((Box::new(result.0), String::from(result.2), result.3)),
+//         ),
+//     ))(input)
+// }
 
-pub fn parse_functioncall_statement(input: &str) -> ParseResult<Statement> {
-    // FunctionCall((PrefixExp, Option<String>))
-    map(tuple((parse_functioncall, opt(parse_string))), |result| {
-        Statement::FunctionCall(result.0)
-    })(input)
-}
+// pub fn parse_functioncall_statement(input: &str) -> ParseResult<Statement> {
+//     // FunctionCall((PrefixExp, Option<String>))
+//     map(tuple((parse_functioncall, opt(parse_string))), |result| {
+//         Statement::FunctionCall(result.0)
+//     })(input)
+// }
 
 fn parse_break(input: &str) -> ParseResult<Statement> {
     map(ws(tag("break")), |_| Statement::Break)(input)

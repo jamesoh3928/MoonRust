@@ -96,18 +96,19 @@ impl Statement {
                 while explist.len() > 0 {
                     let val = explist.pop().unwrap().eval(env)?;
                     let var = varlist.pop().unwrap();
-                    match var {
-                        Var::NameVar(name) => {
-                            results.push((name, val));
-                        }
-                        // TODO: assignments for tables
-                        Var::BracketVar((name, exp)) => {
-                            unimplemented!()
-                        }
-                        Var::DotVar((name, field)) => {
-                            unimplemented!()
-                        }
-                    }
+                    unimplemented!()
+                    // match var {
+                    //     Var::NameVar(name) => {
+                    //         results.push((name, val));
+                    //     }
+                    //     // TODO: assignments for tables
+                    //     Var::BracketVar((name, exp)) => {
+                    //         unimplemented!()
+                    //     }
+                    //     Var::DotVar((name, field)) => {
+                    //         unimplemented!()
+                    //     }
+                    // }
                 }
 
                 // Insert into the environment
@@ -170,121 +171,135 @@ impl Expression {
             Expression::FunctionDef((par_list, block)) => {
                 LuaValue::new(LuaVal::Function(LuaFunction { par_list, block }))
             }
-            Expression::PrefixExp(prefixexp) => {
-                prefixexp.eval(env)?
-            }
+            // Expression::PrefixExp(prefixexp) => prefixexp.eval(env)?,
             Expression::TableConstructor(fields) => unimplemented!(),
             Expression::BinaryOp((left, op, right)) => {
                 unimplemented!()
             }
             Expression::UnaryOp((op, exp)) => unimplemented!(),
+            _ => unimplemented!(),
         };
         Ok(val)
     }
 }
 
-impl PrefixExp {
-    fn eval(self, env: &mut Env) -> Result<LuaValue, ASTExecError> {
-        match self {
-            PrefixExp::Var(var) => {
-                match var {
-                    Var::NameVar(name) => {
-                        match env.get(&name) {
-                            Some(val) => Ok(val.clone()),
-                            None => return Err(ASTExecError(format!("Variable {} is not defined in current scope", name))),
-                        }
-                    }
-                    Var::BracketVar((name, exp)) => {
-                        // TODO: implement after table
-                        unimplemented!()
-                    }
-                    Var::DotVar((name, field)) => {
-                        // TODO: implement after table
-                        unimplemented!()
-                    }
-                }
-            },
-            PrefixExp::FunctionCall(funcall) => {
-                // Call function and check if there is return value
-                let return_vals = funcall.exec(env)?;
-                if return_vals.len() != 1 {
-                    // TODO: double check how to deal when return value is not just 1
-                    return Err(ASTExecError(format!("Function call did not return a value.")));
-                } else {
-                    Ok(return_vals[0].clone())
-                }
-            },
-            PrefixExp::Exp(exp) => {
-                Ok(exp.eval(env)?)
-            }
-        }
-    }
-}
+// impl PrefixExp {
+//     fn eval(self, env: &mut Env) -> Result<LuaValue, ASTExecError> {
+//         match self {
+//             PrefixExp::Var(var) => {
+//                 match var {
+//                     Var::NameVar(name) => {
+//                         match env.get(&name) {
+//                             Some(val) => Ok(val.clone()),
+//                             None => return Err(ASTExecError(format!("Variable {} is not defined in current scope", name))),
+//                         }
+//                     }
+//                     Var::BracketVar((name, exp)) => {
+//                         // TODO: implement after table
+//                         unimplemented!()
+//                     }
+//                     Var::DotVar((name, field)) => {
+//                         // TODO: implement after table
+//                         unimplemented!()
+//                     }
+//                 }
+//             },
+//             PrefixExp::FunctionCall(funcall) => {
+//                 // Call function and check if there is return value
+//                 let return_vals = funcall.exec(env)?;
+//                 if return_vals.len() != 1 {
+//                     // TODO: double check how to deal when return value is not just 1
+//                     return Err(ASTExecError(format!("Function call did not return a value.")));
+//                 } else {
+//                     Ok(return_vals[0].clone())
+//                 }
+//             },
+//             PrefixExp::Exp(exp) => {
+//                 Ok(exp.eval(env)?)
+//             }
+//         }
+//     }
+// }
 
 impl FunctionCall {
     fn exec(self, env: &mut Env) -> Result<Vec<LuaValue>, ASTExecError> {
-        match self {
-            FunctionCall::Standard((func, args)) => {
-                let func = (*func).eval(env)?;
-                match func {
-                    // Check if prefixexp evaluates to a function
-                    LuaValue(rc) => {
-                        match &mut *rc.borrow_mut() {
-                            LuaVal::Function(LuaFunction{par_list, block}) => {
-                                // Evaluate arguments first
-                                let args = match args {
-                                    Args::ExpList(mut exps_list) => {
-                                        let mut args = Vec::new();
-                                        while exps_list.len() > 0 {
-                                            args.push(match exps_list.pop() {
-                                                Some(exp) => exp.eval(env)?,
-                                                None => return Err(ASTExecError(format!("Cannot call function with empty argument."))),
-                                            })
-                                        }
-                                        args.reverse();
-                                        args
-                                    },
-                                    Args::TableConstructor(table) => {
-                                        // TODO: implement after table (single argument of table)
-                                        unimplemented!()
-                                    },
-                                    Args::LiteralString(s) => {
-                                        vec![LuaValue::new(LuaVal::LuaString(s))]
-                                    },
-                                };
+        unimplemented!()
+        // match self {
+        //     FunctionCall::Standard((func, args)) => {
+        //         // let func = (*func).eval(env)?;
+        //         match func {
+        //             // Check if prefixexp evaluates to a function
+        //             LuaValue(rc) => {
+        //                 match &mut *rc.borrow_mut() {
+        //                     LuaVal::Function(LuaFunction { par_list, block }) => {
+        //                         // Evaluate arguments first
+        //                         let args = match args {
+        //                             Args::ExpList(mut exps_list) => {
+        //                                 let mut args = Vec::new();
+        //                                 while exps_list.len() > 0 {
+        //                                     args.push(match exps_list.pop() {
+        //                                         Some(exp) => exp.eval(env)?,
+        //                                         None => {
+        //                                             return Err(ASTExecError(format!(
+        //                                                 "Cannot call function with empty argument."
+        //                                             )))
+        //                                         }
+        //                                     })
+        //                                 }
+        //                                 args.reverse();
+        //                                 args
+        //                             }
+        //                             Args::TableConstructor(table) => {
+        //                                 // TODO: implement after table (single argument of table)
+        //                                 unimplemented!()
+        //                             }
+        //                             Args::LiteralString(s) => {
+        //                                 vec![LuaValue::new(LuaVal::LuaString(s))]
+        //                             }
+        //                         };
 
-                                // Extend environment with function arguments
-                                env.extend_env();
-                                let par_length = par_list.0.len();
-                                let arg_length = args.len();
-                                for i in 0..par_length {
-                                    if i >= arg_length {
-                                        env.insert(par_list.0[i].clone(), LuaValue::new(LuaVal::LuaNil));
-                                    } else {
-                                        env.insert(par_list.0[i].clone(), args[i].clone());
-                                    }
-                                }
+        //                         // Extend environment with function arguments
+        //                         env.extend_env();
+        //                         let par_length = par_list.0.len();
+        //                         let arg_length = args.len();
+        //                         for i in 0..par_length {
+        //                             if i >= arg_length {
+        //                                 env.insert(
+        //                                     par_list.0[i].clone(),
+        //                                     LuaValue::new(LuaVal::LuaNil),
+        //                                 );
+        //                             } else {
+        //                                 env.insert(par_list.0[i].clone(), args[i].clone());
+        //                             }
+        //                         }
 
-                                // let result = block.clone().exec(env)?;
+        //                         // let result = block.clone().exec(env)?;
 
-                                // Remove arguments from the environment
-                                env.pop_env();
-                                // Ok(result);
+        //                         // Remove arguments from the environment
+        //                         env.pop_env();
+        //                         // Ok(result);
 
-                                unimplemented!()
-                            },
-                            _ => return Err(ASTExecError(format!("Cannot call non-function value with arguments."))),
-                        }
-                    },
-                    _ => return Err(ASTExecError(format!("Cannot call non-function value with arguments."))),
-                }
-                
-            }, 
-            FunctionCall::Method((object, method_name, args)) => {
-                // TODO: understand object in Lua?
-                unimplemented!()
-            },
-        }
+        //                         unimplemented!()
+        //                     }
+        //                     _ => {
+        //                         return Err(ASTExecError(format!(
+        //                             "Cannot call non-function value with arguments."
+        //                         )))
+        //                     }
+        //                 }
+        //             }
+        //             _ => {
+        //                 return Err(ASTExecError(format!(
+        //                     "Cannot call non-function value with arguments."
+        //                 )))
+        //             }
+        //         }
+        //     }
+        //     FunctionCall::Method((object, method_name, args)) => {
+        //         // TODO: understand object in Lua?
+        //         unimplemented!()
+        //     }
+        // }
     }
 }
 
@@ -351,13 +366,16 @@ mod tests {
             return_stat: None,
         };
         let exp_func_def = Expression::FunctionDef((par_list, block));
-        assert_eq!(exp_func_def.eval(&mut env), Ok(LuaValue::new(LuaVal::Function(LuaFunction {
-            par_list: ParList(vec![String::from("test")], false),
-            block: Block {
-                statements: vec![],
-                return_stat: None,
-            }
-        }))));
+        assert_eq!(
+            exp_func_def.eval(&mut env),
+            Ok(LuaValue::new(LuaVal::Function(LuaFunction {
+                par_list: ParList(vec![String::from("test")], false),
+                block: Block {
+                    statements: vec![],
+                    return_stat: None,
+                }
+            })))
+        );
     }
 
     #[test]
@@ -368,13 +386,13 @@ mod tests {
         // Assignment
         let a: i64 = 10;
         let b: i64 = 20;
-        let varlist = vec![Var::NameVar("a".to_string()), Var::NameVar("b".to_string())];
+        // let varlist = vec![Var::NameVar("a".to_string()), Var::NameVar("b".to_string())];
         let explist = vec![
             Expression::Numeral(Numeral::Integer(10)),
             Expression::Numeral(Numeral::Integer(20)),
         ];
-        let stat = Statement::Assignment((varlist, explist));
-        assert_eq!(stat.exec(&mut env), Ok(()));
+        // let stat = Statement::Assignment((varlist, explist));
+        // assert_eq!(stat.exec(&mut env), Ok(()));
         assert_eq!(
             *env.get("a").unwrap().0.borrow(),
             LuaVal::LuaNum(a.to_be_bytes())

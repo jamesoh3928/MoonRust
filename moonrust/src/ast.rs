@@ -1,7 +1,7 @@
 #[derive(Debug, PartialEq)]
 pub enum Statement {
     Assignment((Vec<Var>, Vec<Expression>)),
-    FunctionCall(FunctionCall),
+    FunctionCall(Var),
     Break,
     DoBlock(Block),
     While((Expression, Block)),
