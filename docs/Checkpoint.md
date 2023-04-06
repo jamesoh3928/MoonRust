@@ -31,8 +31,12 @@ There are many other syntactic sugars in Lua (such as table constructors and dif
 
 **Give a summary of the progress made and lessons learned thus far.**
 
+### 0. Parser - Overview
+The parser functions are split up amongst four files: `expression.rs`, `statement.rs`, `common.rs`, and `util.rs`. The statement and expression functions are based on their respective AST variants. The parser functions used in both `expression.rs` and `statement.rs` are found in `common.rs`, and parser functions that aid the other functions with tasks such as removing whitespace are found in `util.rs`.
+
 ### 1. Parser - Expression
 - **TODO: Matt**
+All of the Lua expressions defined in our AST are implemented in `expression.rs`.
 
 ### 2. Parser -  Statements
 All of the Lua statements defined in our AST are implemented in `statement.rs`. The public `parse_stmt()` goes through each parse function and returns the result of the first successful parse. 
@@ -42,12 +46,12 @@ Each parse function needs to be individually tested before being integrated into
 ### 3. Interpreter
 The big structure of the interpreter is defined in `interpreter.rs`. As the file gets larger, we might distribute code into multiple files. All of the structure for evaluating expressions, executing statements, and calling exec on `AST` is done. Semantics for basic variable assignments and numeral, string, and boolean expressions have been completed with unit tests added to the bottom of the file. 
 
-An environment that will be used for scoping variables has been also implemented. Structs related to the environment are defined in `interpreter/environment.rs`.
+An environment used for scoping variables has been also implemented. Structs related to the environment are defined in `interpreter/environment.rs`.
 
 For Lua variable assignment, if the number of variables exceeds the number of assigned values, the variables at the end are assigned with `nil` values. For example, for `a, b, c = 1, 2`, `c` will have `nil` assigned.
 
 ### 4. Other work
-The main binary crate uses `clap` crate to parse the command line argument. The main binary is also capable of reading files now, and we just have to call the `parse` method on the string we read, and call `exec` on the `AST`.
+The main binary crate uses the `clap` crate to parse the command line argument. The main binary is also capable of reading files now, and we just have to call the `parse` method on the string we read, and call `exec` on the `AST`.
 
 ```
 $ cargo -q run -- --help
@@ -70,7 +74,7 @@ clap = {version = "4.1", features = ["cargo", "derive"]}
 - Structure of the code:
 - main.rs: main binary
 - lib.rs: main library crate
-    - parser: **TODO: Matt/Renee**
+    - parser: 
       - common.rs
       - expression.rs
       - statement.rs
