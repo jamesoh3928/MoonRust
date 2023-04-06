@@ -171,33 +171,7 @@ impl Expression {
                 LuaValue::new(LuaVal::Function(LuaFunction { par_list, block }))
             }
             Expression::PrefixExp(prefixexp) => {
-                match *prefixexp {
-                    PrefixExp::Var(var) => {
-                        match var {
-                            Var::NameVar(name) => {
-                                match env.get(&name) {
-                                    Some(val) => val.clone(),
-                                    None => return Err(ASTExecError(format!("Variable {} is not defined in current scope", name))),
-                                }
-                            }
-                            Var::BracketVar((name, exp)) => {
-                                // TODO: implement after table
-                                unimplemented!()
-                            }
-                            Var::DotVar((name, field)) => {
-                                // TODO: implement after table
-                                unimplemented!()
-                            }
-                        }
-                    },
-                    PrefixExp::FunctionCall(funcall) => {
-                        unimplemented!()
-                        // funcall.exec(env)?
-                    },
-                    PrefixExp::Exp(exp) => {
-                        exp.eval(env)?
-                    }
-                }
+                prefixexp.eval(env)?
             }
             Expression::TableConstructor(fields) => unimplemented!(),
             Expression::BinaryOp((left, op, right)) => {
