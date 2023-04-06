@@ -8,7 +8,7 @@ use nom::{
     sequence::{pair, preceded, tuple},
 };
 
-use super::common::{parse_funcbody, parse_prefixexp, parse_table_constructor};
+use super::common::{parse_args, parse_funcbody, parse_prefixexp, parse_table_constructor};
 use super::{util::*, ParseResult};
 
 use crate::ast::{Args, Expression, FunctionCall, Statement};
@@ -49,18 +49,6 @@ fn parse_assignment(input: &str) -> ParseResult<Statement> {
     )(input)
 }
 
-fn parse_args(input: &str) -> ParseResult<Args> {
-    alt((
-        map(
-            separated_list1(ws(char(',')), expression::parse_exp),
-            |result| Args::ExpList(result),
-        ),
-        map(parse_table_constructor, |result| {
-            Args::TableConstructor(result)
-        }),
-        map(parse_string, |result| Args::LiteralString(result)),
-    ))(input)
-}
 pub fn parse_functioncall(input: &str) -> ParseResult<FunctionCall> {
     // FunctionCall((PrefixExp, Option<String>))
 

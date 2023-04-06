@@ -4,10 +4,10 @@ use nom::{
     character::complete::char,
     combinator::{map, opt},
     multi::{many0, separated_list1},
-    sequence::{delimited, pair, preceded, separated_pair, terminated},
+    sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
 };
 
-use crate::ast::{Block, Expression, Field, ParList, PrefixExp, Var};
+use crate::ast::{Args, Block, Expression, Field, FunctionCall, ParList, PrefixExp, Var};
 
 use super::{
     expression::parse_exp,
@@ -99,13 +99,68 @@ fn parse_field(input: &str) -> ParseResult<Field> {
     result
 }
 
+/// prefixexp ::= Name
+/// | prefixexp `[` exp `]`
+/// | prefixexp `.` Name
+/// | prefixexp args
+/// | prefixexp `:` Name args
+/// | `(` exp `)`
 pub fn parse_prefixexp(input: &str) -> ParseResult<PrefixExp> {
     alt((
-        map(parse_var, |var| PrefixExp::Var(var)),
-        map(parse_functioncall, |fncall| PrefixExp::FunctionCall(fncall)),
-        map(delimited(ws(char('(')), parse_exp, ws(char(')'))), |exp| {
-            PrefixExp::Exp(exp)
+        map(identifier, |result| {
+            PrefixExp::Var(Var::NameVar(String::from(result)))
         }),
+        map(
+            pair(
+                parse_prefixexp,
+                delimited(ws(char('[')), parse_exp, ws(char(']'))),
+            ),
+            |result| PrefixExp::Var(Var::BracketVar((Box::new(result.0), result.1))),
+        ),
+        map(
+            separated_pair(parse_prefixexp, char('.'), identifier),
+            |result| PrefixExp::Var(Var::DotVar((Box::new(result.0), String::from(result.1)))),
+        ),
+        map(pair(parse_prefixexp, parse_args), |result| {
+            PrefixExp::FunctionCall(FunctionCall::Standard((Box::new(result.0), result.1)))
+        }),
+        map(
+            tuple((
+                terminated(parse_prefixexp, char(':')),
+                identifier,
+                parse_args,
+            )),
+            |result| {
+                PrefixExp::FunctionCall(FunctionCall::Method((
+                    Box::new(result.0),
+                    String::from(result.1),
+                    result.2,
+                )))
+            },
+        ),
+        map(
+            delimited(ws(char('(')), parse_exp, ws(char(')'))),
+            |result| PrefixExp::Exp(result),
+        ),
+    ))(input)
+    // alt((
+    //     map(parse_var, |var| PrefixExp::Var(var)),
+    //     map(parse_functioncall, |fncall| PrefixExp::FunctionCall(fncall)),
+    //     map(delimited(ws(char('(')), parse_exp, ws(char(')'))), |exp| {
+    //         PrefixExp::Exp(exp)
+    //     }),
+    // ))(input)
+}
+
+pub fn parse_args(input: &str) -> ParseResult<Args> {
+    alt((
+        map(separated_list1(ws(char(',')), parse_exp), |result| {
+            Args::ExpList(result)
+        }),
+        map(parse_table_constructor, |result| {
+            Args::TableConstructor(result)
+        }),
+        map(parse_string, |result| Args::LiteralString(result)),
     ))(input)
 }
 

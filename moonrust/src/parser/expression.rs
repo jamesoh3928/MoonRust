@@ -134,17 +134,17 @@ fn parse_pow_exp(input: &str) -> ParseResult<Expression> {
 
 fn parse_atom(input: &str) -> ParseResult<Expression> {
     alt((
-        parse_table_constructor_exp,
-        map(parse_prefixexp, |result| {
-            Expression::PrefixExp(Box::new(result))
-        }),
-        parse_fn_def,
-        parse_dot_dot_dot,
         parse_nil,
         parse_true,
         parse_false,
         parse_numeral,
         parse_literal_string,
+        parse_dot_dot_dot,
+        parse_fn_def,
+        parse_table_constructor_exp,
+        map(parse_prefixexp, |result| {
+            Expression::PrefixExp(Box::new(result))
+        }),
     ))(input)
 }
 
@@ -336,5 +336,30 @@ mod tests {
                 ))
             ))
         );
+
+        // Test right associativity for pow
+        let input = "2 ^ 3 ^ 4";
+        let result = parse_exp(input);
+
+        assert_eq!(
+            result,
+            Ok((
+                "",
+                Expression::BinaryOp((
+                    Box::new(Expression::Numeral(Numeral::Integer(2))),
+                    BinOp::Pow,
+                    Box::new(Expression::BinaryOp((
+                        Box::new(Expression::Numeral(Numeral::Integer(3))),
+                        BinOp::Pow,
+                        Box::new(Expression::Numeral(Numeral::Integer(4)))
+                    )))
+                ))
+            ))
+        );
+
+        let input = "(1 + 2)";
+        let result = parse_exp(input);
+
+        println!("{:#?}", result);
     }
 }
