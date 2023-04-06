@@ -8,7 +8,7 @@ use nom::{
     sequence::{pair, preceded, tuple},
 };
 
-use super::common::{parse_args, parse_funcbody, parse_prefixexp, parse_table_constructor};
+use super::common::{parse_args, parse_funcbody, parse_table_constructor};
 use super::{util::*, ParseResult};
 
 use crate::ast::{Args, Expression, FunctionCall, Statement};

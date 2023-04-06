@@ -22,7 +22,7 @@ pub enum Expression {
     LiteralString(String),
     DotDotDot, // Used for a variable number of arguments in things like functions
     FunctionDef((ParList, Block)),
-    PrefixExp(Box<PrefixExp>),
+    Var(Var),
     TableConstructor(Vec<Field>),
     BinaryOp((Box<Expression>, BinOp, Box<Expression>)),
     UnaryOp((UnOp, Box<Expression>)),
@@ -99,10 +99,27 @@ pub enum Field {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Var {
-    NameVar(String),
-    BracketVar((Box<PrefixExp>, Expression)),
-    DotVar((Box<PrefixExp>, String)),
+pub struct Var {
+    pub callee: Callee,
+    pub tail: Vec<Tail>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Callee {
+    WrappedExp(Box<Expression>),
+    Name(String),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Tail {
+    DotIndex(String),
+    BracketIndex(Expression),
+    Invoke((String, Vec<Expression>)),
+    InvokeTable((String, Vec<Field>)),
+    InvokeStr((String, String)),
+    Call(Vec<Expression>),
+    Table(Vec<Field>),
+    String(String),
 }
 
 #[derive(Debug, PartialEq)]

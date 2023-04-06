@@ -11,8 +11,7 @@ use nom::{
 
 use super::{
     common::{
-        parse_dot_dot_dot, parse_funcbody, parse_literal_string, parse_prefixexp,
-        parse_table_constructor,
+        parse_dot_dot_dot, parse_funcbody, parse_literal_string, parse_table_constructor, parse_var,
     },
     util::*,
     ParseResult,
@@ -142,9 +141,7 @@ fn parse_atom(input: &str) -> ParseResult<Expression> {
         parse_dot_dot_dot,
         parse_fn_def,
         parse_table_constructor_exp,
-        map(parse_prefixexp, |result| {
-            Expression::PrefixExp(Box::new(result))
-        }),
+        map(parse_var, |result| Expression::Var(result)),
     ))(input)
 }
 
