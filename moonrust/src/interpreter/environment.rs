@@ -10,7 +10,7 @@ impl <'a>EnvTable<'a> {
         EnvTable(vec![])
     }
 
-    pub fn get(&'a self, name: &str) -> Option<&'a LuaValue<'a>> {
+    pub fn get(&self, name: &str) -> Option<& LuaValue<'a>> {
         for (var_name, var) in self.0.iter() {
             if var_name == name {
                 return Some(var);
@@ -64,39 +64,39 @@ impl <'a>EnvTable<'a> {
 }
 
 // Insert None between each EnvTable to represent a new scope
-pub struct Env<'a>(RefCell<Vec<EnvTable<'a>>>);
+pub struct Env<'a>(Vec<EnvTable<'a>>);
 impl<'a> Env<'a> {
     pub fn new() -> Self {
-        let env = Env(RefCell::new(vec![]));
+        let mut env = Env(vec![]);
         env.extend_env();
         env
     }
 
-    pub fn get(&'a self, name: &'a str) -> Option<&'a LuaValue<'a>> {
+    pub fn get(&self, name: &str) -> Option<&LuaValue<'a>> {
         // Search in reversed order to check current scope first
-        let length = self.0.borrow().len();
-        for i in (0..length).rev() {
-            let env = self.0.borrow();
-            let env = env.deref();
-            let table = &env[i] as *const EnvTable<'a>;
-            let table: &EnvTable<'a> = unsafe { &*table };
-            if let Some(var) = table.get(name) {
-                let var = var as *const LuaValue;
-                let var: &'a LuaValue = unsafe { &*var };
-                return Some(var);
-            }
-        }
+        // let length = self.0.borrow().len();
+        // for i in (0..length).rev() {
+        //     let env = self.0.borrow();
+        //     let env = env.deref();
+        //     let table = &env[i] as *const EnvTable<'a>;
+        //     let table: &EnvTable<'a> = unsafe { &*table };
+        //     if let Some(var) = table.get(name) {
+        //         let var = var as *const LuaValue;
+        //         let var: &'a LuaValue = unsafe { &*var };
+        //         return Some(var);
+        //     }
+        // }
 
         // Previous code that has error of "cannot return value referencing temporary value"
-        // for table in self.0.borrow().iter().rev() {
-        //     return table.get(name);
-        // }
+        for table in self.0.iter().rev() {
+            return table.get(name);
+        }
         None
     }
 
-    pub fn get_mut(&'a self, name: &str) -> Option<&'a mut LuaValue<'a>> {
+    pub fn get_mut(&mut self, name: &str) -> Option<&LuaValue<'a>> {
         // Search in reversed order to check current scope first
-        for table in self.0.borrow_mut().iter_mut().rev() {
+        for table in self.0.iter_mut().rev() {
             for (var_name, var) in table.0.iter_mut() {
                 if var_name == name {
                     return Some(var);
@@ -106,19 +106,19 @@ impl<'a> Env<'a> {
         None
     }
 
-    pub fn extend_env(&self) {
-        self.0.borrow_mut().push(EnvTable::new());
+    pub fn extend_env(&mut self) {
+        self.0.push(EnvTable::new());
     }
 
-    pub fn pop_env(&'a self) -> EnvTable<'a> {
-        match self.0.borrow_mut().pop() {
+    pub fn pop_env(&mut self) -> EnvTable<'a> {
+        match self.0.pop() {
             Some(env) => env,
             None => panic!("Environment stack is empty"),
         }
     }
 
-    pub fn insert(&'a self, name: String, var: LuaValue<'a>) {
-        match self.0.borrow_mut().last_mut() {
+    pub fn insert(&'a mut self, name: String, var: LuaValue<'a>) {
+        match self.0.last_mut() {
             Some(table) => {
                 table.insert(name, var);
             }
