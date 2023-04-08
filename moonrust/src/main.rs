@@ -16,7 +16,7 @@ fn main() {
     let args = Args::parse();
     let file = &args.file;
 
-    // Read fj,e
+    // Read file
     let src: String = match fs::read_to_string(file) {
         Ok(src) => src,
         Err(err) => {
