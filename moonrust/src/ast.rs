@@ -11,6 +11,7 @@ pub enum Statement {
     ForGeneric((Vec<String>, Vec<Expression>, Block)),
     FunctionDecl((String, ParList, Block)),
     LocalFuncDecl((String, ParList, Block)),
+    Semicolon,
 }
 
 #[derive(Debug, PartialEq)]

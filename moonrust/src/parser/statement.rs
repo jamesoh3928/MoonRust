@@ -11,13 +11,15 @@ use nom::{
 use super::common::{parse_args, parse_funcbody, parse_prefixexp, parse_table_constructor};
 use super::{util::*, ParseResult};
 
-use crate::ast::{Args, Expression, FunctionCall, Statement};
+use crate::ast::{Args, Expression, FunctionCall, Statement, Var, PrefixExp};
 use crate::parser::common::{parse_block, parse_parlist, parse_var};
-use crate::parser::expression;
+use crate::parser::{
+    expression
+};
 
 pub fn parse_stmt(input: &str) -> ParseResult<Statement> {
     alt((
-        //parse_semicolon,
+        parse_semicolon,
         parse_assignment,
         parse_functioncall_statement,
         parse_break,
@@ -33,8 +35,8 @@ pub fn parse_stmt(input: &str) -> ParseResult<Statement> {
 }
 /// Parse a single semicolon. Toss the result since it provides no
 /// semantic information.
-fn parse_semicolon(input: &str) -> ParseResult<()> {
-    value((), char(';'))(input)
+fn parse_semicolon(input: &str) -> ParseResult<Statement> {
+    map(ws(tag(";")), |_| Statement::Semicolon)(input)
 }
 
 fn parse_assignment(input: &str) -> ParseResult<Statement> {
@@ -186,6 +188,105 @@ fn local_func_decl(input: &str) -> ParseResult<Statement> {
     )(input)
 }
 
+// used in parse_block, not considered a Lua statement
 pub fn parse_return(input: &str) -> ParseResult<Vec<Expression>> {
+    // retstat ::= return [explist] [‘;’]
+    // explist and ; are optional
     unimplemented!()
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    // #[test]
+    // fn accepts_semicolon() {
+
+    //     let expected = parse_semicolon(";");
+    //     assert_eq!(expected, Ok(("", Statement::Semicolon)));
+
+    //     let expected = parse_stmt("     ;     ");
+    //     assert_eq!(expected, Ok(("", Statement::Semicolon)));
+
+    // }
+
+    #[test]
+    fn accepts_assignment() {
+        // Assignment((Vec<Var>, Vec<Expression>))
+        let input = "local   r,v ";
+
+        let expected = Ok((
+            "",
+            Statement::Assignment((
+              vec![
+                Var::NameVar(
+                    String::from("r"),
+                ),
+                Var::NameVar(
+                    String::from("v"),
+                ),
+              ],
+              vec![
+                Expression::Nil,
+              ]
+            ))
+        ));
+
+        let actual = parse_stmt(input);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn accepts_functioncall() {
+        // FunctionCall(FunctionCall)
+        // functioncall ::=  prefixexp args | prefixexp ‘:’ Name args
+
+        let input = "and(true, false)";
+        let expected = Ok((
+            "",
+            Statement::FunctionCall(
+                FunctionCall::Standard(
+                    (Box::new(
+                        PrefixExp::Var(
+                            Var::NameVar(String::from("and")),
+                        )
+                    ),
+                    Args::ExpList(
+                        vec![
+                            Expression::True,
+                            Expression::False,
+                        ]
+                    ))
+                )
+            )
+        ));
+
+        let actual = parse_stmt(input);
+        assert_eq!(expected, actual);
+
+
+    }
+
+    #[test]
+    fn accepts_functioncall_statement() {
+
+    }
+
+    #[test]
+    fn accepts_break() {
+
+        let expected = parse_stmt("break");
+        assert_eq!(expected, Ok(("", Statement::Break)));
+
+        let expected = parse_stmt("     break     ");
+        assert_eq!(expected, Ok(("", Statement::Break)));
+    }
+
+    #[test]
+    fn accepts_do_block() {
+
+    }
+
 }
