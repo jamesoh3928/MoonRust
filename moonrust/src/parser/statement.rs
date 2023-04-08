@@ -11,7 +11,7 @@ use nom::{
 use super::common::{parse_args, parse_funcbody, parse_prefixexp, parse_table_constructor};
 use super::{util::*, ParseResult};
 
-use crate::ast::{Args, Expression, FunctionCall, Statement, Var, PrefixExp};
+use crate::ast::{Args, Expression, FunctionCall, Statement, Var, PrefixExp, Block, Numeral};
 use crate::parser::common::{parse_block, parse_parlist, parse_var};
 use crate::parser::{
     expression
@@ -198,18 +198,20 @@ pub fn parse_return(input: &str) -> ParseResult<Vec<Expression>> {
 #[cfg(test)]
 mod tests {
 
+    use crate::ast::BinOp;
+
     use super::*;
 
-    // #[test]
-    // fn accepts_semicolon() {
+    #[test]
+    fn accepts_semicolon() {
 
-    //     let expected = parse_semicolon(";");
-    //     assert_eq!(expected, Ok(("", Statement::Semicolon)));
+        let expected = parse_semicolon(";");
+        assert_eq!(expected, Ok(("", Statement::Semicolon)));
 
-    //     let expected = parse_stmt("     ;     ");
-    //     assert_eq!(expected, Ok(("", Statement::Semicolon)));
+        let expected = parse_stmt("     ;     ");
+        assert_eq!(expected, Ok(("", Statement::Semicolon)));
 
-    // }
+    }
 
     #[test]
     fn accepts_assignment() {
@@ -236,6 +238,7 @@ mod tests {
         let actual = parse_stmt(input);
 
         assert_eq!(expected, actual);
+
     }
 
     #[test]
@@ -266,7 +269,6 @@ mod tests {
         let actual = parse_stmt(input);
         assert_eq!(expected, actual);
 
-
     }
 
     #[test]
@@ -286,7 +288,117 @@ mod tests {
 
     #[test]
     fn accepts_do_block() {
+        // DoBlock(Block)
+        let input = 
+        "do 
+            local a = 1
+            b = a + 3
+        end";
 
+        let expected = Ok((
+            "",
+            Statement::DoBlock(
+                Block{
+                    statements: vec![
+                        Statement::Assignment((
+                            vec![
+                              Var::NameVar(
+                                  String::from("a"),
+                              ),
+                              Var::NameVar(
+                                  String::from("b"),
+                              ),
+                            ],
+                            vec![
+                                Expression::BinaryOp((
+                                    Box::new(
+                                        Expression::LiteralString(String::from("a"))
+                                    ),
+                                    BinOp::Equal,
+                                    Box::new(
+                                        Expression::Numeral(
+                                            Numeral::Integer(1)
+                                        )
+                                    )
+                                )),
+                                Expression::BinaryOp((
+                                    Box::new(
+                                        Expression::LiteralString(String::from("b"))
+                                    ),
+                                    BinOp::Equal,
+                                    Box::new(
+                                        // a + 3?
+                                        Expression::Numeral(
+                                            Numeral::Integer(3)
+                                        )
+                                    )
+                                )),
+                            ]
+                          )),
+                    ],
+                    return_stat: None,
+                }
+            )
+        ));
+
+        let actual = parse_stmt(input);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn accepts_while() {
+        // While((Expression, Block))
+
+        let input = 
+        "while i <= x do
+            local x = i*2
+            print(x)
+            i = i + 1
+        end
+        ";
+
+        let expected = Ok((
+            "",
+            Statement::While((
+                Expression::BinaryOp((
+                    Box::new(
+                        Expression::LiteralString(String::from("i"))
+                    ),
+                    BinOp::LessEq,
+                    Box::new(
+                        Expression::LiteralString(String::from("x"))
+                    )
+                )),
+                Block{
+                    statements: vec![
+                        Statement::Assignment((
+                            vec![
+                                Var::NameVar(
+                                    String::from("x"),
+                                ),
+                            ],
+                            vec![
+                                Expression::BinaryOp((
+                                    Box::new(
+                                        Expression::LiteralString(String::from("i"))
+                                    ),
+                                    BinOp::Mult,
+                                    Box::new(
+                                        Expression::Numeral(
+                                            Numeral::Integer(2)
+                                        )
+                                    )
+                                )),
+                            ]
+                        )),
+                    ],
+                    return_stat: None,
+                }
+            ))
+        ));
+
+        let actual = parse_stmt(input);
+        assert_eq!(expected, actual);
     }
 
 }
