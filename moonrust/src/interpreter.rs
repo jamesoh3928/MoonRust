@@ -80,6 +80,10 @@ impl Block {
 impl Statement {
     fn exec<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<(), ASTExecError> {
         match self {
+            Statement::Semicolon => {
+                // TODO: check
+                // Do nothing for now
+            }
             Statement::Assignment((varlist, explist)) => {
                 // If there are more values than needed, the excess values are thrown away.
                 let mut results = Vec::with_capacity(varlist.len());
