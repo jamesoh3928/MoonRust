@@ -1,9 +1,9 @@
 use crate::interpreter::LuaValue;
-use std::{cell::RefCell, ops::{DerefMut, Deref}};
 // TODO: double check environment implementation
 // Dr. Fluet's advice: env: Vec<Table<String, Data>>, type Env = (Table<String, Data>, Vec<Table<String, Data>>)
 
 // One scope of bindings
+#[derive(Debug, PartialEq)]
 pub struct EnvTable<'a>(Vec<(String, LuaValue<'a>)>);
 impl <'a>EnvTable<'a> {
     pub fn new() -> Self {
@@ -39,7 +39,7 @@ impl <'a>EnvTable<'a> {
     // }
 
     // Insert a new variable or update an existing one
-    pub fn insert(&'a mut self, name: String, var: LuaValue<'a>) {
+    pub fn insert(&mut self, name: String, var: LuaValue<'a>) {
         let name_slice = &name[..];
         for binding in self.0.iter_mut() {
             if binding.0 == name_slice {
@@ -64,6 +64,7 @@ impl <'a>EnvTable<'a> {
 }
 
 // Insert None between each EnvTable to represent a new scope
+#[derive(Debug, PartialEq)]
 pub struct Env<'a>(Vec<EnvTable<'a>>);
 impl<'a> Env<'a> {
     pub fn new() -> Self {
@@ -89,7 +90,9 @@ impl<'a> Env<'a> {
 
         // Previous code that has error of "cannot return value referencing temporary value"
         for table in self.0.iter().rev() {
-            return table.get(name);
+            if let Some(var) = table.get(name) {
+                return Some(var);
+            }
         }
         None
     }
@@ -117,7 +120,7 @@ impl<'a> Env<'a> {
         }
     }
 
-    pub fn insert(&'a mut self, name: String, var: LuaValue<'a>) {
+    pub fn insert(&mut self, name: String, var: LuaValue<'a>) {
         match self.0.last_mut() {
             Some(table) => {
                 table.insert(name, var);

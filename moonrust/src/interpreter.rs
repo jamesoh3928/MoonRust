@@ -25,10 +25,10 @@ pub struct LuaFunction<'a> {
 
 // Wrapper around LuaVal to allow multiple owners
 #[derive(Debug, PartialEq, Clone)]
-pub struct LuaValue<'a>(Rc<RefCell<LuaVal<'a>>>);
+pub struct LuaValue<'a>(Rc<LuaVal<'a>>);
 impl<'a> LuaValue<'a> {
     pub fn new(val: LuaVal<'a>) -> Self {
-        LuaValue(Rc::new(RefCell::new(val)))
+        LuaValue(Rc::new(val))
     }
 
     pub fn clone(&self) -> LuaValue<'a> {
@@ -38,17 +38,17 @@ impl<'a> LuaValue<'a> {
 
 // TODO: Or use hashmap representation?
 #[derive(Debug, PartialEq)]
-pub struct Table<'a>(Vec<(LuaVal<'a>, LuaValue<'a>)>);
+pub struct Table<'a>(RefCell<Vec<(LuaValue<'a>, LuaValue<'a>)>>);
 
 impl AST {
-    pub fn exec<'a>(&'a self, env: &'a mut Env<'a>) -> Result<(), ASTExecError> {
+    pub fn exec<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<(), ASTExecError> {
         self.0.exec(env)?;
         Ok(())
     }
 }
 
-impl<'a> Block {
-    fn exec(&'a self, env: &'a mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
+impl Block {
+    fn exec<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
         // Extend environment when entering a new scope
         env.extend_env();
 
@@ -71,15 +71,14 @@ impl<'a> Block {
         }
 
         // Remove environment when exiting a scope
-        // CONTINUE: wrap env to RefCell and take env as immutable reference?
         env.pop_env();
 
         Ok(return_vals)
     }
 }
 
-impl<'a> Statement {
-    fn exec(&'a self, env: &'a mut Env<'a>) -> Result<(), ASTExecError> {
+impl Statement {
+    fn exec<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<(), ASTExecError> {
         match self {
             Statement::Assignment((varlist, explist)) => {
                 // If there are more values than needed, the excess values are thrown away.
@@ -151,8 +150,8 @@ impl<'a> Statement {
     }
 }
 
-impl<'a> Expression {
-    fn eval(&'a self, env: &'a mut Env<'a>) -> Result<LuaValue<'a>, ASTExecError> {
+impl Expression {
+    fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<LuaValue<'a>, ASTExecError> {
         let val = match self {
             Expression::Nil => LuaValue::new(LuaVal::LuaNil),
             Expression::False => LuaValue::new(LuaVal::LuaBool(false)),
@@ -178,8 +177,8 @@ impl<'a> Expression {
     }
 }
 
-impl<'a> PrefixExp {
-    fn eval(&'a self, env: &'a mut Env<'a>) -> Result<LuaValue<'a>, ASTExecError> {
+impl PrefixExp {
+    fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<LuaValue<'a>, ASTExecError> {
         match self {
             PrefixExp::Var(var) => {
                 match var {
@@ -219,31 +218,24 @@ impl<'a> PrefixExp {
     }
 }
 
-impl<'a> FunctionCall {
-    fn exec(&'a self, env: &'a mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
+impl FunctionCall {
+    fn exec<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
         match self {
             FunctionCall::Standard((func, args)) => {
                 let func = (*func).eval(env)?;
-                match func {
+                match &func {
+                    // TODO: continue
                     // Check if prefixexp evaluates to a function
                     LuaValue(rc) => {
-                        match &mut *rc.borrow_mut() {
+                        match rc.as_ref() {
                             LuaVal::Function(LuaFunction { par_list, block }) => {
                                 // Evaluate arguments first
                                 let args = match args {
-                                    Args::ExpList(mut exps_list) => {
-                                        let mut args = Vec::new();
-                                        while exps_list.len() > 0 {
-                                            args.push(match exps_list.pop() {
-                                                Some(exp) => exp.eval(env)?,
-                                                None => {
-                                                    return Err(ASTExecError(format!(
-                                                        "Cannot call function with empty argument."
-                                                    )))
-                                                }
-                                            })
+                                    Args::ExpList(exps_list) => {
+                                        let mut args = Vec::with_capacity(exps_list.len());
+                                        for exp in exps_list.iter() {
+                                            args.push(exp.eval(env)?);
                                         }
-                                        args.reverse();
                                         args
                                     }
                                     Args::TableConstructor(table) => {
@@ -270,13 +262,11 @@ impl<'a> FunctionCall {
                                     }
                                 }
 
-                                // let result = block.clone().exec(env)?;
+                                let result = block.exec(env)?;
 
                                 // Remove arguments from the environment
                                 env.pop_env();
-                                // Ok(result);
-
-                                unimplemented!()
+                                Ok(result)
                             }
                             _ => {
                                 return Err(ASTExecError(format!(
@@ -285,11 +275,11 @@ impl<'a> FunctionCall {
                             }
                         }
                     }
-                    _ => {
-                        return Err(ASTExecError(format!(
-                            "Cannot call non-function value with arguments."
-                        )))
-                    }
+                    // _ => {
+                    //     return Err(ASTExecError(format!(
+                    //         "Cannot call non-function value with arguments."
+                    //     )))
+                    // }
                 }
             }
             FunctionCall::Method((object, method_name, args)) => {
@@ -312,14 +302,19 @@ impl Display for ASTExecError {
 mod tests {
     use super::*;
 
+    // TODO split into multiple tests
     #[test]
-    fn test_eval_exp() {
-        // Test Expression eval method
+    fn test_eval_exp_nil() {
         let mut env = Env::new();
 
         // Nil
         let exp_nil = Expression::Nil;
         assert_eq!(exp_nil.eval(&mut env), Ok(LuaValue::new(LuaVal::LuaNil)));
+    }
+
+    #[test]
+    fn test_eval_exp_bool() {
+        let mut env = Env::new();
 
         // Boolean
         let exp_false = Expression::False;
@@ -332,6 +327,11 @@ mod tests {
             exp_true.eval(&mut env),
             Ok(LuaValue::new(LuaVal::LuaBool(true)))
         );
+    }
+
+    #[test]
+    fn test_eval_exp_int() {
+        let mut env = Env::new();
 
         // Integer
         let num: i64 = 10;
@@ -340,6 +340,11 @@ mod tests {
             exp_int.eval(&mut env),
             Ok(LuaValue::new(LuaVal::LuaNum(num.to_be_bytes())))
         );
+    }
+
+    #[test]
+    fn test_eval_exp_float() {
+        let mut env = Env::new();
 
         // Float
         let num: f64 = 10.04;
@@ -348,6 +353,11 @@ mod tests {
             exp_float.eval(&mut env),
             Ok(LuaValue::new(LuaVal::LuaNum(num.to_be_bytes())))
         );
+    }
+
+    #[test]
+    fn test_eval_exp_str() {
+        let mut env = Env::new();
 
         // String
         let exp_str = Expression::LiteralString("Hello World!".to_string());
@@ -355,48 +365,126 @@ mod tests {
             exp_str.eval(&mut env),
             Ok(LuaValue::new(LuaVal::LuaString("Hello World!".to_string())))
         );
-
-        // Function definition
-        // let par_list = ParList(vec![String::from("test")], false);
-        // let block = Block {
-        //     statements: vec![],
-        //     return_stat: None,
-        // };
-        // let exp_func_def = Expression::FunctionDef((par_list, block));
-        // assert_eq!(
-        //     exp_func_def.eval(&mut env),
-        //     Ok(LuaValue::new(LuaVal::Function(LuaFunction {
-        //         par_list: ParList(vec![String::from("test")], false),
-        //         block: Block {
-        //             statements: vec![],
-        //             return_stat: None,
-        //         }
-        //     })))
-        // );
     }
 
     #[test]
-    fn test_exec_stat() {
+    fn test_eval_exp_func_def() {
+        // Test Expression eval method
+        let mut env = Env::new();
+
+        // Function definition
+        let par_list = ParList(vec![String::from("test")], false);
+        let block = Block {
+            statements: vec![],
+            return_stat: None,
+        };
+        let exp_func_def = Expression::FunctionDef((par_list, block));
+        assert_eq!(
+            exp_func_def.eval(&mut env),
+            Ok(LuaValue::new(LuaVal::Function(LuaFunction {
+                par_list: &ParList(vec![String::from("test")], false),
+                block: &Block {
+                    statements: vec![],
+                    return_stat: None,
+                }
+            })))
+        );
+    }
+
+    #[test]
+    fn test_eval_exp_func_call() {
+        // TODO: update test to actually execute some statements
+        let mut env = Env::new();
+
+        // Set statements
+        let varlist = vec![
+            Var::NameVar("a".to_string()),
+            Var::NameVar("b".to_string()),
+        ];
+        let explist = vec![
+            Expression::Numeral(Numeral::Integer(30)),
+            Expression::Numeral(Numeral::Integer(20)),
+        ];
+        let stat = Statement::Assignment((varlist, explist));
+        let return_stat = Some(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar("test".to_string()))))]);
+
+        let par_list = ParList(vec![String::from("test")], false);
+        let block = Block {
+            statements: vec![stat],
+            return_stat: return_stat,
+        };
+
+        env.insert(String::from("f"), LuaValue::new(LuaVal::Function(LuaFunction {
+            par_list: &par_list,
+            block: &block,
+        })));
+        let func_prefix = PrefixExp::Var(Var::NameVar("f".to_string()));
+        let args = Args::ExpList(vec![Expression::Numeral(Numeral::Integer(100))]);
+        let func_call = FunctionCall::Standard((Box::new(func_prefix), args));
+        let exp = PrefixExp::FunctionCall(func_call);
+        let hundered: i64 = 100;
+
+        assert_eq!(exp.eval(&mut env), Ok(LuaValue::new(LuaVal::LuaNum(hundered.to_be_bytes()))));
+    }
+
+    #[test]
+    fn test_exec_stat_assignment() {
         // Test Statement exec method
         let mut env = Env::new();
 
         // Assignment
         let a: i64 = 10;
         let b: i64 = 20;
-        let varlist = vec![Var::NameVar("a".to_string()), Var::NameVar("b".to_string())];
+        let varlist = vec![
+            Var::NameVar("a".to_string()),
+            Var::NameVar("b".to_string()),
+            Var::NameVar("a".to_string()),
+        ];
         let explist = vec![
+            Expression::Numeral(Numeral::Integer(30)),
+            Expression::Numeral(Numeral::Integer(20)),
             Expression::Numeral(Numeral::Integer(10)),
+        ];
+        let stat = Statement::Assignment((varlist, explist));
+        assert_eq!(stat.exec(&mut env), Ok(()));
+        assert_eq!(*env.get("a").unwrap().0, LuaVal::LuaNum(a.to_be_bytes()));
+        assert_eq!(*env.get("b").unwrap().0, LuaVal::LuaNum(b.to_be_bytes()));
+
+        // varlist.len > explist.len
+        let a: i64 = 30;
+        let b: i64 = 20;
+        let varlist = vec![
+            Var::NameVar("a".to_string()),
+            Var::NameVar("b".to_string()),
+            Var::NameVar("c".to_string()),
+        ];
+        let explist = vec![
+            Expression::Numeral(Numeral::Integer(30)),
             Expression::Numeral(Numeral::Integer(20)),
         ];
         let stat = Statement::Assignment((varlist, explist));
         assert_eq!(stat.exec(&mut env), Ok(()));
-        assert_eq!(
-            *env.get("a").unwrap().0.borrow(),
-            LuaVal::LuaNum(a.to_be_bytes())
-        );
-        assert_eq!(
-            *env.get("b").unwrap().0.borrow(),
-            LuaVal::LuaNum(b.to_be_bytes())
-        );
+        assert_eq!(*env.get("a").unwrap().0, LuaVal::LuaNum(a.to_be_bytes()));
+        assert_eq!(*env.get("b").unwrap().0, LuaVal::LuaNum(b.to_be_bytes()));
+        assert_eq!(*env.get("c").unwrap().0, LuaVal::LuaNil);
+
+        // varlist.len < explist.len
+        let a: i64 = 30;
+        let b: i64 = 20;
+        let varlist = vec![
+            Var::NameVar("a".to_string()),
+            Var::NameVar("b".to_string()),
+        ];
+        let explist = vec![
+            Expression::Numeral(Numeral::Integer(30)),
+            Expression::Numeral(Numeral::Integer(20)),
+            Expression::Numeral(Numeral::Integer(10)),
+        ];
+        let stat = Statement::Assignment((varlist, explist));
+        assert_eq!(stat.exec(&mut env), Ok(()));
+        assert_eq!(*env.get("a").unwrap().0, LuaVal::LuaNum(a.to_be_bytes()));
+        assert_eq!(*env.get("b").unwrap().0, LuaVal::LuaNum(b.to_be_bytes()));
     }
+
+    
 }
