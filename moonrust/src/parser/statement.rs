@@ -327,10 +327,16 @@ mod tests {
                                     ),
                                     BinOp::Equal,
                                     Box::new(
-                                        // a + 3?
                                         Expression::Numeral(
                                             Numeral::Integer(3)
                                         )
+
+                                        // a + 3?
+                                        // (Expression::LiteralString(String::from("a")),
+                                        // BinOp::Add,
+                                        // Expression::Numeral(
+                                        //     Numeral::Integer(3)
+                                        // ))
                                     )
                                 )),
                             ]
@@ -399,6 +405,92 @@ mod tests {
 
         let actual = parse_stmt(input);
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn accepts_repeat() {
+        // repeat block until exp
+        // Repeat((Block, Expression))
+
+        let input = 
+        "
+            a = 10
+            repeat
+                a = a + 1
+                until(a > 15)
+        ";
+
+        let expected = Ok((
+            "",
+            // Statement::Assignment((
+            //     vec![
+            //       Var::NameVar(
+            //           String::from("a"),
+            //       ),
+            //     ],
+            //     vec![
+            //         Expression::BinaryOp((
+            //             Box::new(
+            //                 Expression::LiteralString(String::from("a"))
+            //             ),
+            //             BinOp::Equal,
+            //             Box::new(
+            //                 Expression::Numeral(
+            //                     Numeral::Integer(10)
+            //                 )
+            //             )
+            //         )),
+            //     ]
+            //   )),
+            Statement::Repeat((
+                Block{
+                    statements: vec![
+                        Statement::Assignment((
+                            vec![
+                                Var::NameVar(
+                                    String::from("a"),
+                                ),
+                            ],
+                            vec![
+                                Expression::BinaryOp((
+                                    Box::new(
+                                        Expression::LiteralString(String::from("a"))
+                                    ),
+                                    BinOp::Add,
+                                    Box::new(
+                                        Expression::Numeral(
+                                            Numeral::Integer(1)
+                                        )
+                                    )
+                                )),
+                            ]
+                        )),
+                    ],
+                    return_stat: None,
+                },
+                Expression::BinaryOp((
+                    Box::new(
+                        Expression::LiteralString(String::from("a"))
+                    ),
+                    BinOp::GreaterThan,
+                    Box::new(
+                        Expression::Numeral(
+                            Numeral::Integer(15)
+                        )
+                    )
+                ))
+
+            )),
+        ));
+
+        let actual = parse_stmt(input);
+        assert_eq!(expected, actual);
+
+    }
+
+    #[test]
+    fn accepts_if() {
+
     }
 
 }
