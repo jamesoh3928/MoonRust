@@ -1,0 +1,48 @@
+MoonRust
+
+Excellent progress and excellent checkpoint document.
+
+Clearly have made a lot of progress on a challenging project.  Good to
+see that a significant portion of the parsing is done.  Having settled
+on a (mostly stable) AST interface, should be able to work on the
+parser and the evaluator in parallel.
+
+I'll try to respond to the questions raised in the checkpoint document
+(though, I think that I've discussed a number of these with various
+team members):
+
+1) Adding some simple input/output routines makes a lot of sense in
+order to write some semi-realistic programs.  Adding keywords (and
+corresponding AST nodes) is one approach.  But, a somewhat more
+extensible approach is to simply add a new kind of `LuaValue` that
+represents a primitive function with arbitrary behavior and then
+simply bind those `LuaValue`s in the initial environment to their
+name.  This makes it easy to add new primitive functions without
+needing to change the parser or abstract syntax tree.
+
+2) Discussed with James.  Essentially, need to separate the lifetimes
+of the AST from the lifetime of the environment in which an AST is
+evaluated:
+  impl Expr {
+    fn exec<'ast,'env>(&'ast self, &'env mut env: Env<'ast>) -> Result<LuaValue<'a>, ASTExecError> { ... }
+  }
+where the AST should be borrowed immutable and with a different
+lifetime from the mutable borrow of the environment.
+
+3) If the semantics of Lua is that some expressions can return
+multiple results, then you would need to provide that behavior.
+Returning a `Vec` makes sense.  If there are frequent times that you
+need to adjust that vector, perhaps some helper functions would
+simplify things.
+
+4) The overall organization of modules looks good.  Separating the
+`ast` module from the `parser` and the `interpreter` modules is good.
+
+5) I think that you are making excellent progress.  As you note, you
+should avoid some of the "syntactic sugar" and advanced features of
+Lua.  I would suggest getting the end-to-end interpreter working for
+the simplest set of features and then successively push additional
+features through the interpreter (ast, parsing, evaluation).
+
+
+Score: 10/10
