@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Assignment((Vec<Var>, Vec<Expression>)),
     FunctionCall(FunctionCall),
@@ -13,7 +13,7 @@ pub enum Statement {
     LocalFuncDecl((String, ParList, Block)),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     Nil,
     False,
@@ -62,7 +62,7 @@ pub enum UnOp {
 }
 
 // In parsing, we store numeral in i64 and f64, but in interpreting, we store them as [u8; 8]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Numeral {
     Integer(i64),
     Float(f64),
@@ -88,7 +88,7 @@ pub enum Args {
     LiteralString(String),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ParList(pub Vec<String>, pub bool); // boolean flag is true if there are varargs
 
 #[derive(Debug, PartialEq)]
@@ -105,7 +105,7 @@ pub enum Var {
     DotVar((Box<PrefixExp>, String)),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Block {
     pub statements: Vec<Statement>,
     pub return_stat: Option<Vec<Expression>>,
