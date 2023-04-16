@@ -20,8 +20,10 @@ impl FromStr for AST {
     type Err = ASTParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // TODO: implement AST parser (may need to create helper functions)
-        unimplemented!()
+        match parse(s) {
+            Ok(ast) => Ok(ast.1),
+            Err(_) => Err(ASTParseError(String::from("Could not parse file"))),
+        }
     }
 }
 

@@ -210,15 +210,9 @@ fn foldr_op_exp(init: Expression, op: BinOp, exps: Vec<Expression>) -> Expressio
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::Field;
+    use crate::ast::{Args, Field, FunctionCall, PrefixExp, Var};
 
     use super::*;
-
-    // TODO: write tests
-    // My guess is that we probably want to write tests that
-    // exercise parse_exp only, instead of having individual tests
-    // for every helper parser. In other words, test the interface,
-    // not the private functions
 
     #[test]
     fn accepts_nil() {
@@ -361,5 +355,98 @@ mod tests {
         let result = parse_exp(input);
 
         println!("{:#?}", result);
+    }
+
+    #[test]
+    fn accepts_unop_exp() {
+        let input = "not not true";
+
+        let result = parse_exp(input);
+
+        assert_eq!(
+            result,
+            Ok((
+                "",
+                Expression::UnaryOp((
+                    UnOp::LogicalNot,
+                    Box::new(Expression::UnaryOp((
+                        UnOp::LogicalNot,
+                        Box::new(Expression::True)
+                    )))
+                ))
+            ))
+        );
+
+        let input = "#\"wow!\"";
+        let result = parse_exp(input);
+
+        assert_eq!(
+            result,
+            Ok((
+                "",
+                Expression::UnaryOp((
+                    UnOp::Length,
+                    Box::new(Expression::LiteralString(String::from("wow!")))
+                ))
+            ))
+        );
+    }
+
+    #[test]
+    fn accepts_simple_var() {
+        let input = "my_variable;";
+        let result = parse_exp(input);
+
+        assert_eq!(
+            result,
+            Ok((
+                ";",
+                Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar(String::from(
+                    "my_variable"
+                )))))
+            ))
+        );
+    }
+
+    #[test]
+    fn accepts_functioncall() {
+        let input = "launch_missiles( launch_code, 23 )";
+        let result = parse_exp(input);
+
+        assert_eq!(
+            result,
+            Ok((
+                "",
+                Expression::PrefixExp(Box::new(PrefixExp::FunctionCall(FunctionCall::Standard((
+                    Box::new(PrefixExp::Var(Var::NameVar(String::from(
+                        "launch_missiles"
+                    )))),
+                    Args::ExpList(vec![
+                        Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar(
+                            String::from("launch_code")
+                        )))),
+                        Expression::Numeral(Numeral::Integer(23))
+                    ])
+                )))))
+            ))
+        );
+    }
+
+    #[test]
+    fn accepts_methodcall() {
+        let input = "government:launch_missiles(nil, ...)";
+        let result = parse_exp(input);
+
+        assert_eq!(
+            result,
+            Ok((
+                "",
+                Expression::PrefixExp(Box::new(PrefixExp::FunctionCall(FunctionCall::Method((
+                    Box::new(PrefixExp::Var(Var::NameVar(String::from("government")))),
+                    String::from("launch_missiles"),
+                    Args::ExpList(vec![Expression::Nil, Expression::DotDotDot])
+                )))))
+            ))
+        )
     }
 }

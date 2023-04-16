@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Assignment((Vec<Var>, Vec<Expression>)),
     FunctionCall(FunctionCall),
@@ -14,7 +14,7 @@ pub enum Statement {
     Semicolon,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub enum Expression {
     Nil,
     False,
@@ -106,7 +106,7 @@ pub enum Var {
     DotVar((Box<PrefixExp>, String)),
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub struct Block {
     pub statements: Vec<Statement>,
     pub return_stat: Option<Vec<Expression>>,

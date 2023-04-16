@@ -2,16 +2,16 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::char,
-    combinator::{fail, map, opt},
-    multi::{fold_many0, many0, separated_list1},
-    sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
+    combinator::{map, opt},
+    multi::{many0, separated_list1},
+    sequence::{delimited, pair, preceded, separated_pair, terminated},
 };
 
 use crate::ast::{Args, Block, Expression, Field, FunctionCall, ParList, PrefixExp, Var};
 
 use super::{
     expression::parse_exp,
-    statement::{parse_functioncall, parse_return, parse_stmt},
+    statement::{parse_return, parse_stmt},
     util::{identifier, parse_string, ws},
     ParseResult,
 };
@@ -99,13 +99,16 @@ fn parse_field(input: &str) -> ParseResult<Field> {
     result
 }
 
+#[derive(Debug)]
 struct PrefixTemp(PrefixPart, Vec<Args>);
 
+#[derive(Debug)]
 enum PrefixPart {
     NamePart((String, Vec<Tail>)),
     ExpPart(Expression),
 }
 
+#[derive(Debug)]
 enum Tail {
     Bracket(Expression),
     Dot(String),
@@ -130,13 +133,12 @@ fn parse_tail(input: &str) -> ParseResult<Tail> {
 
 fn parse_prefix_part(input: &str) -> ParseResult<PrefixPart> {
     alt((
-        map(
-            pair(identifier, many0(parse_tail)),
-            |result| unimplemented!(),
-        ),
+        map(pair(identifier, many0(parse_tail)), |result| {
+            PrefixPart::NamePart((String::from(result.0), result.1))
+        }),
         map(
             delimited(ws(char('(')), parse_exp, ws(char(')'))),
-            |result| unimplemented!(),
+            PrefixPart::ExpPart,
         ),
     ))(input)
 }
@@ -149,26 +151,73 @@ fn parse_prefix_temp(input: &str) -> ParseResult<PrefixTemp> {
 
 fn convert_to_prefixexp(prefix_temp: PrefixTemp) -> PrefixExp {
     let part = prefix_temp.0;
-    let args = prefix_temp.1;
+    let args_list = prefix_temp.1;
 
-    let mut curr_prefix = match &part {
-        PrefixPart::ExpPart(exp) => PrefixExp::Exp(*exp.clone()),
-        PrefixPart::NamePart((name, tails)) => unimplemented!(),
+    let mut curr_prefix = match part {
+        PrefixPart::ExpPart(exp) => PrefixExp::Exp(exp),
+        PrefixPart::NamePart((name, tails)) => {
+            if tails.is_empty() {
+                PrefixExp::Var(Var::NameVar(name))
+            } else {
+                let mut curr_prefix = None;
+                for tail in tails.into_iter() {
+                    let inner_prefix = match curr_prefix {
+                        Some(p) => Box::new(p),
+                        None => Box::new(PrefixExp::Var(Var::NameVar(name.clone()))),
+                    };
+                    curr_prefix = match tail {
+                        Tail::Bracket(exp) => {
+                            Some(PrefixExp::Var(Var::BracketVar((inner_prefix, exp))))
+                        }
+                        Tail::Dot(dot_name) => {
+                            Some(PrefixExp::Var(Var::DotVar((inner_prefix, dot_name))))
+                        }
+                        Tail::PossibleMethod((maybe_name, call_args)) => match maybe_name {
+                            Some(method_name) => Some(PrefixExp::FunctionCall(
+                                FunctionCall::Method((inner_prefix, method_name, call_args)),
+                            )),
+                            None => Some(PrefixExp::FunctionCall(FunctionCall::Standard((
+                                inner_prefix,
+                                call_args,
+                            )))),
+                        },
+                    };
+                }
+
+                if curr_prefix.is_none() {
+                    curr_prefix = Some(PrefixExp::Var(Var::NameVar(name)))
+                }
+
+                curr_prefix.unwrap()
+            }
+        }
     };
 
-    unimplemented!()
+    if !args_list.is_empty() {
+        for args in args_list.into_iter() {
+            curr_prefix =
+                PrefixExp::FunctionCall(FunctionCall::Standard((Box::new(curr_prefix), args)));
+        }
+    }
+
+    curr_prefix
 }
 
 /// prefixexp ::= (Name {'[' exp ']' | `.` Name | [`:` Name] args} | `(` exp `)`) {args}
 pub fn parse_prefixexp(input: &str) -> ParseResult<PrefixExp> {
-    map(parse_prefix_temp, |result| unimplemented!())(input)
+    map(parse_prefix_temp, convert_to_prefixexp)(input)
 }
 
 pub fn parse_args(input: &str) -> ParseResult<Args> {
     alt((
-        map(separated_list1(ws(char(',')), parse_exp), |result| {
-            Args::ExpList(result)
-        }),
+        map(
+            delimited(
+                ws(char('(')),
+                separated_list1(ws(char(',')), parse_exp),
+                ws(char(')')),
+            ),
+            |result| Args::ExpList(result),
+        ),
         map(parse_table_constructor, |result| {
             Args::TableConstructor(result)
         }),
