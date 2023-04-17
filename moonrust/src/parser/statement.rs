@@ -632,18 +632,90 @@ mod tests {
                 None,
                 Block {
                     statements: vec![
-                            Statement::FunctionCall(
-                                FunctionCall::Standard((
-                                    Box::new(
-                                        PrefixExp::Exp(
-                                            Expression::LiteralString(String::from("print"))
-                                        )
-                                    ),
-                                    Args::LiteralString(String::from("i"))
-                                ))
+                        Statement::FunctionCall(
+                            FunctionCall::Standard((
+                                Box::new(
+                                    PrefixExp::Exp(
+                                        Expression::LiteralString(String::from("print"))
+                                    )
+                                ),
+                                Args::LiteralString(String::from("i"))
+                            ))
+                        )
+                    ],
+                    return_stat: None,
+                }
+            ))
+        ));
+
+        let actual = parse_stmt(input);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn accepts_for_generic() {
+        // ForGeneric((Vec<String>, Vec<Expression>, Block))
+
+        let input = 
+        "
+            names = {'Kyle', 'Venus', 'Nova'}
+            for nameCount = 1, 3 do
+                print (names[nameCount])
+            end
+        ";
+
+        let expected = Ok((
+            "",
+            Statement::ForGeneric((
+                vec![
+                    String::from("names")
+                ],
+                vec![
+                    Expression::BinaryOp((
+                        Box::new(
+                            Expression::PrefixExp(
+                                Box::new(
+                                    PrefixExp::Var(Var::NameVar(String::from("nameCount")))
+                                )
                             )
-                        ],
-                        return_stat: None,
+                        ),
+                        BinOp::Equal,
+                        Box::new(
+                            Expression::Numeral(
+                                Numeral::Integer(1)
+                            )
+                        )
+                    )),
+                    Expression::BinaryOp((
+                        Box::new(
+                            Expression::PrefixExp(
+                                Box::new(
+                                    PrefixExp::Var(Var::NameVar(String::from("nameCount")))
+                                )
+                            )
+                        ),
+                        BinOp::LessEq,
+                        Box::new(
+                            Expression::Numeral(
+                                Numeral::Integer(3)
+                            )
+                        )
+                    ))
+                ],
+                Block {
+                    statements: vec![
+                        Statement::FunctionCall(
+                            FunctionCall::Standard((
+                                Box::new(
+                                    PrefixExp::Exp(
+                                        Expression::LiteralString(String::from("print"))
+                                    )
+                                ),
+                                Args::LiteralString(String::from("names[nameCount]"))
+                            ))
+                        )
+                    ],
+                    return_stat: None,
                 }
             ))
         ));
