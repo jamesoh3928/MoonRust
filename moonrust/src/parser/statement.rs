@@ -601,6 +601,55 @@ mod tests {
     fn accepts_for_num() {
         // ForNum((String, Expression, Expression, Option<Expression>, Block))
 
+        let input = 
+        "
+            for i = 10,1,-1
+            do
+                print(i)
+            end
+        ";
+
+        let expected = Ok((
+            "",
+            Statement::ForNum((
+                String::from("for"),
+                Expression::BinaryOp((
+                    Box::new(
+                        Expression::PrefixExp(
+                            Box::new(
+                                PrefixExp::Var(Var::NameVar(String::from("i")))
+                            )
+                        )
+                    ),
+                    BinOp::Equal,
+                    Box::new(
+                        Expression::Numeral(
+                            Numeral::Integer(10)
+                        )
+                    )
+                )),
+                Expression::Nil,
+                None,
+                Block {
+                    statements: vec![
+                            Statement::FunctionCall(
+                                FunctionCall::Standard((
+                                    Box::new(
+                                        PrefixExp::Exp(
+                                            Expression::LiteralString(String::from("print"))
+                                        )
+                                    ),
+                                    Args::LiteralString(String::from("i"))
+                                ))
+                            )
+                        ],
+                        return_stat: None,
+                }
+            ))
+        ));
+
+        let actual = parse_stmt(input);
+        assert_eq!(expected, actual);
     }
 
 }
