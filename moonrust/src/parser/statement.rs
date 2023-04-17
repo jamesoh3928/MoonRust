@@ -11,7 +11,7 @@ use nom::{
 use super::common::{parse_args, parse_funcbody, parse_prefixexp, parse_table_constructor};
 use super::{util::*, ParseResult};
 
-use crate::ast::{Args, Expression, FunctionCall, Statement, Var, PrefixExp, Block, Numeral};
+use crate::ast::{Args, Expression, FunctionCall, Statement, Var, PrefixExp, Block, Numeral, ParList};
 use crate::parser::common::{parse_block, parse_parlist, parse_var};
 use crate::parser::{
     expression
@@ -722,6 +722,155 @@ mod tests {
 
         let actual = parse_stmt(input);
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn accepts_function_decl(){
+        // FunctionDecl((String, ParList, Block))
+
+        let input = 
+        "
+            function max(num1, num2)
+
+                if (num1 > num2) then
+                    result = num1;
+                else
+                    result = num2;
+                end
+        
+                return result; 
+            end
+        ";
+
+        let expected = Ok((
+            "",
+            Statement::FunctionDecl((
+                String::from("max"),
+                ParList (
+                    vec![
+                        String::from("num1"),
+                        String::from("num2"),
+                    ],
+                    false
+
+                ),
+                Block {
+                    statements: vec![
+                        Statement::If((
+                            Expression::BinaryOp((
+                                Box::new(
+                                    Expression::PrefixExp(
+                                        Box::new(
+                                            PrefixExp::Var(Var::NameVar(String::from("num1")))
+                                        )
+                                    )
+                                ),
+                                BinOp::GreaterThan,
+                                Box::new(
+                                    Expression::PrefixExp(
+                                        Box::new(
+                                            PrefixExp::Var(Var::NameVar(String::from("num2")))
+                                        )
+                                    )
+                                )
+                            )),
+                            Block {
+                                statements: vec![
+                                    Statement::Assignment((
+                                        vec![
+                                            Var::NameVar(
+                                                String::from("result"),
+                                            ),
+                                        ],
+                                        vec![
+                                            Expression::BinaryOp((
+                                                Box::new(
+                                                    Expression::PrefixExp(
+                                                        Box::new(
+                                                          PrefixExp::Var(Var::NameVar(String::from("result")))
+                                                        )
+                                                    )
+                                                ),
+                                                BinOp::Equal,
+                                                Box::new(
+                                                    Expression::PrefixExp(
+                                                        Box::new(
+                                                            PrefixExp::Var(Var::NameVar(String::from("num1")))
+                                                        )
+                                                    )
+                                                )
+                                            ))
+                                        ]
+                                    ))
+                                ],
+                                return_stat: None,
+                            },
+                            vec![ ], // elseif
+                            Some( // else
+                                Block {
+                                    statements: vec![
+                                        Statement::Assignment((
+                                            vec![
+                                                Var::NameVar(
+                                                    String::from("result"),
+                                                ),
+                                            ],
+                                            vec![
+                                                Expression::BinaryOp((
+                                                    Box::new(
+                                                        Expression::PrefixExp(
+                                                            Box::new(
+                                                            PrefixExp::Var(Var::NameVar(String::from("result")))
+                                                            )
+                                                        )
+                                                    ),
+                                                    BinOp::Equal,
+                                                    Box::new(
+                                                        Expression::PrefixExp(
+                                                            Box::new(
+                                                                PrefixExp::Var(Var::NameVar(String::from("num2")))
+                                                            )
+                                                        )
+                                                    )
+                                                ))
+                                            ]
+                                        ))
+                                    ],
+                                    return_stat: None
+                                }
+                            ) 
+                        ))
+                    ],
+                    return_stat: None
+                }
+            ))
+        ));
+
+        let actual = parse_stmt(input);
+        assert_eq!(expected, actual);
+
+    }
+
+    #[test]
+    fn accepts_local_func_def(){
+        // LocalFuncDecl((String, ParList, Block))
+
+        let input = 
+        "
+            local fact
+            fact = function (n)
+                if n == 0 then return 1
+                else return n*fact(n-1)
+                end
+            end 
+        ";
+
+        // let expected = Ok((
+
+        // ));
+
+        let actual = parse_stmt(input);
+        //assert_eq!(expected, actual);
     }
 
 }
