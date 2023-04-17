@@ -865,12 +865,67 @@ mod tests {
             end 
         ";
 
-        // let expected = Ok((
+        let expected = Ok((
+            "",
+            Statement::LocalFuncDecl((
+                String::from("fact"),
+                ParList (
+                    vec![
+                        String::from("n"),
+                    ],
+                    false
 
-        // ));
+                ),
+                Block {
+                    statements: vec![
+                        Statement::If((
+                            Expression::BinaryOp((
+                                Box::new(
+                                    Expression::PrefixExp(
+                                        Box::new(
+                                            PrefixExp::Var(Var::NameVar(String::from("n")))
+                                        )
+                                    )
+                                ),
+                                BinOp::Equal,
+                                Box::new(
+                                    Expression::Numeral(
+                                        Numeral::Integer(0)
+                                    )
+                                )
+                            )),
+                            Block{ 
+                                statements: vec![],
+                                return_stat: None // return 1?
+                            },
+                            vec![ ],
+                            Some(
+                                Block {
+                                    statements: vec![
+                                        Statement::FunctionCall(
+                                            FunctionCall::Standard((
+                                                Box::new(
+                                                    PrefixExp::Exp(
+                                                        Expression::LiteralString(String::from("fact"))
+                                                    )
+                                                ),
+                                                Args::LiteralString(String::from("n-1"))
+                                            ))
+                                        )
+                                    ],
+                                    return_stat: None,
+                                }
+                            )
+                        )),
+                    ],
+                    return_stat: None
+                }
+
+            ))
+        ));
 
         let actual = parse_stmt(input);
-        //assert_eq!(expected, actual);
+        assert_eq!(expected, actual);
     }
 
 }
