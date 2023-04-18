@@ -227,63 +227,53 @@ impl FunctionCall {
         match self {
             FunctionCall::Standard((func, args)) => {
                 let func = (*func).eval(env)?;
-                match &func {
-                    // TODO: continue
-                    // Check if prefixexp evaluates to a function
-                    LuaValue(rc) => {
-                        match rc.as_ref() {
-                            LuaVal::Function(LuaFunction { par_list, block }) => {
-                                // Evaluate arguments first
-                                let args = match args {
-                                    Args::ExpList(exps_list) => {
-                                        let mut args = Vec::with_capacity(exps_list.len());
-                                        for exp in exps_list.iter() {
-                                            args.push(exp.eval(env)?);
-                                        }
-                                        args
-                                    }
-                                    Args::TableConstructor(table) => {
-                                        // TODO: implement after table (single argument of table)
-                                        unimplemented!()
-                                    }
-                                    Args::LiteralString(s) => {
-                                        vec![LuaValue::new(LuaVal::LuaString(s.clone()))]
-                                    }
-                                };
-
-                                // Extend environment with function arguments
-                                env.extend_env();
-                                let par_length = par_list.0.len();
-                                let arg_length = args.len();
-                                for i in 0..par_length {
-                                    if i >= arg_length {
-                                        env.insert(
-                                            par_list.0[i].clone(),
-                                            LuaValue::new(LuaVal::LuaNil),
-                                        );
-                                    } else {
-                                        env.insert(par_list.0[i].clone(), args[i].clone());
-                                    }
+                let rc = func.0;
+                match rc.as_ref() {
+                    LuaVal::Function(LuaFunction { par_list, block }) => {
+                        // Evaluate arguments first
+                        let args = match args {
+                            Args::ExpList(exps_list) => {
+                                let mut args = Vec::with_capacity(exps_list.len());
+                                for exp in exps_list.iter() {
+                                    args.push(exp.eval(env)?);
                                 }
-
-                                let result = block.exec(env)?;
-
-                                // Remove arguments from the environment
-                                env.pop_env();
-                                Ok(result)
+                                args
                             }
-                            _ => {
-                                return Err(ASTExecError(format!(
-                                    "Cannot call non-function value with arguments."
-                                )))
+                            Args::TableConstructor(table) => {
+                                // TODO: implement after table (single argument of table)
+                                unimplemented!()
+                            }
+                            Args::LiteralString(s) => {
+                                vec![LuaValue::new(LuaVal::LuaString(s.clone()))]
+                            }
+                        };
+
+                        // Extend environment with function arguments
+                        env.extend_env();
+                        let par_length = par_list.0.len();
+                        let arg_length = args.len();
+                        for i in 0..par_length {
+                            if i >= arg_length {
+                                env.insert(
+                                    par_list.0[i].clone(),
+                                    LuaValue::new(LuaVal::LuaNil),
+                                );
+                            } else {
+                                env.insert(par_list.0[i].clone(), args[i].clone());
                             }
                         }
+
+                        let result = block.exec(env)?;
+
+                        // Remove arguments from the environment
+                        env.pop_env();
+                        Ok(result)
                     }
-                    // _ => {
-                    //     return Err(ASTExecError(format!(
-                    //         "Cannot call non-function value with arguments."
-                    //     )))
-                    // }
+                    _ => {
+                        return Err(ASTExecError(format!(
+                            "Cannot call non-function value with arguments."
+                        )))
+                    }
                 }
             }
             FunctionCall::Method((object, method_name, args)) => {
