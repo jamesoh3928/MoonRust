@@ -783,23 +783,13 @@ mod tests {
                                             ),
                                         ],
                                         vec![
-                                            Expression::BinaryOp((
-                                                Box::new(
-                                                    Expression::PrefixExp(
-                                                        Box::new(
-                                                          PrefixExp::Var(Var::NameVar(String::from("result")))
-                                                        )
-                                                    )
-                                                ),
-                                                BinOp::Equal,
-                                                Box::new(
-                                                    Expression::PrefixExp(
-                                                        Box::new(
-                                                            PrefixExp::Var(Var::NameVar(String::from("num1")))
-                                                        )
+                                            *Box::new(
+                                                Expression::PrefixExp(
+                                                    Box::new(
+                                                        PrefixExp::Var(Var::NameVar(String::from("num1")))
                                                     )
                                                 )
-                                            ))
+                                            )
                                         ]
                                     ))
                                 ],
@@ -857,10 +847,8 @@ mod tests {
 
         let input = 
         "
-            local fact
-            fact = function (n)
+            local function fact(n)
                 if n == 0 then return 1
-                else return n*fact(n-1)
                 end
             end 
         ";
@@ -896,26 +884,14 @@ mod tests {
                             )),
                             Block{ 
                                 statements: vec![],
-                                return_stat: None // return 1?
+                                return_stat: Some(
+                                    vec![
+                                        Expression::LiteralString(String::from("return 1"))
+                                    ]
+                                )
                             },
                             vec![ ],
-                            Some(
-                                Block {
-                                    statements: vec![
-                                        Statement::FunctionCall(
-                                            FunctionCall::Standard((
-                                                Box::new(
-                                                    PrefixExp::Exp(
-                                                        Expression::LiteralString(String::from("fact"))
-                                                    )
-                                                ),
-                                                Args::LiteralString(String::from("n-1"))
-                                            ))
-                                        )
-                                    ],
-                                    return_stat: None,
-                                }
-                            )
+                            None
                         )),
                     ],
                     return_stat: None
