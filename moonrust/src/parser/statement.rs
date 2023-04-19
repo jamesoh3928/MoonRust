@@ -12,7 +12,7 @@ use nom::{
 use super::common::{parse_args, parse_funcbody, parse_prefixexp};
 use super::{util::*, ParseResult};
 
-use crate::ast::{Expression, FunctionCall, PrefixExp, Statement};
+use crate::ast::{Args, Block, Expression, FunctionCall, Numeral, PrefixExp, Statement, Var};
 use crate::parser::common::{parse_block, parse_parlist, parse_var};
 use crate::parser::expression;
 
@@ -457,6 +457,93 @@ mod tests {
         assert_eq!(expected, actual);
     }
 
+    // #[test]
+    // fn accepts_if() {
+    //     // If((Expression, Block, Vec<(Expression, Block)>, Option<Block>))
+    //         //print statement = function call
+
+    //     let input =
+    //     "
+    //         if(c < 43)
+    //         then
+    //             print(c is less than 43)
+    //         elseif (c > 43)
+    //         then
+    //             print(c is greater than 43)
+    //         else
+    //             print(c is equal to 43)
+    //         end
+
+    //         print(the value of c is: , c)
+    //     ";
+
+    //     let expected = Ok((
+    //         "", // unconsumed data
+    //         Statement::If((
+    //             // if
+    //             Expression::BinaryOp((
+    //                 Box::new(
+    //                     Expression::PrefixExp(
+    //     Box::new(
+    //         PrefixExp::Var(Var::NameVar(String::from("i")))
+    //     )
+    // )
+
+    //                 ),
+    //                 BinOp::LessThan,
+    //                 Box::new(
+    //                     Expression::Numeral(
+    //                         Numeral::Integer(43)
+    //                     )
+    //                 )
+    //             )),
+    //             Block {
+    //                 statements: vec![
+    //                     Statement::Assignment((
+    //                         vec![
+    //                             Var::NameVar(
+    //                                 String::from("c"),
+    //                             )
+    //                         ],
+    //                         vec![
+    //                             Expression::BinaryOp((
+    //                                 Box::new(
+    //                                     Expression::Nil
+    //                                 ),
+    //                                 BinOp::GreaterThan,
+    //                                 Box::new(
+    //                                     Expression::Numeral(
+    //                                         Numeral::Integer(43)
+    //                                     )
+    //                                 )
+
+    //                             ))
+    //                         ]
+    //                     ))
+    //                 ],
+    //                 return_stat: None,
+    //             },
+    //             // elseif
+    //             vec![(
+    //                 Expression::LiteralString(String::from("c")),
+    //                 Block {
+
+    //                 },
+    //             )],
+    //             // else
+    //             None
+
+    //         ))
+
+    //     ));
+
+    //     let actual = parse_stmt(input);
+    //     assert_eq!(expected, actual);
+
+    // }
+
     #[test]
-    fn accepts_if() {}
+    fn accepts_for_num() {
+        // ForNum((String, Expression, Expression, Option<Expression>, Block))
+    }
 }
