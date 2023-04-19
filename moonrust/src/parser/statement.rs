@@ -1,6 +1,7 @@
 use nom::character::complete::char;
-use nom::combinator::{opt, value};
+use nom::combinator::{opt, verify};
 use nom::multi::{many0, separated_list1};
+use nom::sequence::separated_pair;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -8,20 +9,17 @@ use nom::{
     sequence::{pair, preceded, tuple},
 };
 
-use super::common::{parse_args, parse_funcbody, parse_prefixexp, parse_table_constructor};
+use super::common::{parse_args, parse_funcbody, parse_prefixexp};
 use super::{util::*, ParseResult};
 
-use crate::ast::{Args, Expression, FunctionCall, Statement, Var, PrefixExp, Block, Numeral};
+use crate::ast::{Expression, FunctionCall, PrefixExp, Statement};
 use crate::parser::common::{parse_block, parse_parlist, parse_var};
-use crate::parser::{
-    expression
-};
+use crate::parser::expression;
 
 pub fn parse_stmt(input: &str) -> ParseResult<Statement> {
     alt((
         parse_semicolon,
-        parse_assignment,
-        parse_functioncall_statement,
+        parse_stmt_prefixexp,
         parse_break,
         parse_while,
         parse_repeat,
@@ -188,6 +186,64 @@ fn local_func_decl(input: &str) -> ParseResult<Statement> {
     )(input)
 }
 
+fn parse_stmt_prefixexp(input: &str) -> ParseResult<Statement> {
+    let (rest_input, pexp) = parse_prefixexp(input)?;
+
+    if let PrefixExp::FunctionCall(fncall) = pexp {
+        Ok((rest_input, Statement::FunctionCall(fncall)))
+    } else {
+        let result = map(
+            separated_pair(
+                separated_list1(
+                    ws(char(',')),
+                    map(
+                        verify(parse_prefixexp, |pexp| match pexp {
+                            PrefixExp::Var(_) => true,
+                            _ => false,
+                        }),
+                        |result| match result {
+                            PrefixExp::Var(var) => var,
+                            _ => unreachable!(),
+                        },
+                    ),
+                ),
+                ws(char('=')),
+                separated_list1(ws(alt((char(','), char(';')))), expression::parse_exp),
+            ),
+            Statement::Assignment,
+        )(input);
+        // let result = map(
+        //     preceded(
+        //         ws(char(',')),
+        //         separated_pair(
+        // separated_list1(
+        //     ws(char(',')),
+        //     map(
+        //         verify(parse_prefixexp, |pexp| match pexp {
+        //             PrefixExp::Var(_) => true,
+        //             _ => false,
+        //         }),
+        //         |result| match result {
+        //             PrefixExp::Var(var) => var,
+        //             _ => unreachable!(),
+        //         },
+        //     ),
+        // ),
+        //             ws(char('=')),
+        //             separated_list1(ws(alt((char(','), char(';')))), expression::parse_exp),
+        //         ),
+        //     ),
+        //     Statement::Assignment,
+        // )(rest_input);
+
+        result
+    }
+    // map(parse_prefixexp, |result| match result {
+    //     PrefixExp::FunctionCall(fncall) => Statement::FunctionCall(fncall),
+    //     pexp => map(preceded(ws(char(',')), sep), f)(input),
+    // })(input)
+}
+
 // used in parse_block, not considered a Lua statement
 pub fn parse_return(input: &str) -> ParseResult<Vec<Expression>> {
     // retstat ::= return [explist] [‘;’]
@@ -198,18 +254,17 @@ pub fn parse_return(input: &str) -> ParseResult<Vec<Expression>> {
 #[cfg(test)]
 mod tests {
 
-    use crate::ast::BinOp;
+    use crate::ast::{Args, BinOp, Block, Numeral, PrefixExp, Var};
+
     use super::*;
 
     #[test]
     fn accepts_semicolon() {
-
         let expected = parse_semicolon(";");
         assert_eq!(expected, Ok(("", Statement::Semicolon)));
 
         let expected = parse_stmt("     ;     ");
         assert_eq!(expected, Ok(("", Statement::Semicolon)));
-
     }
 
     #[test]
@@ -220,23 +275,17 @@ mod tests {
         let expected = Ok((
             "",
             Statement::Assignment((
-              vec![
-                Var::NameVar(
-                    String::from("r"),
-                ),
-                Var::NameVar(
-                    String::from("v"),
-                ),
-              ],
-              vec![
-                Expression::Nil,
-              ]
-            ))
+                vec![
+                    Var::NameVar(String::from("r")),
+                    Var::NameVar(String::from("v")),
+                ],
+                vec![Expression::Nil],
+            )),
         ));
 
         let actual = parse_stmt(input);
-        assert_eq!(expected, actual);
 
+        assert_eq!(expected, actual);
     }
 
     #[test]
@@ -247,31 +296,21 @@ mod tests {
         let input = "and(true, false)";
         let expected = Ok((
             "",
-            Statement::FunctionCall(
-                FunctionCall::Standard(
-                    (Box::new(
-                        PrefixExp::Var(
-                            Var::NameVar(String::from("and")),
-                        )
-                    ),
-                    Args::ExpList(
-                        vec![
-                            Expression::True,
-                            Expression::False,
-                        ]
-                    ))
-                )
-            )
+            Statement::FunctionCall(FunctionCall::Standard((
+                Box::new(PrefixExp::Var(Var::NameVar(String::from("and")))),
+                Args::ExpList(vec![Expression::True, Expression::False]),
+            ))),
         ));
 
         let actual = parse_stmt(input);
         assert_eq!(expected, actual);
-
     }
 
     #[test]
-    fn accepts_break() {
+    fn accepts_functioncall_statement() {}
 
+    #[test]
+    fn accepts_break() {
         let expected = parse_stmt("break");
         assert_eq!(expected, Ok(("", Statement::Break)));
 
@@ -282,51 +321,41 @@ mod tests {
     #[test]
     fn accepts_do_block() {
         // DoBlock(Block)
-        let input = 
-        "do 
+        let input = "do 
             local a = 1
             b = a + 3
         end";
 
         let expected = Ok((
             "",
-            Statement::DoBlock(
-                Block{
-                    statements: vec![
-                        Statement::Assignment((
-                            vec![
-                              Var::NameVar(
-                                  String::from("a"),
-                              ),
-                              Var::NameVar(
-                                  String::from("b"),
-                              ),
-                            ],
-                            vec![
-                                Expression::Numeral(
-                                    Numeral::Integer(1)
-                                ),
-                                Expression::BinaryOp((
-                                    Box::new(
-                                        Expression::PrefixExp(
-                                            Box::new(
-                                              PrefixExp::Var(Var::NameVar(String::from("a")))
-                                            )
-                                        )
-                                    ),
-                                    BinOp::Add,
-                                    Box::new(
-                                        Expression::Numeral(
-                                            Numeral::Integer(3)
-                                        )
-                                    )
-                                )),
-                            ]
-                          )),
+            Statement::DoBlock(Block {
+                statements: vec![Statement::Assignment((
+                    vec![
+                        Var::NameVar(String::from("a")),
+                        Var::NameVar(String::from("b")),
                     ],
-                    return_stat: None,
-                }
-            )
+                    vec![
+                        Expression::BinaryOp((
+                            Box::new(Expression::LiteralString(String::from("a"))),
+                            BinOp::Equal,
+                            Box::new(Expression::Numeral(Numeral::Integer(1))),
+                        )),
+                        Expression::BinaryOp((
+                            Box::new(Expression::LiteralString(String::from("b"))),
+                            BinOp::Equal,
+                            Box::new(
+                                Expression::Numeral(Numeral::Integer(3)), // a + 3?
+                                                                          // (Expression::LiteralString(String::from("a")),
+                                                                          // BinOp::Add,
+                                                                          // Expression::Numeral(
+                                                                          //     Numeral::Integer(3)
+                                                                          // ))
+                            ),
+                        )),
+                    ],
+                ))],
+                return_stat: None,
+            }),
         ));
 
         let actual = parse_stmt(input);
@@ -337,8 +366,7 @@ mod tests {
     fn accepts_while() {
         // While((Expression, Block))
 
-        let input = 
-        "while i <= x do
+        let input = "while i <= x do
             local x = i*2
             print(x)
             i = i + 1
@@ -349,70 +377,22 @@ mod tests {
             "",
             Statement::While((
                 Expression::BinaryOp((
-                    Box::new(
-                        Expression::PrefixExp(
-                            Box::new(
-                              PrefixExp::Var(Var::NameVar(String::from("i")))
-                            )
-                        )
-                    ),
+                    Box::new(Expression::LiteralString(String::from("i"))),
                     BinOp::LessEq,
-                    Box::new(
-                        Expression::PrefixExp(
-                            Box::new(
-                              PrefixExp::Var(Var::NameVar(String::from("x")))
-                            )
-                        )
-                    )
+                    Box::new(Expression::LiteralString(String::from("x"))),
                 )),
-                Block{
-                    statements: vec![
-                        Statement::Assignment((
-                            vec![
-                                Var::NameVar(
-                                    String::from("x"),
-                                ),
-                                Var::NameVar(
-                                    String::from("i")
-                                )
-                            ],
-                            vec![
-                                Expression::BinaryOp((
-                                    Box::new(
-                                        Expression::PrefixExp(
-                                            Box::new(
-                                              PrefixExp::Var(Var::NameVar(String::from("i")))
-                                            )
-                                        )
-                                    ),
-                                    BinOp::Mult,
-                                    Box::new(
-                                        Expression::Numeral(
-                                            Numeral::Integer(2)
-                                        )
-                                    )
-                                )),
-                                Expression::BinaryOp((
-                                    Box::new(
-                                        Expression::PrefixExp(
-                                            Box::new(
-                                              PrefixExp::Var(Var::NameVar(String::from("i")))
-                                            )
-                                        )
-                                    ),
-                                    BinOp::Add,
-                                    Box::new(
-                                        Expression::Numeral(
-                                            Numeral::Integer(1)
-                                        )
-                                    )
-                                )),
-                            ]
-                        )),
-                    ],
+                Block {
+                    statements: vec![Statement::Assignment((
+                        vec![Var::NameVar(String::from("x"))],
+                        vec![Expression::BinaryOp((
+                            Box::new(Expression::LiteralString(String::from("i"))),
+                            BinOp::Mult,
+                            Box::new(Expression::Numeral(Numeral::Integer(2))),
+                        ))],
+                    ))],
                     return_stat: None,
-                }
-            ))
+                },
+            )),
         ));
 
         let actual = parse_stmt(input);
@@ -421,161 +401,62 @@ mod tests {
 
     #[test]
     fn accepts_repeat() {
+        // repeat block until exp
         // Repeat((Block, Expression))
-            // repeat block until exp
 
-        let input = 
-        "
+        let input = "
+            a = 10
             repeat
                 a = a + 1
                 until(a > 15)
         ";
 
         let expected = Ok((
-            "", // uncomsumed data
+            "",
+            // Statement::Assignment((
+            //     vec![
+            //       Var::NameVar(
+            //           String::from("a"),
+            //       ),
+            //     ],
+            //     vec![
+            //         Expression::BinaryOp((
+            //             Box::new(
+            //                 Expression::LiteralString(String::from("a"))
+            //             ),
+            //             BinOp::Equal,
+            //             Box::new(
+            //                 Expression::Numeral(
+            //                     Numeral::Integer(10)
+            //                 )
+            //             )
+            //         )),
+            //     ]
+            //   )),
             Statement::Repeat((
-                Block{
-                    statements: vec![
-                        Statement::Assignment((
-                            vec![
-                                Var::NameVar(
-                                    String::from("a"),
-                                ),
-                            ],
-                            vec![
-                                Expression::BinaryOp((
-                                    Box::new(
-                                        Expression::PrefixExp(
-                                            Box::new(
-                                              PrefixExp::Var(Var::NameVar(String::from("a")))
-                                            )
-                                        )
-                                    ),
-                                    BinOp::Add,
-                                    Box::new(
-                                        Expression::Numeral(
-                                            Numeral::Integer(1)
-                                        )
-                                    )
-                                ))
-                            ]
-                        )),
-                    ],
+                Block {
+                    statements: vec![Statement::Assignment((
+                        vec![Var::NameVar(String::from("a"))],
+                        vec![Expression::BinaryOp((
+                            Box::new(Expression::LiteralString(String::from("a"))),
+                            BinOp::Add,
+                            Box::new(Expression::Numeral(Numeral::Integer(1))),
+                        ))],
+                    ))],
                     return_stat: None,
                 },
                 Expression::BinaryOp((
-                    Box::new(
-                        Expression::PrefixExp(
-                            Box::new(
-                              PrefixExp::Var(Var::NameVar(String::from("a")))
-                            )
-                        )
-                    ),
+                    Box::new(Expression::LiteralString(String::from("a"))),
                     BinOp::GreaterThan,
-                    Box::new(
-                        Expression::Numeral(
-                            Numeral::Integer(15)
-                        )
-                    )
-                ))
-
+                    Box::new(Expression::Numeral(Numeral::Integer(15))),
+                )),
             )),
         ));
 
         let actual = parse_stmt(input);
         assert_eq!(expected, actual);
-
     }
-
-    // #[test]
-    // fn accepts_if() {
-    //     // If((Expression, Block, Vec<(Expression, Block)>, Option<Block>))
-    //         //print statement = function call
-
-    //     let input = 
-    //     "
-    //         if(c < 43)
-    //         then
-    //             print(c is less than 43)
-    //         elseif (c > 43)
-    //         then
-    //             print(c is greater than 43)
-    //         else
-    //             print(c is equal to 43)
-    //         end
-
-    //         print(the value of c is: , c)
-    //     ";
-
-    //     let expected = Ok((
-    //         "", // unconsumed data
-    //         Statement::If((
-    //             // if
-    //             Expression::BinaryOp((
-    //                 Box::new(
-    //                     Expression::PrefixExp(
-                            //     Box::new(
-                            //         PrefixExp::Var(Var::NameVar(String::from("i")))
-                            //     )
-                            // )
-
-    //                 ),
-    //                 BinOp::LessThan,
-    //                 Box::new(
-    //                     Expression::Numeral(
-    //                         Numeral::Integer(43)
-    //                     )
-    //                 )
-    //             )),
-    //             Block {
-    //                 statements: vec![
-    //                     Statement::Assignment((
-    //                         vec![
-    //                             Var::NameVar(
-    //                                 String::from("c"),
-    //                             )
-    //                         ],
-    //                         vec![
-    //                             Expression::BinaryOp((
-    //                                 Box::new(
-    //                                     Expression::Nil
-    //                                 ),
-    //                                 BinOp::GreaterThan,
-    //                                 Box::new(
-    //                                     Expression::Numeral(
-    //                                         Numeral::Integer(43)
-    //                                     )
-    //                                 )
-
-    //                             ))
-    //                         ]
-    //                     ))
-    //                 ],
-    //                 return_stat: None,
-    //             },
-    //             // elseif
-    //             vec![(
-    //                 Expression::LiteralString(String::from("c")),
-    //                 Block {
-
-    //                 },
-    //             )],
-    //             // else
-    //             None
-
-    //         ))
-
-    //     ));
-
-    //     let actual = parse_stmt(input);
-    //     assert_eq!(expected, actual);
-
-    // }
 
     #[test]
-    fn accepts_for_num() {
-        // ForNum((String, Expression, Expression, Option<Expression>, Block))
-
-    }
-
+    fn accepts_if() {}
 }
