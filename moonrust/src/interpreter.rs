@@ -50,7 +50,7 @@ impl AST {
 impl Block {
     fn exec<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
         // Extend environment when entering a new scope
-        env.extend_env();
+        env.extend_local_env();
 
         // Execute each statement
         for statement in &self.statements {
@@ -71,7 +71,7 @@ impl Block {
         }
 
         // Remove environment when exiting a scope
-        env.pop_env();
+        env.pop_local_env();
 
         Ok(return_vals)
     }
@@ -81,10 +81,10 @@ impl Statement {
     fn exec<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<(), ASTExecError> {
         match self {
             Statement::Semicolon => {
-                // TODO: check
-                // Do nothing for now
+                // Do nothing
             }
             Statement::Assignment((varlist, explist)) => {
+                // TODO: add local assignments as well
                 // If there are more values than needed, the excess values are thrown away.
                 let mut results = Vec::with_capacity(varlist.len());
                 for i in 0..varlist.len() {
@@ -112,11 +112,12 @@ impl Statement {
 
                 // Insert into the environment
                 for (name, val) in results {
-                    env.insert(name.clone(), val);
+                    env.insert_global(name.clone(), val);
                 }
             }
             Statement::FunctionCall(funcall) => {
-                unimplemented!()
+                // Returned values are thrown away for statement function call
+                funcall.exec(env)?;
             }
             Statement::Break => {
                 // TODO: should just break innermost loop for while, repeat, or for (how can we do this?)
@@ -249,24 +250,25 @@ impl FunctionCall {
                         };
 
                         // Extend environment with function arguments
-                        env.extend_env();
+                        env.extend_local_env();
                         let par_length = par_list.0.len();
                         let arg_length = args.len();
                         for i in 0..par_length {
+                            // Arguments are locally scoped
                             if i >= arg_length {
-                                env.insert(
+                                env.insert_local(
                                     par_list.0[i].clone(),
                                     LuaValue::new(LuaVal::LuaNil),
                                 );
                             } else {
-                                env.insert(par_list.0[i].clone(), args[i].clone());
+                                env.insert_local(par_list.0[i].clone(), args[i].clone());
                             }
                         }
 
                         let result = block.exec(env)?;
 
                         // Remove arguments from the environment
-                        env.pop_env();
+                        env.pop_local_env();
                         Ok(result)
                     }
                     _ => {
@@ -408,7 +410,7 @@ mod tests {
             return_stat: return_stat,
         };
 
-        env.insert(String::from("f"), LuaValue::new(LuaVal::Function(LuaFunction {
+        env.insert_global(String::from("f"), LuaValue::new(LuaVal::Function(LuaFunction {
             par_list: &par_list,
             block: &block,
         })));
@@ -418,11 +420,12 @@ mod tests {
         let exp = PrefixExp::FunctionCall(func_call);
         let hundered: i64 = 100;
 
+        // f(100) executes a = 30, b = 20, return test
         assert_eq!(exp.eval(&mut env), Ok(LuaValue::new(LuaVal::LuaNum(hundered.to_be_bytes()))));
     }
 
     #[test]
-    fn test_exec_stat_assignment() {
+    fn test_exec_stat_assign() {
         // Test Statement exec method
         let mut env = Env::new();
 
@@ -480,5 +483,44 @@ mod tests {
         assert_eq!(*env.get("b").unwrap().0, LuaVal::LuaNum(b.to_be_bytes()));
     }
 
-    
+    #[test]
+    fn test_exec_stat_local_assign() {
+        // TODO: local assignment
+    }
+
+    #[test]
+    fn test_exec_stat_func_call() {
+        // TODO: uncomment this when global env is implemented
+        let mut env = Env::new();
+        let a: i64 = 10;
+        env.insert_global("a".to_string(), LuaValue::new(LuaVal::LuaNum(a.to_be_bytes())));
+
+        // Simple function with side effect (a = 10.04)
+        let varlist = vec![Var::NameVar("a".to_string())];
+        let num: f64 = 10.04;
+        let exp_float = Expression::Numeral(Numeral::Float(num));
+        let explist = vec![exp_float];
+        let stat = Statement::Assignment((varlist, explist));
+        let return_stat = None;
+        let block = Block {
+            statements: vec![stat],
+            return_stat: return_stat,
+        };
+        let par_list = ParList(vec![], false);
+        env.insert_global(
+            "f".to_string(),
+            LuaValue::new(LuaVal::Function(LuaFunction {
+                par_list: &par_list,
+                block: &block,
+            })),
+        );
+        // Function call statement
+        let func_prefix = PrefixExp::Var(Var::NameVar("f".to_string()));
+        let args = Args::ExpList(vec![]);
+        let func_call = FunctionCall::Standard((Box::new(func_prefix), args));
+        let func_call_stat = Statement::FunctionCall(func_call);
+
+        assert_eq!(func_call_stat.exec(&mut env), Ok(()));
+        assert_eq!(env.get("a"), Some(&LuaValue::new(LuaVal::LuaNum(num.to_be_bytes()))));
+    }
 }
