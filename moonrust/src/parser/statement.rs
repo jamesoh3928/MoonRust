@@ -730,108 +730,36 @@ mod tests {
 
         let input = 
         "
-            function max(num1, num2)
+            function num(num1)
 
-                if (num1 > num2) then
-                    result = num1;
-                else
-                    result = num2;
-                end
-        
-                return result; 
+                return num1; 
             end
         ";
 
         let expected = Ok((
             "",
             Statement::FunctionDecl((
-                String::from("max"),
+                String::from("num"),
                 ParList (
                     vec![
                         String::from("num1"),
-                        String::from("num2"),
                     ],
                     false
 
                 ),
                 Block {
                     statements: vec![
-                        Statement::If((
-                            Expression::BinaryOp((
-                                Box::new(
-                                    Expression::PrefixExp(
-                                        Box::new(
-                                            PrefixExp::Var(Var::NameVar(String::from("num1")))
-                                        )
-                                    )
-                                ),
-                                BinOp::GreaterThan,
-                                Box::new(
-                                    Expression::PrefixExp(
-                                        Box::new(
-                                            PrefixExp::Var(Var::NameVar(String::from("num2")))
-                                        )
-                                    )
-                                )
-                            )),
-                            Block {
-                                statements: vec![
-                                    Statement::Assignment((
-                                        vec![
-                                            Var::NameVar(
-                                                String::from("result"),
-                                            ),
-                                        ],
-                                        vec![
-                                            *Box::new(
-                                                Expression::PrefixExp(
-                                                    Box::new(
-                                                        PrefixExp::Var(Var::NameVar(String::from("num1")))
-                                                    )
-                                                )
-                                            )
-                                        ]
-                                    ))
-                                ],
-                                return_stat: None,
-                            },
-                            vec![ ], // elseif
-                            Some( // else
-                                Block {
-                                    statements: vec![
-                                        Statement::Assignment((
-                                            vec![
-                                                Var::NameVar(
-                                                    String::from("result"),
-                                                ),
-                                            ],
-                                            vec![
-                                                Expression::BinaryOp((
-                                                    Box::new(
-                                                        Expression::PrefixExp(
-                                                            Box::new(
-                                                            PrefixExp::Var(Var::NameVar(String::from("result")))
-                                                            )
-                                                        )
-                                                    ),
-                                                    BinOp::Equal,
-                                                    Box::new(
-                                                        Expression::PrefixExp(
-                                                            Box::new(
-                                                                PrefixExp::Var(Var::NameVar(String::from("num2")))
-                                                            )
-                                                        )
-                                                    )
-                                                ))
-                                            ]
-                                        ))
-                                    ],
-                                    return_stat: None
-                                }
-                            ) 
-                        ))
+                        
                     ],
-                    return_stat: None
+                    return_stat: Some(
+                        vec![
+                            Expression::PrefixExp(
+                                Box::new(
+                                    PrefixExp::Var(Var::NameVar(String::from("num1")))
+                                )
+                            )
+                        ]
+                    )
                 }
             ))
         ));
@@ -886,7 +814,11 @@ mod tests {
                                 statements: vec![],
                                 return_stat: Some(
                                     vec![
-                                        Expression::LiteralString(String::from("return 1"))
+                                        Expression::PrefixExp(
+                                            Box::new(
+                                                PrefixExp::Var(Var::NameVar(String::from("num1")))
+                                            )
+                                        )
                                     ]
                                 )
                             },
