@@ -1,7 +1,6 @@
 use nom::character::complete::char;
-use nom::combinator::{opt, verify};
+use nom::combinator::{fail, opt, verify};
 use nom::multi::{many0, separated_list1};
-use nom::sequence::separated_pair;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -12,8 +11,8 @@ use nom::{
 use super::common::{parse_args, parse_funcbody, parse_prefixexp};
 use super::{util::*, ParseResult};
 
-use crate::ast::{Args, Block, Expression, FunctionCall, Numeral, PrefixExp, Statement, Var};
-use crate::parser::common::{parse_block, parse_parlist, parse_var};
+use crate::ast::{Expression, FunctionCall, PrefixExp, Statement};
+use crate::parser::common::{parse_block, parse_parlist};
 use crate::parser::expression;
 
 pub fn parse_stmt(input: &str) -> ParseResult<Statement> {
@@ -29,24 +28,13 @@ pub fn parse_stmt(input: &str) -> ParseResult<Statement> {
         parse_for_generic,
         parse_function_decl,
         local_func_decl,
+        // parse_local_assgn,
     ))(input)
 }
 /// Parse a single semicolon. Toss the result since it provides no
 /// semantic information.
 fn parse_semicolon(input: &str) -> ParseResult<Statement> {
     map(ws(tag(";")), |_| Statement::Semicolon)(input)
-}
-
-fn parse_assignment(input: &str) -> ParseResult<Statement> {
-    //Assignment((Vec<Var>, Vec<Expression>))
-
-    map(
-        tuple((
-            separated_list1(ws(alt((char(','), char(';')))), parse_var),
-            separated_list1(ws(alt((char(','), char(';')))), expression::parse_exp),
-        )),
-        |result| Statement::Assignment(result),
-    )(input)
 }
 
 pub fn parse_functioncall(input: &str) -> ParseResult<FunctionCall> {
@@ -187,61 +175,60 @@ fn local_func_decl(input: &str) -> ParseResult<Statement> {
 }
 
 fn parse_stmt_prefixexp(input: &str) -> ParseResult<Statement> {
-    let (rest_input, pexp) = parse_prefixexp(input)?;
+    let (input_after_local, is_local) =
+        map(opt(ws(tag("local"))), |result| result.is_some())(input)?;
+    let (rest_input, pexp) = parse_prefixexp(input_after_local)?;
 
     if let PrefixExp::FunctionCall(fncall) = pexp {
-        Ok((rest_input, Statement::FunctionCall(fncall)))
+        if is_local {
+            fail("Function calls cannot be local")
+        } else {
+            Ok((rest_input, Statement::FunctionCall(fncall)))
+        }
     } else {
-        let result = map(
-            separated_pair(
-                separated_list1(
-                    ws(char(',')),
-                    map(
-                        verify(parse_prefixexp, |pexp| match pexp {
-                            PrefixExp::Var(_) => true,
-                            _ => false,
-                        }),
-                        |result| match result {
-                            PrefixExp::Var(var) => var,
-                            _ => unreachable!(),
-                        },
+        map(
+            verify(
+                pair(
+                    separated_list1(
+                        ws(char(',')),
+                        map(
+                            verify(parse_prefixexp, |pexp| match pexp {
+                                PrefixExp::Var(_) => true,
+                                _ => false,
+                            }),
+                            |result| {
+                                println!("{:?}", result);
+                                match result {
+                                    PrefixExp::Var(var) => var,
+                                    _ => unreachable!(),
+                                }
+                            },
+                        ),
                     ),
+                    opt(preceded(
+                        ws(char('=')),
+                        separated_list1(ws(char(',')), expression::parse_exp),
+                    )),
                 ),
-                ws(char('=')),
-                separated_list1(ws(alt((char(','), char(';')))), expression::parse_exp),
+                |result| {
+                    let success = !(result.1.is_none() && !is_local);
+                    println!("{success}");
+                    success
+                },
             ),
-            Statement::Assignment,
-        )(input);
-        // let result = map(
-        //     preceded(
-        //         ws(char(',')),
-        //         separated_pair(
-        // separated_list1(
-        //     ws(char(',')),
-        //     map(
-        //         verify(parse_prefixexp, |pexp| match pexp {
-        //             PrefixExp::Var(_) => true,
-        //             _ => false,
-        //         }),
-        //         |result| match result {
-        //             PrefixExp::Var(var) => var,
-        //             _ => unreachable!(),
-        //         },
-        //     ),
-        // ),
-        //             ws(char('=')),
-        //             separated_list1(ws(alt((char(','), char(';')))), expression::parse_exp),
-        //         ),
-        //     ),
-        //     Statement::Assignment,
-        // )(rest_input);
-
-        result
+            |result| match result.1 {
+                Some(exps) => Statement::Assignment((result.0, exps, is_local)),
+                None => {
+                    let vars_len = result.0.len();
+                    let mut exp_vec = Vec::new();
+                    for _ in 0..vars_len {
+                        exp_vec.push(Expression::Nil);
+                    }
+                    Statement::Assignment((result.0, exp_vec, is_local))
+                }
+            },
+        )(input_after_local)
     }
-    // map(parse_prefixexp, |result| match result {
-    //     PrefixExp::FunctionCall(fncall) => Statement::FunctionCall(fncall),
-    //     pexp => map(preceded(ws(char(',')), sep), f)(input),
-    // })(input)
 }
 
 // used in parse_block, not considered a Lua statement
@@ -270,16 +257,17 @@ mod tests {
     #[test]
     fn accepts_assignment() {
         // Assignment((Vec<Var>, Vec<Expression>))
-        let input = "local   r,v ";
+        let input = "local   r,v  ";
 
         let expected = Ok((
-            "",
+            "  ",
             Statement::Assignment((
                 vec![
                     Var::NameVar(String::from("r")),
                     Var::NameVar(String::from("v")),
                 ],
-                vec![Expression::Nil],
+                vec![Expression::Nil, Expression::Nil],
+                true,
             )),
         ));
 
@@ -353,6 +341,7 @@ mod tests {
                             ),
                         )),
                     ],
+                    true,
                 ))],
                 return_stat: None,
             }),
@@ -389,6 +378,7 @@ mod tests {
                             BinOp::Mult,
                             Box::new(Expression::Numeral(Numeral::Integer(2))),
                         ))],
+                        true,
                     ))],
                     return_stat: None,
                 },
@@ -442,6 +432,7 @@ mod tests {
                             BinOp::Add,
                             Box::new(Expression::Numeral(Numeral::Integer(1))),
                         ))],
+                        false,
                     ))],
                     return_stat: None,
                 },

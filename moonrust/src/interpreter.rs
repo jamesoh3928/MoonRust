@@ -84,7 +84,8 @@ impl Statement {
                 // TODO: check
                 // Do nothing for now
             }
-            Statement::Assignment((varlist, explist)) => {
+            Statement::Assignment((varlist, explist, is_local)) => {
+                todo!("utilize is_local");
                 // If there are more values than needed, the excess values are thrown away.
                 let mut results = Vec::with_capacity(varlist.len());
                 for i in 0..varlist.len() {
@@ -254,10 +255,7 @@ impl FunctionCall {
                         let arg_length = args.len();
                         for i in 0..par_length {
                             if i >= arg_length {
-                                env.insert(
-                                    par_list.0[i].clone(),
-                                    LuaValue::new(LuaVal::LuaNil),
-                                );
+                                env.insert(par_list.0[i].clone(), LuaValue::new(LuaVal::LuaNil));
                             } else {
                                 env.insert(par_list.0[i].clone(), args[i].clone());
                             }
@@ -391,16 +389,15 @@ mod tests {
         let mut env = Env::new();
 
         // Set statements
-        let varlist = vec![
-            Var::NameVar("a".to_string()),
-            Var::NameVar("b".to_string()),
-        ];
+        let varlist = vec![Var::NameVar("a".to_string()), Var::NameVar("b".to_string())];
         let explist = vec![
             Expression::Numeral(Numeral::Integer(30)),
             Expression::Numeral(Numeral::Integer(20)),
         ];
-        let stat = Statement::Assignment((varlist, explist));
-        let return_stat = Some(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar("test".to_string()))))]);
+        let stat = Statement::Assignment((varlist, explist, todo!("is local or global?")));
+        let return_stat = Some(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(
+            Var::NameVar("test".to_string()),
+        )))]);
 
         let par_list = ParList(vec![String::from("test")], false);
         let block = Block {
@@ -408,17 +405,23 @@ mod tests {
             return_stat: return_stat,
         };
 
-        env.insert(String::from("f"), LuaValue::new(LuaVal::Function(LuaFunction {
-            par_list: &par_list,
-            block: &block,
-        })));
+        env.insert(
+            String::from("f"),
+            LuaValue::new(LuaVal::Function(LuaFunction {
+                par_list: &par_list,
+                block: &block,
+            })),
+        );
         let func_prefix = PrefixExp::Var(Var::NameVar("f".to_string()));
         let args = Args::ExpList(vec![Expression::Numeral(Numeral::Integer(100))]);
         let func_call = FunctionCall::Standard((Box::new(func_prefix), args));
         let exp = PrefixExp::FunctionCall(func_call);
         let hundered: i64 = 100;
 
-        assert_eq!(exp.eval(&mut env), Ok(LuaValue::new(LuaVal::LuaNum(hundered.to_be_bytes()))));
+        assert_eq!(
+            exp.eval(&mut env),
+            Ok(LuaValue::new(LuaVal::LuaNum(hundered.to_be_bytes())))
+        );
     }
 
     #[test]
@@ -439,7 +442,7 @@ mod tests {
             Expression::Numeral(Numeral::Integer(20)),
             Expression::Numeral(Numeral::Integer(10)),
         ];
-        let stat = Statement::Assignment((varlist, explist));
+        let stat = Statement::Assignment((varlist, explist, todo!("is local or global?")));
         assert_eq!(stat.exec(&mut env), Ok(()));
         assert_eq!(*env.get("a").unwrap().0, LuaVal::LuaNum(a.to_be_bytes()));
         assert_eq!(*env.get("b").unwrap().0, LuaVal::LuaNum(b.to_be_bytes()));
@@ -456,7 +459,7 @@ mod tests {
             Expression::Numeral(Numeral::Integer(30)),
             Expression::Numeral(Numeral::Integer(20)),
         ];
-        let stat = Statement::Assignment((varlist, explist));
+        let stat = Statement::Assignment((varlist, explist, todo!("is local or global?")));
         assert_eq!(stat.exec(&mut env), Ok(()));
         assert_eq!(*env.get("a").unwrap().0, LuaVal::LuaNum(a.to_be_bytes()));
         assert_eq!(*env.get("b").unwrap().0, LuaVal::LuaNum(b.to_be_bytes()));
@@ -465,20 +468,15 @@ mod tests {
         // varlist.len < explist.len
         let a: i64 = 30;
         let b: i64 = 20;
-        let varlist = vec![
-            Var::NameVar("a".to_string()),
-            Var::NameVar("b".to_string()),
-        ];
+        let varlist = vec![Var::NameVar("a".to_string()), Var::NameVar("b".to_string())];
         let explist = vec![
             Expression::Numeral(Numeral::Integer(30)),
             Expression::Numeral(Numeral::Integer(20)),
             Expression::Numeral(Numeral::Integer(10)),
         ];
-        let stat = Statement::Assignment((varlist, explist));
+        let stat = Statement::Assignment((varlist, explist, todo!("is local or global?")));
         assert_eq!(stat.exec(&mut env), Ok(()));
         assert_eq!(*env.get("a").unwrap().0, LuaVal::LuaNum(a.to_be_bytes()));
         assert_eq!(*env.get("b").unwrap().0, LuaVal::LuaNum(b.to_be_bytes()));
     }
-
-    
 }
