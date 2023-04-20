@@ -11,7 +11,7 @@ pub enum LuaVal<'a> {
     LuaTable(Table<'a>),
     LuaNil,
     LuaBool(bool),
-    LuaNum([u8; 8]), // Represent numerals as an array of 8 bytes
+    LuaNum([u8; 8], bool), // numerals as an array of 8 bytes, bool for is_float
     LuaString(String),
     Function(LuaFunction<'a>),
 }
@@ -47,6 +47,195 @@ impl<'a> LuaValue<'a> {
     pub fn is_true(&self) -> bool {
         !self.is_false()
     }
+
+    pub fn is_zero(&self) -> bool {
+        match &*self.0 {
+            LuaVal::LuaNum(num, is_float) => {
+                if *is_float {
+                    let num = f64::from_be_bytes(*num);
+                    num == 0.0
+                } else {
+                    let num = i64::from_be_bytes(*num);
+                    num == 0
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_positive(&self) -> bool {
+        match &*self.0 {
+            LuaVal::LuaNum(num, is_float) => {
+                if *is_float {
+                    let num = f64::from_be_bytes(*num);
+                    num > 0.0
+                } else {
+                    let num = i64::from_be_bytes(*num);
+                    num > 0
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_negative(&self) -> bool {
+        match &*self.0 {
+            LuaVal::LuaNum(num, is_float) => {
+                if *is_float {
+                    let num = f64::from_be_bytes(*num);
+                    num < 0.0
+                } else {
+                    let num = i64::from_be_bytes(*num);
+                    num < 0
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_nil(&self) -> bool {
+        match &*self.0 {
+            LuaVal::LuaNil => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_greater_or_equal(&self, num: i64) -> Result<bool, ASTExecError> {
+        match &*self.0 {
+            LuaVal::LuaNum(n, is_float) => {
+                if *is_float {
+                    let n = f64::from_be_bytes(*n);
+                    if n.floor() as i64 >= num {
+                        Ok(true)
+                    } else {
+                        Ok(false)
+                    }
+                } else {
+                    let n = i64::from_be_bytes(*n);
+                    Ok(n >= num)
+                }
+            }
+            _ => Err(ASTExecError(format!(
+                "Cannot compare values (types cannot be compared)"
+            ))),
+        }
+    }
+
+    pub fn is_less_or_equal(&self, num: i64) -> Result<bool, ASTExecError> {
+        match &*self.0 {
+            LuaVal::LuaNum(n, is_float) => {
+                if *is_float {
+                    let n = f64::from_be_bytes(*n);
+                    if n.ceil() as i64 <= num {
+                        Ok(true)
+                    } else {
+                        Ok(false)
+                    }
+                } else {
+                    let n = i64::from_be_bytes(*n);
+                    Ok(n <= num)
+                }
+            }
+            _ => Err(ASTExecError(format!(
+                "Cannot compare values (types cannot be compared)"
+            ))),
+        }
+    }
+
+    // TODO: delete if not needed
+    // pub fn is_greater_or_equal(&self, other: &LuaValue<'a>) -> Result<bool, ASTExecError> {
+    //     match (&*self.0, &*other.0) {
+    //         (LuaVal::LuaNum(num1, is_float1), LuaVal::LuaNum(num2, is_float2)) => {
+    //             if *is_float1 && *is_float2 {
+    //                 let num1 = f64::from_be_bytes(*num1);
+    //                 let num2 = f64::from_be_bytes(*num2);
+    //                 Ok(num1 >= num2)
+    //             } else if *is_float1 {
+    //                 let num1 = f64::from_be_bytes(*num1);
+    //                 let num2 = i64::from_be_bytes(*num2);
+    //                 if num1.floor() as i64 >= num2 {
+    //                     Ok(true)
+    //                 } else {
+    //                     Ok(false)
+    //                 }
+    //             } else if *is_float2 {
+    //                 let num1 = i64::from_be_bytes(*num1);
+    //                 let num2 = f64::from_be_bytes(*num2);
+    //                 if num2.ceil() as i64 <= num1 {
+    //                     Ok(true)
+    //                 } else {
+    //                     Ok(false)
+    //                 }
+    //             } else {
+    //                 let num1 = i64::from_be_bytes(*num1);
+    //                 let num2 = i64::from_be_bytes(*num2);
+    //                 Ok(num1 >= num2)
+    //             }
+    //         }
+    //         (LuaVal::LuaString(str1), LuaVal::LuaString(str2)) => Ok(str1 >= str2),
+    //         _ => Err(ASTExecError(format!(
+    //             "Cannot compare values (types cannot be compared)"
+    //         ))),
+    //     }
+    // }
+
+    // pub fn is_less_or_equal(&self, other: &LuaValue<'a>) -> Result<bool, ASTExecError> {
+    //     match (&*self.0, &*other.0) {
+    //         (LuaVal::LuaNum(num1, is_float1), LuaVal::LuaNum(num2, is_float2)) => {
+    //             if *is_float1 && *is_float2 {
+    //                 let num1 = f64::from_be_bytes(*num1);
+    //                 let num2 = f64::from_be_bytes(*num2);
+    //                 Ok(num1 <= num2)
+    //             } else if *is_float1 {
+    //                 let num1 = f64::from_be_bytes(*num1);
+    //                 let num2 = i64::from_be_bytes(*num2);
+    //                 if num1.ceil() as i64 <= num2 {
+    //                     Ok(true)
+    //                 } else {
+    //                     Ok(false)
+    //                 }
+    //             } else if *is_float2 {
+    //                 let num1 = i64::from_be_bytes(*num1);
+    //                 let num2 = f64::from_be_bytes(*num2);
+    //                 if num2.floor() as i64 >= num1 {
+    //                     Ok(true)
+    //                 } else {
+    //                     Ok(false)
+    //                 }
+    //             } else {
+    //                 let num1 = i64::from_be_bytes(*num1);
+    //                 let num2 = i64::from_be_bytes(*num2);
+    //                 Ok(num1 <= num2)
+    //             }
+    //         }
+    //         (LuaVal::LuaString(str1), LuaVal::LuaString(str2)) => Ok(str1 <= str2),
+    //         _ => Err(ASTExecError(format!(
+    //             "Cannot compare values (types cannot be compared)"
+    //         ))),
+    //     }
+    // }
+
+    // pub fn incr_by_int(&mut self, incr: i64) -> Result<(), ASTExecError> {
+    //     match &mut *self.0 {
+    //         LuaVal::LuaNum(num, is_float) => {
+    //             if *is_float {
+    //                 let n = f64::from_be_bytes(*num);
+    //                 let n = n + incr as f64;
+    //                 *num = n.to_be_bytes();
+    //             } else {
+    //                 let n = i64::from_be_bytes(*num);
+    //                 let n = n + incr;
+    //                 *num = n.to_be_bytes();
+    //             }
+    //         }
+    //         _ => {
+    //             return Err(ASTExecError(format!(
+    //                 "Value type is cannot be incremented (must be a number)"
+    //             )))
+    //         }
+    //     }
+    //     Ok(())
+    // }
 }
 
 // TODO: Or use hashmap representation?
@@ -160,7 +349,9 @@ impl Statement {
                             return Ok(Some(val));
                         }
                         None => {
-                            panic!("Break statement can only be used inside a while, repeat, or for loop");
+                            return Err(ASTExecError(format!(
+                            "Break statement can only be used inside a while, repeat, or for loop"
+                        )))
                         }
                     },
                     Err(err) => {
@@ -171,7 +362,6 @@ impl Statement {
             Statement::While((exp, block)) => {
                 // Execute block until exp returns false
                 // Local variables are lost in each iteration
-                // TODO: handle break statement
                 while exp.eval(env)?.is_true() {
                     let return_vals = block.exec(env)?;
                     match return_vals {
@@ -228,7 +418,94 @@ impl Statement {
                 }
             }
             Statement::ForNum((name, exp1, exp2, exp3, block)) => {
-                unimplemented!()
+                let initial = match exp1.eval(env)? {
+                    LuaValue(rc) => match rc.as_ref() {
+                        LuaVal::LuaNum(bytes, is_float) => {
+                            if *is_float {
+                                return Err(ASTExecError(format!(
+                                    "Initial value in for loop must be an integer"
+                                )));
+                            }
+                            i64::from_be_bytes(*bytes)
+                        }
+                        _ => {
+                            return Err(ASTExecError(format!(
+                                "Initial value in for loop must be an integer"
+                            )));
+                        }
+                    },
+                    _ => {
+                        return Err(ASTExecError(format!(
+                            "Initial value in for loop must be an integer"
+                        )));
+                    }
+                };
+                let limit = exp2.eval(env)?;
+                let step = match exp3 {
+                    Some(exp) => match exp.eval(env)? {
+                        LuaValue(rc) => match rc.as_ref() {
+                            LuaVal::LuaNum(bytes, is_float) => {
+                                if *is_float {
+                                    return Err(ASTExecError(format!(
+                                        "Step value in for loop must be an integer"
+                                    )));
+                                }
+                                i64::from_be_bytes(*bytes)
+                            }
+                            _ => {
+                                return Err(ASTExecError(format!(
+                                    "Step value in for loop must be an integer"
+                                )));
+                            }
+                        },
+                        _ => {
+                            return Err(ASTExecError(format!(
+                                "Step value in for loop must be an integer"
+                            )));
+                        }
+                    },
+                    None => 1,
+                };
+
+                // Step 0 is not allowed
+                if step == 0 {
+                    return Err(ASTExecError(format!("Step value in for loop cannot be 0")));
+                }
+
+                // continues while the value is less than or equal to the limit
+                // (greater than or equal to for a negative step)
+                let mut i = initial;
+                while if step > 0 {
+                    limit.is_greater_or_equal(i)?
+                } else {
+                    limit.is_less_or_equal(i)?
+                } {
+                    // Create a new local environment
+                    env.extend_local_env();
+                    env.insert_local(
+                        name.clone(),
+                        LuaValue::new(LuaVal::LuaNum(i.to_be_bytes(), false)),
+                    );
+
+                    // Execute the block
+                    let return_vals = block.exec(env)?;
+                    match return_vals {
+                        Some(return_vals) => {
+                            if !return_vals.is_empty() {
+                                // Return statement
+                                env.pop_local_env();
+                                return Ok(Some(return_vals));
+                            }
+                        }
+                        None => {
+                            // Break statement (exiting loop now so return empty vector)
+                            env.pop_local_env();
+                            return Ok(Some(vec![]));
+                        }
+                    };
+                    env.pop_local_env();
+                    i += step;
+                }
             }
             Statement::ForGeneric((names, explist, block)) => {
                 unimplemented!()
@@ -252,8 +529,8 @@ impl Expression {
             Expression::False => LuaValue::new(LuaVal::LuaBool(false)),
             Expression::True => LuaValue::new(LuaVal::LuaBool(true)),
             Expression::Numeral(n) => match n {
-                Numeral::Integer(i) => LuaValue::new(LuaVal::LuaNum(i.to_be_bytes())),
-                Numeral::Float(f) => LuaValue::new(LuaVal::LuaNum(f.to_be_bytes())),
+                Numeral::Integer(i) => LuaValue::new(LuaVal::LuaNum(i.to_be_bytes(), false)),
+                Numeral::Float(f) => LuaValue::new(LuaVal::LuaNum(f.to_be_bytes(), true)),
             },
             Expression::LiteralString(s) => LuaValue::new(LuaVal::LuaString(s.clone())),
             // TODO: DotDotDot? maybe skip it for now
@@ -361,9 +638,9 @@ impl FunctionCall {
                         env.pop_local_env();
                         match result {
                             Some(vals) => Ok(vals),
-                            None => panic!(
+                            None => Err(ASTExecError(format!(
                                 "Break statement can be only used in while, repeat, or for loop"
-                            ),
+                            ))),
                         }
                     }
                     _ => {
@@ -398,10 +675,10 @@ mod tests {
         Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar(name.to_string()))))
     }
     fn lua_integer<'a>(n: i64) -> LuaValue<'a> {
-        LuaValue::new(LuaVal::LuaNum(n.to_be_bytes()))
+        LuaValue::new(LuaVal::LuaNum(n.to_be_bytes(), false))
     }
     fn lua_float<'a>(n: f64) -> LuaValue<'a> {
-        LuaValue::new(LuaVal::LuaNum(n.to_be_bytes()))
+        LuaValue::new(LuaVal::LuaNum(n.to_be_bytes(), true))
     }
     fn lua_nil<'a>() -> LuaValue<'a> {
         LuaValue::new(LuaVal::LuaNil)
@@ -519,10 +796,7 @@ mod tests {
         let exp = PrefixExp::FunctionCall(func_call);
 
         // f(100) executes a = 30, b = 20, return test
-        assert_eq!(
-            exp.eval(&mut env),
-            Ok(lua_integer(100))
-        );
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(100)));
     }
 
     #[test]
@@ -545,8 +819,14 @@ mod tests {
         ];
         let stat = Statement::Assignment((varlist, explist));
         assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(*env.get("a").unwrap().0, LuaVal::LuaNum(a.to_be_bytes()));
-        assert_eq!(*env.get("b").unwrap().0, LuaVal::LuaNum(b.to_be_bytes()));
+        assert_eq!(
+            *env.get("a").unwrap().0,
+            LuaVal::LuaNum(a.to_be_bytes(), false)
+        );
+        assert_eq!(
+            *env.get("b").unwrap().0,
+            LuaVal::LuaNum(b.to_be_bytes(), false)
+        );
 
         // varlist.len > explist.len
         let a: i64 = 30;
@@ -562,8 +842,14 @@ mod tests {
         ];
         let stat = Statement::Assignment((varlist, explist));
         assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(*env.get("a").unwrap().0, LuaVal::LuaNum(a.to_be_bytes()));
-        assert_eq!(*env.get("b").unwrap().0, LuaVal::LuaNum(b.to_be_bytes()));
+        assert_eq!(
+            *env.get("a").unwrap().0,
+            LuaVal::LuaNum(a.to_be_bytes(), false)
+        );
+        assert_eq!(
+            *env.get("b").unwrap().0,
+            LuaVal::LuaNum(b.to_be_bytes(), false)
+        );
         assert_eq!(*env.get("c").unwrap().0, LuaVal::LuaNil);
 
         // varlist.len < explist.len
@@ -577,8 +863,14 @@ mod tests {
         ];
         let stat = Statement::Assignment((varlist, explist));
         assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(*env.get("a").unwrap().0, LuaVal::LuaNum(a.to_be_bytes()));
-        assert_eq!(*env.get("b").unwrap().0, LuaVal::LuaNum(b.to_be_bytes()));
+        assert_eq!(
+            *env.get("a").unwrap().0,
+            LuaVal::LuaNum(a.to_be_bytes(), false)
+        );
+        assert_eq!(
+            *env.get("b").unwrap().0,
+            LuaVal::LuaNum(b.to_be_bytes(), false)
+        );
     }
 
     #[test]
@@ -590,10 +882,7 @@ mod tests {
     fn test_exec_stat_func_call() {
         let mut env = Env::new();
         let a: i64 = 10;
-        env.insert_global(
-            "a".to_string(),
-            lua_integer(a),
-        );
+        env.insert_global("a".to_string(), lua_integer(a));
 
         // Simple function with side effect (a = 10.04)
         let varlist = vec![Var::NameVar("a".to_string())];
@@ -607,10 +896,7 @@ mod tests {
             return_stat: return_stat,
         };
         let par_list = ParList(vec![], false);
-        env.insert_global(
-            "f".to_string(),
-            lua_function(&par_list, &block),
-        );
+        env.insert_global("f".to_string(), lua_function(&par_list, &block));
         // Function call statement
         let func_prefix = PrefixExp::Var(Var::NameVar("f".to_string()));
         let args = Args::ExpList(vec![]);
@@ -618,10 +904,7 @@ mod tests {
         let func_call_stat = Statement::FunctionCall(func_call);
 
         assert_eq!(func_call_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(
-            env.get("a"),
-            Some(&lua_float(num))
-        );
+        assert_eq!(env.get("a"), Some(&lua_float(num)));
     }
 
     #[test]
@@ -637,10 +920,7 @@ mod tests {
         };
         let if_stat = Statement::If((condition, block, vec![], None));
         assert_eq!(if_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(
-            env.get("a"),
-            Some(&lua_integer(10))
-        );
+        assert_eq!(env.get("a"), Some(&lua_integer(10)));
     }
 
     #[test]
@@ -663,10 +943,7 @@ mod tests {
         };
         let if_stat = Statement::If((condition, block, vec![], Some(else_block)));
         assert_eq!(if_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(
-            env.get("a"),
-            Some(&lua_integer(20))
-        );
+        assert_eq!(env.get("a"), Some(&lua_integer(20)));
     }
 
     #[test]
@@ -699,10 +976,7 @@ mod tests {
         };
         let if_stat = Statement::If((condition, block, else_ifs, Some(else_block)));
         assert_eq!(if_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(
-            env.get("a"),
-            Some(&lua_integer(20))
-        );
+        assert_eq!(env.get("a"), Some(&lua_integer(20)));
     }
 
     #[test]
@@ -718,16 +992,8 @@ mod tests {
             )))]),
         };
         let do_block = Statement::DoBlock(block);
-        assert_eq!(
-            do_block.exec(&mut env),
-            Ok(Some(vec![LuaValue::new(LuaVal::LuaNum(
-                10i64.to_be_bytes()
-            ))]))
-        );
-        assert_eq!(
-            env.get("a"),
-            Some(&lua_integer(10))
-        );
+        assert_eq!(do_block.exec(&mut env), Ok(Some(vec![lua_integer(10)])));
+        assert_eq!(env.get("a"), Some(&lua_integer(10)));
     }
 
     #[test]
@@ -746,10 +1012,7 @@ mod tests {
         };
         let while_stat = Statement::While((condition, block));
         assert_eq!(while_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(
-            env.get("a"),
-            Some(&lua_integer(10))
-        );
+        assert_eq!(env.get("a"), Some(&lua_integer(10)));
     }
 
     #[test]
@@ -780,5 +1043,90 @@ mod tests {
         //     ))],
         //     return_stat: None,
         // };
+    }
+
+    #[test]
+    fn test_exec_stat_for_num() {
+        // TODO: increment few times when binary expression is implemented
+        let mut env = Env::new();
+        let for_stat = Statement::ForNum((
+            "i".to_string(),
+            Expression::Numeral(Numeral::Integer(0)),
+            Expression::Numeral(Numeral::Integer(2)),
+            None,
+            Block {
+                statements: vec![Statement::Assignment((
+                    vec![Var::NameVar("a".to_string())],
+                    vec![Expression::Numeral(Numeral::Integer(20))],
+                ))],
+                return_stat: None,
+            },
+        ));
+        assert_eq!(for_stat.exec(&mut env), Ok(Some(vec![])));
+        assert_eq!(env.get("a"), Some(&lua_integer(20)));
+    }
+
+    #[test]
+    fn test_exec_stat_for_num_break() {
+        let mut env = Env::new();
+        let for_stat = Statement::ForNum((
+            "i".to_string(),
+            Expression::Numeral(Numeral::Integer(2)),
+            Expression::Numeral(Numeral::Integer(0)),
+            Some(Expression::Numeral(Numeral::Integer(-1))),
+            Block {
+                statements: vec![
+                    Statement::Break,
+                    Statement::Assignment((
+                        vec![Var::NameVar("a".to_string())],
+                        vec![Expression::Numeral(Numeral::Integer(20))],
+                    )),
+                ],
+                return_stat: None,
+            },
+        ));
+        assert_eq!(for_stat.exec(&mut env), Ok(Some(vec![])));
+        assert_eq!(env.get("a"), None);
+    }
+
+    #[test]
+    fn test_exec_stat_for_num_return() {
+        let mut env = Env::new();
+        let for_stat = Statement::ForNum((
+            "i".to_string(),
+            Expression::Numeral(Numeral::Integer(2)),
+            Expression::Numeral(Numeral::Integer(0)),
+            Some(Expression::Numeral(Numeral::Integer(-1))),
+            Block {
+                statements: vec![Statement::Assignment((
+                    vec![Var::NameVar("a".to_string())],
+                    vec![Expression::Numeral(Numeral::Integer(20))],
+                ))],
+                return_stat: Some(vec![var_exp("a")]),
+            },
+        ));
+        assert_eq!(for_stat.exec(&mut env), Ok(Some(vec![lua_integer(20)])));
+    }
+
+    #[test]
+    fn test_exec_stat_for_num_step_zero() {
+        let mut env = Env::new();
+        let for_stat = Statement::ForNum((
+            "i".to_string(),
+            Expression::Numeral(Numeral::Integer(2)),
+            Expression::Numeral(Numeral::Integer(0)),
+            Some(Expression::Numeral(Numeral::Integer(0))),
+            Block {
+                statements: vec![Statement::Assignment((
+                    vec![Var::NameVar("a".to_string())],
+                    vec![Expression::Numeral(Numeral::Integer(20))],
+                ))],
+                return_stat: None,
+            },
+        ));
+        assert_eq!(
+            for_stat.exec(&mut env),
+            Err(ASTExecError(format!("Step value in for loop cannot be 0")))
+        );
     }
 }
