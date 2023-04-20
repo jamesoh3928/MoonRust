@@ -34,6 +34,19 @@ impl<'a> LuaValue<'a> {
     pub fn clone(&self) -> LuaValue<'a> {
         LuaValue(Rc::clone(&self.0))
     }
+
+    pub fn is_false(&self) -> bool {
+        // All values different from nil and false test true
+        match &*self.0 {
+            LuaVal::LuaNil => true,
+            LuaVal::LuaBool(false) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_true(&self) -> bool {
+        !self.is_false()
+    }
 }
 
 // TODO: Or use hashmap representation?
@@ -120,7 +133,7 @@ impl Statement {
                 funcall.exec(env)?;
             }
             Statement::Break => {
-                // TODO: should just break innermost loop for while, repeat, or for (how can we do this?)
+                // TODO: return some value to indicate break
                 unimplemented!()
             }
             Statement::DoBlock(block) => {
@@ -135,7 +148,22 @@ impl Statement {
                 unimplemented!()
             }
             Statement::If((exp, block, elseifs, elseblock)) => {
-                unimplemented!()
+                let condition = exp.eval(env)?;
+                if condition.is_true() {
+                    block.exec(env)?;
+                } else {
+                    // Do elseifs
+                    for (exp, block) in elseifs {
+                        let condition = exp.eval(env)?;
+                        if condition.is_true() {
+                            block.exec(env)?;
+                            return Ok(());
+                        }
+                    }
+                    if let Some(elseblock) = elseblock {
+                        elseblock.exec(env)?;
+                    }
+                }
             }
             Statement::ForNum((name, exp1, exp2, exp3, block)) => {
                 unimplemented!()
@@ -393,16 +421,15 @@ mod tests {
         let mut env = Env::new();
 
         // Set statements
-        let varlist = vec![
-            Var::NameVar("a".to_string()),
-            Var::NameVar("b".to_string()),
-        ];
+        let varlist = vec![Var::NameVar("a".to_string()), Var::NameVar("b".to_string())];
         let explist = vec![
             Expression::Numeral(Numeral::Integer(30)),
             Expression::Numeral(Numeral::Integer(20)),
         ];
         let stat = Statement::Assignment((varlist, explist));
-        let return_stat = Some(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar("test".to_string()))))]);
+        let return_stat = Some(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(
+            Var::NameVar("test".to_string()),
+        )))]);
 
         let par_list = ParList(vec![String::from("test")], false);
         let block = Block {
@@ -410,10 +437,13 @@ mod tests {
             return_stat: return_stat,
         };
 
-        env.insert_global(String::from("f"), LuaValue::new(LuaVal::Function(LuaFunction {
-            par_list: &par_list,
-            block: &block,
-        })));
+        env.insert_global(
+            String::from("f"),
+            LuaValue::new(LuaVal::Function(LuaFunction {
+                par_list: &par_list,
+                block: &block,
+            })),
+        );
         let func_prefix = PrefixExp::Var(Var::NameVar("f".to_string()));
         let args = Args::ExpList(vec![Expression::Numeral(Numeral::Integer(100))]);
         let func_call = FunctionCall::Standard((Box::new(func_prefix), args));
@@ -421,7 +451,10 @@ mod tests {
         let hundered: i64 = 100;
 
         // f(100) executes a = 30, b = 20, return test
-        assert_eq!(exp.eval(&mut env), Ok(LuaValue::new(LuaVal::LuaNum(hundered.to_be_bytes()))));
+        assert_eq!(
+            exp.eval(&mut env),
+            Ok(LuaValue::new(LuaVal::LuaNum(hundered.to_be_bytes())))
+        );
     }
 
     #[test]
@@ -468,10 +501,7 @@ mod tests {
         // varlist.len < explist.len
         let a: i64 = 30;
         let b: i64 = 20;
-        let varlist = vec![
-            Var::NameVar("a".to_string()),
-            Var::NameVar("b".to_string()),
-        ];
+        let varlist = vec![Var::NameVar("a".to_string()), Var::NameVar("b".to_string())];
         let explist = vec![
             Expression::Numeral(Numeral::Integer(30)),
             Expression::Numeral(Numeral::Integer(20)),
@@ -490,10 +520,12 @@ mod tests {
 
     #[test]
     fn test_exec_stat_func_call() {
-        // TODO: uncomment this when global env is implemented
         let mut env = Env::new();
         let a: i64 = 10;
-        env.insert_global("a".to_string(), LuaValue::new(LuaVal::LuaNum(a.to_be_bytes())));
+        env.insert_global(
+            "a".to_string(),
+            LuaValue::new(LuaVal::LuaNum(a.to_be_bytes())),
+        );
 
         // Simple function with side effect (a = 10.04)
         let varlist = vec![Var::NameVar("a".to_string())];
@@ -521,6 +553,90 @@ mod tests {
         let func_call_stat = Statement::FunctionCall(func_call);
 
         assert_eq!(func_call_stat.exec(&mut env), Ok(()));
-        assert_eq!(env.get("a"), Some(&LuaValue::new(LuaVal::LuaNum(num.to_be_bytes()))));
+        assert_eq!(
+            env.get("a"),
+            Some(&LuaValue::new(LuaVal::LuaNum(num.to_be_bytes())))
+        );
+    }
+
+    #[test]
+    fn test_exec_stat_if() {
+        let mut env = Env::new();
+        let condition = Expression::Numeral(Numeral::Integer(0));
+        let block = Block {
+            statements: vec![Statement::Assignment((
+                vec![Var::NameVar("a".to_string())],
+                vec![Expression::Numeral(Numeral::Integer(10))],
+            ))],
+            return_stat: None,
+        };
+        let if_stat = Statement::If((condition, block, vec![], None));
+        assert_eq!(if_stat.exec(&mut env), Ok(()));
+        assert_eq!(
+            env.get("a"),
+            Some(&LuaValue::new(LuaVal::LuaNum(10i64.to_be_bytes())))
+        );
+    }
+
+    #[test]
+    fn test_exec_stat_else() {
+        let mut env = Env::new();
+        let condition = Expression::False;
+        let block = Block {
+            statements: vec![Statement::Assignment((
+                vec![Var::NameVar("a".to_string())],
+                vec![Expression::Numeral(Numeral::Integer(10))],
+            ))],
+            return_stat: None,
+        };
+        let else_block = Block {
+            statements: vec![Statement::Assignment((
+                vec![Var::NameVar("a".to_string())],
+                vec![Expression::Numeral(Numeral::Integer(20))],
+            ))],
+            return_stat: None,
+        };
+        let if_stat = Statement::If((condition, block, vec![], Some(else_block)));
+        assert_eq!(if_stat.exec(&mut env), Ok(()));
+        assert_eq!(
+            env.get("a"),
+            Some(&LuaValue::new(LuaVal::LuaNum(20i64.to_be_bytes())))
+        );
+    }
+
+    #[test]
+    fn test_exec_stat_elseif() {
+        let mut env = Env::new();
+        let condition = Expression::False;
+        let block = Block {
+            statements: vec![Statement::Assignment((
+                vec![Var::NameVar("a".to_string())],
+                vec![Expression::Numeral(Numeral::Integer(10))],
+            ))],
+            return_stat: None,
+        };
+        let else_ifs = vec![(
+            Expression::True,
+            Block {
+                statements: vec![Statement::Assignment((
+                    vec![Var::NameVar("a".to_string())],
+                    vec![Expression::Numeral(Numeral::Integer(20))],
+                ))],
+                return_stat: None,
+            },
+        )];
+        let else_block = Block {
+            statements: vec![Statement::Assignment((
+                vec![Var::NameVar("a".to_string())],
+                vec![Expression::Numeral(Numeral::Integer(30))],
+            ))],
+            return_stat: None,
+        };
+        let if_stat = Statement::If((condition, block, else_ifs, Some(else_block)));
+        assert_eq!(if_stat.exec(&mut env), Ok(()));
+        assert_eq!(
+            env.get("a"),
+            Some(&LuaValue::new(LuaVal::LuaNum(20i64.to_be_bytes())))
+        );
     }
 }
