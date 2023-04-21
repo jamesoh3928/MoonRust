@@ -5,7 +5,7 @@ use nom::{
         streaming::tag,
     },
     character::complete::{alpha1, alphanumeric1, char, multispace0, multispace1, one_of},
-    combinator::{map, map_opt, map_res, opt, recognize, value, verify},
+    combinator::{complete, map, map_opt, map_res, opt, recognize, value, verify},
     error::ParseError,
     multi::{fold_many0, many0, many0_count, many1},
     sequence::{delimited, pair, preceded, terminated, tuple},
@@ -163,9 +163,9 @@ pub fn identifier(input: &str) -> IResult<&str, &str> {
     verify(
         recognize(pair(
             alt((alpha1, tag("_"))),
-            many0_count(alt((alphanumeric1, tag("_")))),
+            many0_count(complete(alt((alphanumeric1, tag("_"))))),
         )),
-        |result: &str| !KEYWORDS.contains(&result),
+        |result: &str| result != "_" && !KEYWORDS.contains(&result),
     )(input)
 }
 

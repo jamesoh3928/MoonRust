@@ -354,7 +354,17 @@ mod tests {
         let input = "(1 + 2)";
         let result = parse_exp(input);
 
-        println!("{:#?}", result);
+        assert_eq!(
+            result,
+            Ok((
+                "",
+                Expression::PrefixExp(Box::new(PrefixExp::Exp(Expression::BinaryOp((
+                    Box::new(Expression::Numeral(Numeral::Integer(1))),
+                    BinOp::Add,
+                    Box::new(Expression::Numeral(Numeral::Integer(2))),
+                )))))
+            ))
+        )
     }
 
     #[test]

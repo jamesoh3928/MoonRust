@@ -1,6 +1,6 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
-    Assignment((Vec<Var>, Vec<Expression>)),
+    Assignment((Vec<Var>, Vec<Expression>, bool)), // bool flag: true if local assn, false otherwise
     FunctionCall(FunctionCall),
     Break,
     DoBlock(Block),

@@ -301,8 +301,8 @@ impl Statement {
             Statement::Semicolon => {
                 // Do nothing
             }
-            Statement::Assignment((varlist, explist)) => {
-                // TODO: add local assignments as well
+            Statement::Assignment((varlist, explist, is_local)) => {
+                todo!("utilize is_local");
                 // If there are more values than needed, the excess values are thrown away.
                 let mut results = Vec::with_capacity(varlist.len());
                 for i in 0..varlist.len() {
@@ -757,7 +757,7 @@ mod tests {
             statements: vec![],
             return_stat: None,
         };
-        let exp_func_def = Expression::FunctionDef((par_list.clone(), block.clone()));
+        let exp_func_def = Expression::FunctionDef((par_list.clone(), todo!("block.clone()"))); // TODO: Block doesn't implement clone
         assert_eq!(
             exp_func_def.eval(&mut env),
             Ok(LuaValue::new(LuaVal::Function(LuaFunction {
@@ -778,7 +778,7 @@ mod tests {
             Expression::Numeral(Numeral::Integer(30)),
             Expression::Numeral(Numeral::Integer(20)),
         ];
-        let stat = Statement::Assignment((varlist, explist));
+        let stat = Statement::Assignment((varlist, explist, todo!("is local or global?")));
         let return_stat = Some(vec![var_exp("test")]);
 
         let par_list = ParList(vec![String::from("test")], false);
@@ -817,7 +817,7 @@ mod tests {
             Expression::Numeral(Numeral::Integer(20)),
             Expression::Numeral(Numeral::Integer(10)),
         ];
-        let stat = Statement::Assignment((varlist, explist));
+        let stat = Statement::Assignment((varlist, explist, todo!("is local or global?")));
         assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
         assert_eq!(
             *env.get("a").unwrap().0,
@@ -840,7 +840,7 @@ mod tests {
             Expression::Numeral(Numeral::Integer(30)),
             Expression::Numeral(Numeral::Integer(20)),
         ];
-        let stat = Statement::Assignment((varlist, explist));
+        let stat = Statement::Assignment((varlist, explist, todo!("is local or global?")));
         assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
         assert_eq!(
             *env.get("a").unwrap().0,
@@ -861,7 +861,7 @@ mod tests {
             Expression::Numeral(Numeral::Integer(20)),
             Expression::Numeral(Numeral::Integer(10)),
         ];
-        let stat = Statement::Assignment((varlist, explist));
+        let stat = Statement::Assignment((varlist, explist, todo!("is local or global?")));
         assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
         assert_eq!(
             *env.get("a").unwrap().0,
@@ -889,7 +889,7 @@ mod tests {
         let num: f64 = 10.04;
         let exp_float = Expression::Numeral(Numeral::Float(num));
         let explist = vec![exp_float];
-        let stat = Statement::Assignment((varlist, explist));
+        let stat = Statement::Assignment((varlist, explist, todo!("is local or global?")));
         let return_stat = None;
         let block = Block {
             statements: vec![stat],
@@ -915,6 +915,7 @@ mod tests {
             statements: vec![Statement::Assignment((
                 vec![Var::NameVar("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(10))],
+                todo!("is local or global?"),
             ))],
             return_stat: None,
         };
@@ -931,6 +932,7 @@ mod tests {
             statements: vec![Statement::Assignment((
                 vec![Var::NameVar("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(10))],
+                todo!("is local or global?"),
             ))],
             return_stat: None,
         };
@@ -938,6 +940,7 @@ mod tests {
             statements: vec![Statement::Assignment((
                 vec![Var::NameVar("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(20))],
+                todo!("is local or global?"),
             ))],
             return_stat: None,
         };
@@ -954,6 +957,7 @@ mod tests {
             statements: vec![Statement::Assignment((
                 vec![Var::NameVar("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(10))],
+                todo!("is local or global?"),
             ))],
             return_stat: None,
         };
@@ -963,6 +967,7 @@ mod tests {
                 statements: vec![Statement::Assignment((
                     vec![Var::NameVar("a".to_string())],
                     vec![Expression::Numeral(Numeral::Integer(20))],
+                    todo!("is local or global?"),
                 ))],
                 return_stat: None,
             },
@@ -971,6 +976,7 @@ mod tests {
             statements: vec![Statement::Assignment((
                 vec![Var::NameVar("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(30))],
+                todo!("is local or global?"),
             ))],
             return_stat: None,
         };
@@ -986,6 +992,7 @@ mod tests {
             statements: vec![Statement::Assignment((
                 vec![Var::NameVar("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(10))],
+                todo!("is local or global?"),
             ))],
             return_stat: Some(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(
                 Var::NameVar("a".to_string()),
@@ -1005,6 +1012,7 @@ mod tests {
                 Statement::Assignment((
                     vec![Var::NameVar("a".to_string())],
                     vec![Expression::Numeral(Numeral::Integer(10))],
+                    todo!("is local or global?"),
                 )),
                 Statement::Break,
             ],
@@ -1012,6 +1020,7 @@ mod tests {
         };
         let while_stat = Statement::While((condition, block));
         assert_eq!(while_stat.exec(&mut env), Ok(Some(vec![])));
+        assert_eq!(env.get("a"), Some(&lua_integer(10)));
         assert_eq!(env.get("a"), Some(&lua_integer(10)));
     }
 
@@ -1023,6 +1032,7 @@ mod tests {
             statements: vec![Statement::Assignment((
                 vec![Var::NameVar("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(10))],
+                todo!("is local or global?"),
             ))],
             return_stat: Some(vec![var_exp("a")]),
         };
