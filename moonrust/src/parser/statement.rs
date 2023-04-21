@@ -1,6 +1,7 @@
 use nom::character::complete::char;
 use nom::combinator::{fail, opt, verify};
-use nom::multi::{many0, separated_list1};
+use nom::multi::{many0, separated_list0, separated_list1};
+use nom::sequence::{delimited, terminated};
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -9,6 +10,7 @@ use nom::{
 };
 
 use super::common::{parse_args, parse_funcbody, parse_prefixexp};
+use super::expression::parse_exp;
 use super::{util::*, ParseResult};
 
 use crate::ast::{Expression, FunctionCall, PrefixExp, Statement};
@@ -69,13 +71,20 @@ fn parse_break(input: &str) -> ParseResult<Statement> {
 
 fn parse_do_block(input: &str) -> ParseResult<Statement> {
     // DoBlock(Block)
-    map(parse_block, |block| Statement::DoBlock(block))(input)
+    map(
+        delimited(ws(tag("do")), parse_block, ws(tag("end"))),
+        |block| Statement::DoBlock(block),
+    )(input)
 }
 
 fn parse_while(input: &str) -> ParseResult<Statement> {
     // While((Expression, Block))
     map(
-        tuple((ws(tag("while")), expression::parse_exp, parse_block)),
+        tuple((
+            ws(tag("while")),
+            expression::parse_exp,
+            delimited(ws(tag("do")), parse_block, ws(tag("end"))),
+        )),
         |result| Statement::While((result.1, result.2)),
     )(input)
 }
@@ -83,8 +92,11 @@ fn parse_while(input: &str) -> ParseResult<Statement> {
 fn parse_repeat(input: &str) -> ParseResult<Statement> {
     // Repeat((Block, Expression))
     map(
-        tuple((ws(tag("repeat")), parse_block, expression::parse_exp)),
-        |result| Statement::Repeat((result.1, result.2)),
+        pair(
+            preceded(ws(tag("repeat")), parse_block),
+            preceded(ws(tag("until")), expression::parse_exp),
+        ),
+        Statement::Repeat,
     )(input)
 }
 
@@ -196,12 +208,9 @@ fn parse_stmt_prefixexp(input: &str) -> ParseResult<Statement> {
                                 PrefixExp::Var(_) => true,
                                 _ => false,
                             }),
-                            |result| {
-                                println!("{:?}", result);
-                                match result {
-                                    PrefixExp::Var(var) => var,
-                                    _ => unreachable!(),
-                                }
+                            |result| match result {
+                                PrefixExp::Var(var) => var,
+                                _ => unreachable!(),
                             },
                         ),
                     ),
@@ -212,7 +221,6 @@ fn parse_stmt_prefixexp(input: &str) -> ParseResult<Statement> {
                 ),
                 |result| {
                     let success = !(result.1.is_none() && !is_local);
-                    println!("{success}");
                     success
                 },
             ),
@@ -235,7 +243,13 @@ fn parse_stmt_prefixexp(input: &str) -> ParseResult<Statement> {
 pub fn parse_return(input: &str) -> ParseResult<Vec<Expression>> {
     // retstat ::= return [explist] [‘;’]
     // explist and ; are optional
-    unimplemented!()
+    preceded(
+        ws(tag("return")),
+        terminated(
+            separated_list0(ws(char(',')), parse_exp),
+            opt(ws(char(';'))),
+        ),
+    )(input)
 }
 
 #[cfg(test)]
@@ -280,11 +294,11 @@ mod tests {
         // FunctionCall(FunctionCall)
         // functioncall ::=  prefixexp args | prefixexp ‘:’ Name args
 
-        let input = "and(true, false)";
+        let input = "do_thing(true, false)";
         let expected = Ok((
             "",
             Statement::FunctionCall(FunctionCall::Standard((
-                Box::new(PrefixExp::Var(Var::NameVar(String::from("and")))),
+                Box::new(PrefixExp::Var(Var::NameVar(String::from("do_thing")))),
                 Args::ExpList(vec![Expression::True, Expression::False]),
             ))),
         ));
@@ -313,23 +327,24 @@ mod tests {
         let expected = Ok((
             "",
             Statement::DoBlock(Block {
-                statements: vec![Statement::Assignment((
-                    vec![
-                        Var::NameVar(String::from("a")),
-                        Var::NameVar(String::from("b")),
-                    ],
-                    vec![
-                        Expression::Numeral(Numeral::Integer(1)),
-                        Expression::BinaryOp((
+                statements: vec![
+                    Statement::Assignment((
+                        vec![Var::NameVar(String::from("a"))],
+                        vec![Expression::Numeral(Numeral::Integer(1))],
+                        true,
+                    )),
+                    Statement::Assignment((
+                        vec![Var::NameVar(String::from("b"))],
+                        vec![Expression::BinaryOp((
                             Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
                                 Var::NameVar(String::from("a")),
                             )))),
                             BinOp::Add,
                             Box::new(Expression::Numeral(Numeral::Integer(3))),
-                        )),
-                    ],
-                    true,
-                ))],
+                        ))],
+                        false,
+                    )),
+                ],
                 return_stat: None,
             }),
         ));
@@ -362,29 +377,36 @@ mod tests {
                     )))),
                 )),
                 Block {
-                    statements: vec![Statement::Assignment((
-                        vec![
-                            Var::NameVar(String::from("x")),
-                            Var::NameVar(String::from("i")),
-                        ],
-                        vec![
-                            Expression::BinaryOp((
+                    statements: vec![
+                        Statement::Assignment((
+                            vec![Var::NameVar(String::from("x"))],
+                            vec![Expression::BinaryOp((
                                 Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
                                     Var::NameVar(String::from("i")),
                                 )))),
                                 BinOp::Mult,
                                 Box::new(Expression::Numeral(Numeral::Integer(2))),
-                            )),
-                            Expression::BinaryOp((
+                            ))],
+                            true,
+                        )),
+                        Statement::FunctionCall(FunctionCall::Standard((
+                            Box::new(PrefixExp::Var(Var::NameVar(String::from("print")))),
+                            Args::ExpList(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(
+                                Var::NameVar(String::from("x")),
+                            )))]),
+                        ))),
+                        Statement::Assignment((
+                            vec![Var::NameVar(String::from("i"))],
+                            vec![Expression::BinaryOp((
                                 Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
                                     Var::NameVar(String::from("i")),
                                 )))),
                                 BinOp::Add,
                                 Box::new(Expression::Numeral(Numeral::Integer(1))),
-                            )),
-                        ],
-                        true,
-                    ))],
+                            ))],
+                            false,
+                        )),
+                    ],
                     return_stat: None,
                 },
             )),
@@ -422,13 +444,13 @@ mod tests {
                     ))],
                     return_stat: None,
                 },
-                Expression::BinaryOp((
+                Expression::PrefixExp(Box::new(PrefixExp::Exp(Expression::BinaryOp((
                     Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
                         Var::NameVar(String::from("a")),
                     )))),
                     BinOp::GreaterThan,
                     Box::new(Expression::Numeral(Numeral::Integer(15))),
-                )),
+                ))))),
             )),
         ));
 

@@ -52,12 +52,12 @@ fn parse_and_exp(input: &str) -> ParseResult<Expression> {
 fn parse_rel_exp(input: &str) -> ParseResult<Expression> {
     fn parse_rel_op(input: &str) -> ParseResult<BinOp> {
         ws(alt((
-            map(char('<'), |_| BinOp::LessThan),
-            map(char('>'), |_| BinOp::GreaterThan),
             map(tag("<="), |_| BinOp::LessEq),
             map(tag(">="), |_| BinOp::GreaterEq),
             map(tag("~="), |_| BinOp::NotEqual),
             map(tag("=="), |_| BinOp::Equal),
+            map(char('<'), |_| BinOp::LessThan),
+            map(char('>'), |_| BinOp::GreaterThan),
         )))(input)
     }
 
@@ -95,8 +95,8 @@ fn parse_mult_exp(input: &str) -> ParseResult<Expression> {
     fn parse_mult_op(input: &str) -> ParseResult<BinOp> {
         ws(alt((
             map(char('*'), |_| BinOp::Mult),
-            map(char('/'), |_| BinOp::Div),
             map(tag("//"), |_| BinOp::IntegerDiv),
+            map(char('/'), |_| BinOp::Div),
             map(char('%'), |_| BinOp::Mod),
         )))(input)
     }
@@ -161,7 +161,6 @@ fn parse_true(input: &str) -> ParseResult<Expression> {
 }
 
 fn parse_numeral(input: &str) -> ParseResult<Expression> {
-    // TODO: other formats of floats
     alt((parse_float, parse_integer))(input)
 }
 
@@ -363,6 +362,28 @@ mod tests {
                     BinOp::Add,
                     Box::new(Expression::Numeral(Numeral::Integer(2))),
                 )))))
+            ))
+        )
+    }
+
+    #[test]
+    fn accepts_binop_exp_with_vars() {
+        let input = "i <= j";
+        let result = parse_exp(input);
+
+        assert_eq!(
+            result,
+            Ok((
+                "",
+                Expression::BinaryOp((
+                    Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
+                        Var::NameVar(String::from("i"))
+                    )))),
+                    BinOp::LessEq,
+                    Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
+                        Var::NameVar(String::from("j"))
+                    )))),
+                ))
             ))
         )
     }
