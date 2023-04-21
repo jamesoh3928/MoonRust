@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Assignment((Vec<Var>, Vec<Expression>, bool)), // bool flag: true if local assn, false otherwise
     FunctionCall(FunctionCall),
@@ -14,7 +14,7 @@ pub enum Statement {
     Semicolon,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     Nil,
     False,
@@ -54,7 +54,7 @@ pub enum BinOp {
     LogicalOr,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum UnOp {
     Negate,
     LogicalNot,
@@ -69,20 +69,20 @@ pub enum Numeral {
     Float(f64),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum PrefixExp {
     Var(Var),
     FunctionCall(FunctionCall),
     Exp(Expression),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum FunctionCall {
     Standard((Box<PrefixExp>, Args)),
     Method((Box<PrefixExp>, String, Args)),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Args {
     ExpList(Vec<Expression>),
     TableConstructor(Vec<Field>),
@@ -92,25 +92,25 @@ pub enum Args {
 #[derive(Debug, PartialEq, Clone)]
 pub struct ParList(pub Vec<String>, pub bool); // boolean flag is true if there are varargs
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Field {
     BracketedAssign((Expression, Expression)),
     NameAssign((String, Expression)),
     UnnamedAssign(Expression),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Var {
     NameVar(String),
     BracketVar((Box<PrefixExp>, Expression)),
     DotVar((Box<PrefixExp>, String)),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Block {
     pub statements: Vec<Statement>,
     pub return_stat: Option<Vec<Expression>>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct AST(pub Block);
