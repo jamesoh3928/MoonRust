@@ -436,11 +436,6 @@ impl Statement {
                                 "Initial value in for loop must be an integer"
                             )));
                         }
-                    },
-                    _ => {
-                        return Err(ASTExecError(format!(
-                            "Initial value in for loop must be an integer"
-                        )));
                     }
                 };
                 let limit = exp2.eval(env)?;
@@ -544,7 +539,47 @@ impl Expression {
             Expression::PrefixExp(prefixexp) => prefixexp.eval(env)?,
             Expression::TableConstructor(fields) => unimplemented!(),
             Expression::BinaryOp((left, op, right)) => {
-                unimplemented!()
+                // If both are integers, the operation is performed over integers and the result is an integer.
+                // If both are numbers, then they are converted to floats
+                match op {
+                    BinOp::Add => {
+                        let left = left.eval(env)?;
+                        let right = right.eval(env)?;
+                        match (left.0.as_ref(), right.0.as_ref()) {
+                            (LuaVal::LuaNum(bytes1, is_float1), LuaVal::LuaNum(bytes2, is_float2)) => {
+                                if !*is_float1 && !*is_float2 {
+                                    // Both are integers
+                                    let i1 = i64::from_be_bytes(*bytes1);
+                                    let i2 = i64::from_be_bytes(*bytes2);
+                                    LuaValue::new(LuaVal::LuaNum((i1 + i2).to_be_bytes(), false))
+                                } else if *is_float1 {
+                                    // Left is float, right is integer
+                                    let f1 = f64::from_be_bytes(*bytes1);
+                                    let i2 = i64::from_be_bytes(*bytes2);
+                                    LuaValue::new(LuaVal::LuaNum((f1 + i2 as f64).to_be_bytes(), true))
+                                } else if *is_float2 {
+                                    // Right is float, left is integer
+                                    let i1 = i64::from_be_bytes(*bytes1);
+                                    let f2 = f64::from_be_bytes(*bytes2);
+                                    LuaValue::new(LuaVal::LuaNum((i1 as f64 + f2).to_be_bytes(), true))
+                                }
+                                else {
+                                    // Both are float
+                                    let f1 = f64::from_be_bytes(*bytes1);
+                                    let f2 = f64::from_be_bytes(*bytes2);
+                                    LuaValue::new(LuaVal::LuaNum((f1 + f2).to_be_bytes(), true))
+                                }
+                            }
+                            // TODO: string coercion to numbers (maybe skip for now)
+                            _ => {
+                                return Err(ASTExecError(format!(
+                                    "Cannot add values that are not numbers"
+                                )));
+                            }
+                        }
+                    },
+                    _ => unimplemented!(),
+                }
             }
             Expression::UnaryOp((op, exp)) => unimplemented!(),
         };
@@ -772,7 +807,6 @@ mod tests {
 
     #[test]
     fn test_eval_exp_func_call() {
-        // TODO: update test to actually execute some statements
         let mut env = Env::new();
 
         // Set statements
@@ -800,6 +834,21 @@ mod tests {
 
         // f(100) executes a = 30, b = 20, return test
         assert_eq!(exp.eval(&mut env), Ok(lua_integer(100)));
+    }
+
+    #[test]
+    fn test_eval_bin_exp_add() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(10));
+        let right = Expression::Numeral(Numeral::Integer(20));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Add, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(30)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::Numeral(Numeral::Integer(20));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Add, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(30.1)));
     }
 
     #[test]
