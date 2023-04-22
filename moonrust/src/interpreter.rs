@@ -1,3 +1,4 @@
+// TODO: split the file
 use crate::ast::*;
 use crate::interpreter::environment::Env;
 use std::fmt;
@@ -141,101 +142,6 @@ impl<'a> LuaValue<'a> {
             ))),
         }
     }
-
-    // TODO: delete if not needed
-    // pub fn is_greater_or_equal(&self, other: &LuaValue<'a>) -> Result<bool, ASTExecError> {
-    //     match (&*self.0, &*other.0) {
-    //         (LuaVal::LuaNum(num1, is_float1), LuaVal::LuaNum(num2, is_float2)) => {
-    //             if *is_float1 && *is_float2 {
-    //                 let num1 = f64::from_be_bytes(*num1);
-    //                 let num2 = f64::from_be_bytes(*num2);
-    //                 Ok(num1 >= num2)
-    //             } else if *is_float1 {
-    //                 let num1 = f64::from_be_bytes(*num1);
-    //                 let num2 = i64::from_be_bytes(*num2);
-    //                 if num1.floor() as i64 >= num2 {
-    //                     Ok(true)
-    //                 } else {
-    //                     Ok(false)
-    //                 }
-    //             } else if *is_float2 {
-    //                 let num1 = i64::from_be_bytes(*num1);
-    //                 let num2 = f64::from_be_bytes(*num2);
-    //                 if num2.ceil() as i64 <= num1 {
-    //                     Ok(true)
-    //                 } else {
-    //                     Ok(false)
-    //                 }
-    //             } else {
-    //                 let num1 = i64::from_be_bytes(*num1);
-    //                 let num2 = i64::from_be_bytes(*num2);
-    //                 Ok(num1 >= num2)
-    //             }
-    //         }
-    //         (LuaVal::LuaString(str1), LuaVal::LuaString(str2)) => Ok(str1 >= str2),
-    //         _ => Err(ASTExecError(format!(
-    //             "Cannot compare values (types cannot be compared)"
-    //         ))),
-    //     }
-    // }
-
-    // pub fn is_less_or_equal(&self, other: &LuaValue<'a>) -> Result<bool, ASTExecError> {
-    //     match (&*self.0, &*other.0) {
-    //         (LuaVal::LuaNum(num1, is_float1), LuaVal::LuaNum(num2, is_float2)) => {
-    //             if *is_float1 && *is_float2 {
-    //                 let num1 = f64::from_be_bytes(*num1);
-    //                 let num2 = f64::from_be_bytes(*num2);
-    //                 Ok(num1 <= num2)
-    //             } else if *is_float1 {
-    //                 let num1 = f64::from_be_bytes(*num1);
-    //                 let num2 = i64::from_be_bytes(*num2);
-    //                 if num1.ceil() as i64 <= num2 {
-    //                     Ok(true)
-    //                 } else {
-    //                     Ok(false)
-    //                 }
-    //             } else if *is_float2 {
-    //                 let num1 = i64::from_be_bytes(*num1);
-    //                 let num2 = f64::from_be_bytes(*num2);
-    //                 if num2.floor() as i64 >= num1 {
-    //                     Ok(true)
-    //                 } else {
-    //                     Ok(false)
-    //                 }
-    //             } else {
-    //                 let num1 = i64::from_be_bytes(*num1);
-    //                 let num2 = i64::from_be_bytes(*num2);
-    //                 Ok(num1 <= num2)
-    //             }
-    //         }
-    //         (LuaVal::LuaString(str1), LuaVal::LuaString(str2)) => Ok(str1 <= str2),
-    //         _ => Err(ASTExecError(format!(
-    //             "Cannot compare values (types cannot be compared)"
-    //         ))),
-    //     }
-    // }
-
-    // pub fn incr_by_int(&mut self, incr: i64) -> Result<(), ASTExecError> {
-    //     match &mut *self.0 {
-    //         LuaVal::LuaNum(num, is_float) => {
-    //             if *is_float {
-    //                 let n = f64::from_be_bytes(*num);
-    //                 let n = n + incr as f64;
-    //                 *num = n.to_be_bytes();
-    //             } else {
-    //                 let n = i64::from_be_bytes(*num);
-    //                 let n = n + incr;
-    //                 *num = n.to_be_bytes();
-    //             }
-    //         }
-    //         _ => {
-    //             return Err(ASTExecError(format!(
-    //                 "Value type is cannot be incremented (must be a number)"
-    //             )))
-    //         }
-    //     }
-    //     Ok(())
-    // }
 }
 
 // TODO: Or use hashmap representation?
@@ -302,36 +208,36 @@ impl Statement {
                 // Do nothing
             }
             Statement::Assignment((varlist, explist, is_local)) => {
-                if *is_local {
+                // If there are more values than needed, the excess values are thrown away.
+                let mut results = Vec::with_capacity(varlist.len());
+                for i in 0..varlist.len() {
+                    let var = &varlist[i];
+                    // If there are fewer values than needed, the list is extended with nil's
+                    let val = if i < explist.len() {
+                        explist[i].eval(env).unwrap()
+                    } else {
+                        LuaValue::new(LuaVal::LuaNil)
+                    };
 
-                } else {
-                    // If there are more values than needed, the excess values are thrown away.
-                    let mut results = Vec::with_capacity(varlist.len());
-                    for i in 0..varlist.len() {
-                        let var = &varlist[i];
-                        // If there are fewer values than needed, the list is extended with nil's
-                        let val = if i < explist.len() {
-                            explist[i].eval(env).unwrap()
-                        } else {
-                            LuaValue::new(LuaVal::LuaNil)
-                        };
-
-                        match var {
-                            Var::NameVar(name) => {
-                                results.push((name, val));
-                            }
-                            // TODO: assignments for tables
-                            Var::BracketVar((name, exp)) => {
-                                unimplemented!()
-                            }
-                            Var::DotVar((name, field)) => {
-                                unimplemented!()
-                            }
+                    match var {
+                        Var::NameVar(name) => {
+                            results.push((name, val));
+                        }
+                        // TODO: assignments for tables
+                        Var::BracketVar((name, exp)) => {
+                            unimplemented!()
+                        }
+                        Var::DotVar((name, field)) => {
+                            unimplemented!()
                         }
                     }
+                }
 
-                    // Insert into the environment
-                    for (name, val) in results {
+                // Insert into the environment
+                for (name, val) in results {
+                    if *is_local {
+                        env.insert_local(name.clone(), val);
+                    } else {
                         env.insert_global(name.clone(), val);
                     }
                 }
@@ -344,24 +250,21 @@ impl Statement {
                 // Terminates the execution of a while, repeat, or for loop
                 return Ok(None);
             }
-            Statement::DoBlock(block) => {
-                // TODO: add test for this
-                match block.exec(env) {
-                    Ok(val) => match val {
-                        Some(val) => {
-                            return Ok(Some(val));
-                        }
-                        None => {
-                            return Err(ASTExecError(format!(
+            Statement::DoBlock(block) => match block.exec(env) {
+                Ok(val) => match val {
+                    Some(val) => {
+                        return Ok(Some(val));
+                    }
+                    None => {
+                        return Err(ASTExecError(format!(
                             "Break statement can only be used inside a while, repeat, or for loop"
                         )))
-                        }
-                    },
-                    Err(err) => {
-                        return Err(err);
                     }
+                },
+                Err(err) => {
+                    return Err(err);
                 }
-            }
+            },
             Statement::While((exp, block)) => {
                 // Execute block until exp returns false
                 // Local variables are lost in each iteration
@@ -436,7 +339,7 @@ impl Statement {
                                 "Initial value in for loop must be an integer"
                             )));
                         }
-                    }
+                    },
                 };
                 let limit = exp2.eval(env)?;
                 let step = match exp3 {
@@ -505,14 +408,14 @@ impl Statement {
                     i += step;
                 }
             }
-            Statement::ForGeneric((names, explist, block)) => {
+            Statement::ForGeneric((names, exp_list, block)) => {
                 unimplemented!()
             }
-            Statement::FunctionDecl((name, parlist, block)) => {
-                unimplemented!()
+            Statement::FunctionDecl((name, par_list, block)) => {
+                env.insert_global(name.clone(), LuaValue::new(LuaVal::Function(LuaFunction { par_list, block })));
             }
-            Statement::LocalFuncDecl((name, parlist, block)) => {
-                unimplemented!()
+            Statement::LocalFuncDecl((name, par_list, block)) => {
+                env.insert_local(name.clone(), LuaValue::new(LuaVal::Function(LuaFunction { par_list, block })));
             }
         };
 
@@ -546,7 +449,10 @@ impl Expression {
                         let left = left.eval(env)?;
                         let right = right.eval(env)?;
                         match (left.0.as_ref(), right.0.as_ref()) {
-                            (LuaVal::LuaNum(bytes1, is_float1), LuaVal::LuaNum(bytes2, is_float2)) => {
+                            (
+                                LuaVal::LuaNum(bytes1, is_float1),
+                                LuaVal::LuaNum(bytes2, is_float2),
+                            ) => {
                                 if !*is_float1 && !*is_float2 {
                                     // Both are integers
                                     let i1 = i64::from_be_bytes(*bytes1);
@@ -556,14 +462,19 @@ impl Expression {
                                     // Left is float, right is integer
                                     let f1 = f64::from_be_bytes(*bytes1);
                                     let i2 = i64::from_be_bytes(*bytes2);
-                                    LuaValue::new(LuaVal::LuaNum((f1 + i2 as f64).to_be_bytes(), true))
+                                    LuaValue::new(LuaVal::LuaNum(
+                                        (f1 + i2 as f64).to_be_bytes(),
+                                        true,
+                                    ))
                                 } else if *is_float2 {
                                     // Right is float, left is integer
                                     let i1 = i64::from_be_bytes(*bytes1);
                                     let f2 = f64::from_be_bytes(*bytes2);
-                                    LuaValue::new(LuaVal::LuaNum((i1 as f64 + f2).to_be_bytes(), true))
-                                }
-                                else {
+                                    LuaValue::new(LuaVal::LuaNum(
+                                        (i1 as f64 + f2).to_be_bytes(),
+                                        true,
+                                    ))
+                                } else {
                                     // Both are float
                                     let f1 = f64::from_be_bytes(*bytes1);
                                     let f2 = f64::from_be_bytes(*bytes2);
@@ -577,7 +488,7 @@ impl Expression {
                                 )));
                             }
                         }
-                    },
+                    }
                     _ => unimplemented!(),
                 }
             }
@@ -734,7 +645,6 @@ mod tests {
         LuaValue::new(LuaVal::Function(LuaFunction { par_list, block }))
     }
 
-    // TODO split into multiple tests
     #[test]
     fn test_eval_exp_nil() {
         let mut env = Env::new();
@@ -856,7 +766,7 @@ mod tests {
         // Test Statement exec method
         let mut env = Env::new();
 
-        // Assignment
+        // varlist.len > explist.len
         let a: i64 = 10;
         let b: i64 = 20;
         let varlist = vec![
@@ -923,11 +833,35 @@ mod tests {
             *env.get("b").unwrap().0,
             LuaVal::LuaNum(b.to_be_bytes(), false)
         );
-    }
 
-    #[test]
-    fn test_exec_stat_local_assign() {
-        // TODO: local assignment
+        // Local assignment
+        env = Env::new();
+        let a: i64 = 10;
+        let b: i64 = 20;
+        let varlist = vec![
+            Var::NameVar("a".to_string()),
+            Var::NameVar("b".to_string()),
+        ];
+        let explist = vec![
+            Expression::Numeral(Numeral::Integer(10)),
+            Expression::Numeral(Numeral::Integer(20)),
+        ];
+        let stat = Statement::Assignment((varlist, explist, true));
+        assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
+
+        // Get local variable first
+        assert_eq!(
+            *env.get_local("a").unwrap().0,
+            LuaVal::LuaNum(a.to_be_bytes(), false)
+        );
+        assert_eq!(
+            *env.get_local("b").unwrap().0,
+            LuaVal::LuaNum(b.to_be_bytes(), false)
+        );
+        assert_eq!(
+            env.get_global("a"),
+            None
+        );
     }
 
     #[test]
@@ -1096,15 +1030,34 @@ mod tests {
     #[test]
     fn test_exec_stat_while() {
         // TODO: increment few times when binary expression is implemented
-        // let mut env = Env::new();
-        // let condition = Expression::False;
-        // let block = Block {
-        //     statements: vec![Statement::Assignment((
-        //         vec![Var::NameVar("a".to_string())],
-        //         vec![Expression::Numeral(Numeral::Integer(10))],
-        //     ))],
-        //     return_stat: None,
-        // };
+        let mut env = Env::new();
+        let stat = Statement::Assignment((
+            vec![Var::NameVar("a".to_string())],
+            vec![Expression::Numeral(Numeral::Integer(10))],
+            false,
+        ));
+        stat.exec(&mut env).unwrap();
+        // TODO: change the condition after binary operation is implemented
+        let condition = Expression::True;
+        let block = Block {
+            statements: vec![
+                Statement::Assignment((
+                    vec![Var::NameVar("a".to_string())],
+                    vec![Expression::BinaryOp((
+                        Box::new(var_exp("a")),
+                        BinOp::Add,
+                        Box::new(var_exp("a")),
+                    ))],
+                    false,
+                )),
+                Statement::Break,
+            ],
+            return_stat: None,
+        };
+
+        let while_stat = Statement::While((condition, block));
+        assert_eq!(while_stat.exec(&mut env), Ok(Some(vec![])));
+        assert_eq!(env.get("a"), Some(&lua_integer(20)));
     }
 
     #[test]
@@ -1120,7 +1073,7 @@ mod tests {
                 statements: vec![Statement::Assignment((
                     vec![Var::NameVar("a".to_string())],
                     vec![Expression::Numeral(Numeral::Integer(20))],
-                    false
+                    false,
                 ))],
                 return_stat: None,
             },
@@ -1143,7 +1096,7 @@ mod tests {
                     Statement::Assignment((
                         vec![Var::NameVar("a".to_string())],
                         vec![Expression::Numeral(Numeral::Integer(20))],
-                        false
+                        false,
                     )),
                 ],
                 return_stat: None,
@@ -1165,7 +1118,7 @@ mod tests {
                 statements: vec![Statement::Assignment((
                     vec![Var::NameVar("a".to_string())],
                     vec![Expression::Numeral(Numeral::Integer(20))],
-                    false
+                    false,
                 ))],
                 return_stat: Some(vec![var_exp("a")]),
             },
@@ -1185,7 +1138,7 @@ mod tests {
                 statements: vec![Statement::Assignment((
                     vec![Var::NameVar("a".to_string())],
                     vec![Expression::Numeral(Numeral::Integer(20))],
-                    false
+                    false,
                 ))],
                 return_stat: None,
             },
@@ -1194,5 +1147,43 @@ mod tests {
             for_stat.exec(&mut env),
             Err(ASTExecError(format!("Step value in for loop cannot be 0")))
         );
+    }
+
+    #[test]
+    fn test_exec_stat_func_decl() {
+        let mut env = Env::new();
+        let func_decl = Statement::FunctionDecl((
+            "f".to_string(),
+            ParList(vec![String::from("a"), String::from("b")], false),
+            Block {
+                statements: vec![],
+                return_stat: Some(vec![Expression::BinaryOp((Box::new(var_exp("a")), BinOp::Add, Box::new(var_exp("b"))))]),
+            },
+        ));
+        assert_eq!(func_decl.exec(&mut env), Ok(Some(vec![])));
+        assert_eq!(env.get_global("f"), Some(&lua_function(&ParList(vec![String::from("a"), String::from("b")], false),
+        &Block {
+            statements: vec![],
+            return_stat: Some(vec![Expression::BinaryOp((Box::new(var_exp("a")), BinOp::Add, Box::new(var_exp("b"))))]),
+        })));
+    }
+
+    #[test]
+    fn test_exec_stat_func_decl_local() {
+        let mut env = Env::new();
+        let func_decl = Statement::LocalFuncDecl((
+            "f".to_string(),
+            ParList(vec![String::from("a"), String::from("b")], false),
+            Block {
+                statements: vec![],
+                return_stat: Some(vec![Expression::BinaryOp((Box::new(var_exp("a")), BinOp::Add, Box::new(var_exp("b"))))]),
+            },
+        ));
+        assert_eq!(func_decl.exec(&mut env), Ok(Some(vec![])));
+        assert_eq!(env.get_local("f"), Some(&lua_function(&ParList(vec![String::from("a"), String::from("b")], false),
+        &Block {
+            statements: vec![],
+            return_stat: Some(vec![Expression::BinaryOp((Box::new(var_exp("a")), BinOp::Add, Box::new(var_exp("b"))))]),
+        })));
     }
 }
