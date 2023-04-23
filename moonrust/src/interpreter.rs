@@ -7,9 +7,10 @@ use std::{cell::RefCell, rc::Rc};
 
 pub mod environment;
 
+// TODO: lua function and table are stored as reference
 #[derive(Debug, PartialEq)]
 pub enum LuaVal<'a> {
-    LuaTable(Table<'a>),
+    LuaTable(LuaTable<'a>),
     LuaNil,
     LuaBool(bool),
     LuaNum([u8; 8], bool), // numerals as an array of 8 bytes, bool for is_float
@@ -22,6 +23,8 @@ pub enum LuaVal<'a> {
 pub struct LuaFunction<'a> {
     par_list: &'a ParList,
     block: &'a Block,
+    // CONTINUE
+    // captured_variables: EnvTable<'a>,
 }
 
 // Wrapper around LuaVal to allow multiple owners
@@ -146,7 +149,37 @@ impl<'a> LuaValue<'a> {
 
 // TODO: Or use hashmap representation?
 #[derive(Debug, PartialEq)]
-pub struct Table<'a>(RefCell<Vec<(LuaValue<'a>, LuaValue<'a>)>>);
+pub struct LuaTable<'a>(Rc<RefCell<Vec<(LuaValue<'a>, LuaValue<'a>)>>>);
+impl<'a> LuaTable<'a> {
+    pub fn new(capacity: usize) -> Self {
+        LuaTable(Rc::new(RefCell::new(Vec::with_capacity(capacity))))
+    }
+
+    // pub fn insert(&self, key: LuaValue<'a>, val: LuaValue<'a>) {
+    //     self.0.borrow_mut().push((key, val));
+    // }
+
+    // pub fn get(&self, key: &LuaValue<'a>) -> Option<LuaValue<'a>> {
+    //     for (k, v) in self.0.borrow().iter() {
+    //         if k == key {
+    //             return Some(v.clone());
+    //         }
+    //     }
+    //     None
+    // }
+
+    // pub fn remove(&self, key: &LuaValue<'a>) {
+    //     let mut table = self.0.borrow_mut();
+    //     let mut i = 0;
+    //     while i < table.len() {
+    //         if table[i].0 == *key {
+    //             table.remove(i);
+    //             break;
+    //         }
+    //         i += 1;
+    //     }
+    // }
+}
 
 impl AST {
     pub fn exec<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<(), ASTExecError> {
@@ -234,6 +267,7 @@ impl Statement {
                 }
 
                 // Insert into the environment
+                // TODO: with local keyword, always insert new local variable, without, first check update
                 for (name, val) in results {
                     if *is_local {
                         env.insert_local(name.clone(), val);
@@ -420,10 +454,16 @@ impl Statement {
                 unimplemented!()
             }
             Statement::FunctionDecl((name, par_list, block)) => {
-                env.insert_global(name.clone(), LuaValue::new(LuaVal::Function(LuaFunction { par_list, block })));
+                env.insert_global(
+                    name.clone(),
+                    LuaValue::new(LuaVal::Function(LuaFunction { par_list, block })),
+                );
             }
             Statement::LocalFuncDecl((name, par_list, block)) => {
-                env.insert_local(name.clone(), LuaValue::new(LuaVal::Function(LuaFunction { par_list, block })));
+                env.insert_local(
+                    name.clone(),
+                    LuaValue::new(LuaVal::Function(LuaFunction { par_list, block })),
+                );
             }
         };
 
@@ -448,7 +488,24 @@ impl Expression {
                 LuaValue::new(LuaVal::Function(LuaFunction { par_list, block }))
             }
             Expression::PrefixExp(prefixexp) => prefixexp.eval(env)?,
-            Expression::TableConstructor(fields) => unimplemented!(),
+            Expression::TableConstructor(fields) => {
+                // TODO
+                let mut table = LuaTable::new(fields.len());
+                for field in fields.into_iter() {
+                    match field {
+                        Field::BracketedAssign((exp1, exp2)) => {
+                            unimplemented!()
+                        }
+                        Field::NameAssign((name, exp)) => {
+                            unimplemented!()
+                        }
+                        Field::UnnamedAssign(exp) => {
+                            unimplemented!()
+                        }
+                    }
+                }
+                unimplemented!()
+            }
             Expression::BinaryOp((left, op, right)) => {
                 // If both are integers, the operation is performed over integers and the result is an integer.
                 // If both are numbers, then they are converted to floats
@@ -846,10 +903,7 @@ mod tests {
         env = Env::new();
         let a: i64 = 10;
         let b: i64 = 20;
-        let varlist = vec![
-            Var::NameVar("a".to_string()),
-            Var::NameVar("b".to_string()),
-        ];
+        let varlist = vec![Var::NameVar("a".to_string()), Var::NameVar("b".to_string())];
         let explist = vec![
             Expression::Numeral(Numeral::Integer(10)),
             Expression::Numeral(Numeral::Integer(20)),
@@ -866,10 +920,7 @@ mod tests {
             *env.get_local("b").unwrap().0,
             LuaVal::LuaNum(b.to_be_bytes(), false)
         );
-        assert_eq!(
-            env.get_global("a"),
-            None
-        );
+        assert_eq!(env.get_global("a"), None);
     }
 
     #[test]
@@ -1165,15 +1216,28 @@ mod tests {
             ParList(vec![String::from("a"), String::from("b")], false),
             Block {
                 statements: vec![],
-                return_stat: Some(vec![Expression::BinaryOp((Box::new(var_exp("a")), BinOp::Add, Box::new(var_exp("b"))))]),
+                return_stat: Some(vec![Expression::BinaryOp((
+                    Box::new(var_exp("a")),
+                    BinOp::Add,
+                    Box::new(var_exp("b")),
+                ))]),
             },
         ));
         assert_eq!(func_decl.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get_global("f"), Some(&lua_function(&ParList(vec![String::from("a"), String::from("b")], false),
-        &Block {
-            statements: vec![],
-            return_stat: Some(vec![Expression::BinaryOp((Box::new(var_exp("a")), BinOp::Add, Box::new(var_exp("b"))))]),
-        })));
+        assert_eq!(
+            env.get_global("f"),
+            Some(&lua_function(
+                &ParList(vec![String::from("a"), String::from("b")], false),
+                &Block {
+                    statements: vec![],
+                    return_stat: Some(vec![Expression::BinaryOp((
+                        Box::new(var_exp("a")),
+                        BinOp::Add,
+                        Box::new(var_exp("b"))
+                    ))]),
+                }
+            ))
+        );
     }
 
     #[test]
@@ -1184,14 +1248,27 @@ mod tests {
             ParList(vec![String::from("a"), String::from("b")], false),
             Block {
                 statements: vec![],
-                return_stat: Some(vec![Expression::BinaryOp((Box::new(var_exp("a")), BinOp::Add, Box::new(var_exp("b"))))]),
+                return_stat: Some(vec![Expression::BinaryOp((
+                    Box::new(var_exp("a")),
+                    BinOp::Add,
+                    Box::new(var_exp("b")),
+                ))]),
             },
         ));
         assert_eq!(func_decl.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get_local("f"), Some(&lua_function(&ParList(vec![String::from("a"), String::from("b")], false),
-        &Block {
-            statements: vec![],
-            return_stat: Some(vec![Expression::BinaryOp((Box::new(var_exp("a")), BinOp::Add, Box::new(var_exp("b"))))]),
-        })));
+        assert_eq!(
+            env.get_local("f"),
+            Some(&lua_function(
+                &ParList(vec![String::from("a"), String::from("b")], false),
+                &Block {
+                    statements: vec![],
+                    return_stat: Some(vec![Expression::BinaryOp((
+                        Box::new(var_exp("a")),
+                        BinOp::Add,
+                        Box::new(var_exp("b"))
+                    ))]),
+                }
+            ))
+        );
     }
 }
