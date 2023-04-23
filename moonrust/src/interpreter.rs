@@ -409,6 +409,14 @@ impl Statement {
                 }
             }
             Statement::ForGeneric((names, exp_list, block)) => {
+                // Generic for statement must be used with iterator
+                // TODO: finish implementing this
+                if exp_list.len() != 1 {
+                    return Err(ASTExecError(format!(
+                        "Generic for loop must use iterator function"
+                    )));
+                }
+
                 unimplemented!()
             }
             Statement::FunctionDecl((name, par_list, block)) => {
@@ -600,7 +608,7 @@ impl FunctionCall {
                 }
             }
             FunctionCall::Method((object, method_name, args)) => {
-                // TODO: understand object in Lua?
+                // TODO: Lua object is basically a table (implement this after table is implemented)
                 unimplemented!()
             }
         }
