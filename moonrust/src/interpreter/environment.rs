@@ -1,45 +1,24 @@
 use crate::interpreter::LuaValue;
+use std::collections::HashMap;
+
 // TODO: double check environment implementation
 // Dr. Fluet's advice: env: Vec<Table<String, Data>>, type Env = (Table<String, Data>, Vec<Table<String, Data>>)
 
 // One scope of bindings
 #[derive(Debug, PartialEq)]
-pub struct EnvTable<'a>(Vec<(String, LuaValue<'a>)>);
-impl <'a>EnvTable<'a> {
+pub struct EnvTable<'a>(HashMap<String, LuaValue<'a>>);
+impl<'a> EnvTable<'a> {
     pub fn new() -> Self {
-        EnvTable(vec![])
+        EnvTable(HashMap::new())
     }
 
-    pub fn get(&self, name: &str) -> Option<& LuaValue<'a>> {
-        for (var_name, var) in self.0.iter() {
-            if var_name == name {
-                return Some(var);
-            }
-        }
-        None
+    pub fn get(&self, name: &str) -> Option<&LuaValue<'a>> {
+        self.0.get(name)
     }
-
-    // pub fn get_mut(&'a mut self, name: &str) -> Option<&mut (String, LuaValue<'a>)> {
-    //     let mut i = 0;
-    //     for (var_name, var) in self.0.borrow().iter() {
-    //         if var_name == name {
-    //             return self.0.borrow_mut().get_mut(i);
-    //         }
-    //         i += 1;
-    //     }
-    //     None
-    // }
 
     // Insert a new variable or update an existing one
-    pub fn insert(&mut self, name: String, var: LuaValue<'a>) {
-        let name_slice = &name[..];
-        for binding in self.0.iter_mut() {
-            if binding.0 == name_slice {
-                binding.1 = var;
-                return;
-            } 
-        };
-        self.0.push((name, var));
+    pub fn insert(&mut self, name: String, var: LuaValue<'a>) -> Option<LuaValue<'a>>{
+        self.0.insert(name, var)
     }
 }
 
@@ -54,7 +33,6 @@ impl<'a> LocalEnv<'a> {
     }
 
     pub fn get(&self, name: &str) -> Option<&LuaValue<'a>> {
-        // Previous code that has error of "cannot return value referencing temporary value"
         for table in self.0.iter().rev() {
             if let Some(var) = table.get(name) {
                 return Some(var);
@@ -63,17 +41,17 @@ impl<'a> LocalEnv<'a> {
         None
     }
 
-    pub fn get_mut(&mut self, name: &str) -> Option<&mut LuaValue<'a>> {
-        // Search in reversed order to check current scope first
-        for table in self.0.iter_mut().rev() {
-            for (var_name, var) in table.0.iter_mut() {
-                if var_name == name {
-                    return Some(var);
-                }
-            }
-        }
-        None
-    }
+    // pub fn get_mut(&mut self, name: &str) -> Option<&mut LuaValue<'a>> {
+    //     // Search in reversed order to check current scope first
+    //     for table in self.0.iter_mut().rev() {
+    //         for (var_name, var) in table.0.iter_mut() {
+    //             if var_name == name {
+    //                 return Some(var);
+    //             }
+    //         }
+    //     }
+    //     None
+    // }
 
     pub fn extend_env(&mut self) {
         self.0.push(EnvTable::new());
@@ -86,13 +64,13 @@ impl<'a> LocalEnv<'a> {
         }
     }
 
-    pub fn insert(&mut self, name: String, var: LuaValue<'a>) {
+    pub fn insert(&mut self, name: String, var: LuaValue<'a>) -> Option<LuaValue<'a>> {
         match self.0.last_mut() {
             Some(table) => {
-                table.insert(name, var);
+                table.insert(name, var)
             }
             None => panic!("Environment stack is empty"),
-        };
+        }
     }
 }
 
