@@ -44,9 +44,16 @@ impl Statement {
                 // TODO: with local keyword, always insert new local variable, without, first check update
                 for (name, val) in results {
                     if *is_local {
+                        // With local keyword, always insert new local variable or overwrite existing
                         env.insert_local(name.clone(), val);
                     } else {
-                        env.insert_global(name.clone(), val);
+                        if env.get_local(name).is_some() {
+                            // Update local variable
+                            env.insert_local(name.clone(), val);
+                        } else {
+                            // Update or insert global variable
+                            env.insert_global(name.clone(), val);
+                        }
                     }
                 }
             }
@@ -370,6 +377,96 @@ mod tests {
             LuaVal::LuaNum(b.to_be_bytes(), false)
         );
         assert_eq!(env.get_global("a"), None);
+    }
+
+    #[test]
+    fn test_exec_stat_reassign() {
+        // Test Statement exec method
+        let mut env = Env::new();
+
+        // reassignment in one line (should not know value of "a" in same line)
+        let a: i64 = 10;
+        let varlist = vec![
+            Var::NameVar("a".to_string()),
+            Var::NameVar("b".to_string()),
+            Var::NameVar("a".to_string()),
+        ];
+        let explist = vec![
+            Expression::Numeral(Numeral::Integer(30)),
+            Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar("a".to_string())))),
+            Expression::Numeral(Numeral::Integer(10)),
+        ];
+        let stat = Statement::Assignment((varlist, explist, false));
+        assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
+        assert_eq!(
+            *env.get("a").unwrap().0,
+            LuaVal::LuaNum(a.to_be_bytes(), false)
+        );
+        assert_eq!(*env.get("b").unwrap().0, LuaVal::LuaNil);
+
+        // string reassignment (in assignment for b, should know value of a as 10)
+        let a = "testA";
+        let b = "testB";
+        let varlist = vec![
+            Var::NameVar("a".to_string()),
+            Var::NameVar("b".to_string()),
+            Var::NameVar("a".to_string()),
+        ];
+        let explist = vec![
+            Expression::LiteralString(b.to_string()),
+            Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar("a".to_string())))),
+            Expression::LiteralString(a.to_string()),
+        ];
+        let stat = Statement::Assignment((varlist, explist, false));
+        assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
+        assert_eq!(*env.get("a").unwrap().0, LuaVal::LuaString(a.to_string()));
+        assert_eq!(
+            *env.get("b").unwrap().0,
+            LuaVal::LuaNum(10_i64.to_be_bytes(), false)
+        );
+    }
+
+    #[test]
+    fn test_exec_stat_visibility() {
+        // Test Statement exec method
+        let mut env = Env::new();
+
+        // reassignment in one line (should not know value of "a" in same line)
+        let a: i64 = 10;
+        let stat = Statement::Assignment((
+            vec![Var::NameVar("a".to_string())],
+            vec![Expression::Numeral(Numeral::Integer(10))],
+            false,
+        ));
+        assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
+        assert_eq!(
+            *env.get("a").unwrap().0,
+            LuaVal::LuaNum(a.to_be_bytes(), false)
+        );
+
+        let block = Block {
+            statements: vec![Statement::Assignment((
+                vec![Var::NameVar("a".to_string())],
+                vec![Expression::Numeral(Numeral::Integer(20))],
+                true,
+            ))],
+            return_stat: Some(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(
+                Var::NameVar("a".to_string()),
+            )))]),
+        };
+        let do_block = Statement::DoBlock(block);
+        assert_eq!(
+            do_block.exec(&mut env),
+            Ok(Some(vec![LuaValue::new(LuaVal::LuaNum(
+                20_i64.to_be_bytes(),
+                false
+            ))]))
+        );
+        // Exited the environment so accessing global "a"
+        assert_eq!(
+            *env.get("a").unwrap().0,
+            LuaVal::LuaNum(a.to_be_bytes(), false)
+        );
     }
 
     #[test]

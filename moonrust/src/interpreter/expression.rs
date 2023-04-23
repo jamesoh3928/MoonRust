@@ -105,12 +105,7 @@ impl PrefixExp {
                 match var {
                     Var::NameVar(name) => match env.get(&name) {
                         Some(val) => Ok(val.clone()),
-                        None => {
-                            return Err(ASTExecError(format!(
-                                "Variable {} is not defined in current scope",
-                                name
-                            )))
-                        }
+                        None => Ok(LuaValue::new(LuaVal::LuaNil)),
                     },
                     Var::BracketVar((name, exp)) => {
                         // TODO: implement after table

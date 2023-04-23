@@ -118,5 +118,12 @@ impl<'a> Env<'a> {
         self.local.pop_env()
     }
 
+    // Used for function (closures)
+    pub fn extend_captured_vars(&mut self, captured_vars: Vec<(String, LuaValue<'a>)>) {
+        for (name, var) in captured_vars {
+            self.insert_local(name, var);
+        }
+    }
+
     // TODO: maybe mutable get?
 }

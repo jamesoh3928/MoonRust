@@ -1,7 +1,7 @@
 // TODO
-// 2. Review assignment of another variable to a variable (does it copy the value)
-// 3. Function captured variables
-// 4. Table
+// 1. Ask question about capturing varaibles in function (closure)
+// 2. Function captured variables
+// 3. Table
 use crate::ast::*;
 use crate::interpreter::environment::Env;
 use std::fmt;
@@ -9,10 +9,11 @@ use std::fmt::{Display, Formatter};
 use std::{cell::RefCell, rc::Rc};
 
 pub mod environment;
-pub mod statement;
 pub mod expression;
+pub mod statement;
 
-// TODO: lua function and table are stored as reference
+// TODO: lua function and table are stored as reference (don't think function matters, but table might)
+//       current struct definition might be good enough
 #[derive(Debug, PartialEq)]
 pub enum LuaVal<'a> {
     LuaTable(LuaTable<'a>),
@@ -29,7 +30,7 @@ pub struct LuaFunction<'a> {
     par_list: &'a ParList,
     block: &'a Block,
     // CONTINUE
-    // captured_variables: EnvTable<'a>,
+    // captured_variables: Vec<(String, LuaValue<'a>)>,
 }
 
 // Wrapper around LuaVal to allow multiple owners
