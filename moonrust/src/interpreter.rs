@@ -1,6 +1,5 @@
 // TODO
 // 1. Ask question about capturing varaibles in function (closure)
-// 2. Function captured variables
 // 3. Table
 use crate::ast::*;
 use crate::interpreter::environment::Env;
@@ -29,8 +28,7 @@ pub enum LuaVal<'a> {
 pub struct LuaFunction<'a> {
     par_list: &'a ParList,
     block: &'a Block,
-    // CONTINUE
-    // captured_variables: Vec<(String, LuaValue<'a>)>,
+    captured_variables: Vec<(String, LuaValue<'a>)>,
 }
 
 // Wrapper around LuaVal to allow multiple owners
@@ -161,6 +159,7 @@ impl<'a> LuaTable<'a> {
         LuaTable(Rc::new(RefCell::new(Vec::with_capacity(capacity))))
     }
 
+    // TODO: implement table methods
     // pub fn insert(&self, key: LuaValue<'a>, val: LuaValue<'a>) {
     //     self.0.borrow_mut().push((key, val));
     // }
@@ -206,6 +205,7 @@ impl Block {
         Ok(return_vals)
     }
 
+    // Used for repeat-until loops (need to refer to local variables inside the loop)
     fn exec_without_pop<'a, 'b>(
         &'a self,
         env: &'b mut Env<'a>,
@@ -235,8 +235,22 @@ impl Block {
             return_vals[i] = exp.eval(env).unwrap();
             i += 1;
         }
-
         Ok(Some(return_vals))
+    }
+
+    // Find captured variables in the block
+    fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
+        // CONTINUE: not capturing variables correctly
+        let mut captured_vars = vec![];
+        for statement in &self.statements {
+            captured_vars.append(&mut statement.capture_variables(env));
+        }
+        if let Some(return_stat) = &self.return_stat {
+            for exp in return_stat {
+                captured_vars.append(&mut exp.capture_variables(env));
+            }
+        }
+        captured_vars
     }
 }
 

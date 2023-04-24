@@ -118,11 +118,13 @@ impl<'a> Env<'a> {
         self.local.pop_env()
     }
 
-    // Used for function (closures)
-    pub fn extend_captured_vars(&mut self, captured_vars: Vec<(String, LuaValue<'a>)>) {
+    // Used for function (closures) capturing variables
+    pub fn vec_to_env(captured_vars: &Vec<(String, LuaValue<'a>)>) -> Env<'a> {
+        let mut new_env = Env::new();
         for (name, var) in captured_vars {
-            self.insert_local(name, var);
+            new_env.insert_local(name.clone(), var.clone());
         }
+        new_env
     }
 
     // TODO: maybe mutable get?

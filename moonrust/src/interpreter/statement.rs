@@ -235,20 +235,90 @@ impl Statement {
                 unimplemented!()
             }
             Statement::FunctionDecl((name, par_list, block)) => {
+                let captured_variables = block.capture_variables(env);
                 env.insert_global(
                     name.clone(),
-                    LuaValue::new(LuaVal::Function(LuaFunction { par_list, block })),
+                    LuaValue::new(LuaVal::Function(LuaFunction {
+                        par_list,
+                        block,
+                        captured_variables,
+                    })),
                 );
             }
             Statement::LocalFuncDecl((name, par_list, block)) => {
+                let captured_variables = block.capture_variables(env);
                 env.insert_local(
                     name.clone(),
-                    LuaValue::new(LuaVal::Function(LuaFunction { par_list, block })),
+                    LuaValue::new(LuaVal::Function(LuaFunction {
+                        par_list,
+                        block,
+                        captured_variables,
+                    })),
                 );
             }
         };
 
         Ok(Some(vec![]))
+    }
+
+    pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
+        let mut captured_vars = vec![];
+        match self {
+            Statement::Assignment((_, exp_list, _)) => {
+                for exp in exp_list {
+                    captured_vars.append(&mut exp.capture_variables(env));
+                }
+            }
+            Statement::FunctionCall(func_call) => {
+                captured_vars.append(&mut func_call.capture_variables(env));
+            }
+            Statement::DoBlock(block) => {
+                captured_vars.append(&mut block.capture_variables(env));
+            }
+            Statement::While((exp, block)) => {
+                captured_vars.append(&mut exp.capture_variables(env));
+                captured_vars.append(&mut block.capture_variables(env));
+            }
+            Statement::Repeat((block, exp)) => {
+                captured_vars.append(&mut block.capture_variables(env));
+                captured_vars.append(&mut exp.capture_variables(env));
+            }
+            Statement::If((exp, block, elifs, else_block)) => {
+                captured_vars.append(&mut exp.capture_variables(env));
+                captured_vars.append(&mut block.capture_variables(env));
+                for (exp, block) in elifs {
+                    captured_vars.append(&mut exp.capture_variables(env));
+                    captured_vars.append(&mut block.capture_variables(env));
+                }
+                if let Some(else_block) = else_block {
+                    captured_vars.append(&mut else_block.capture_variables(env));
+                }
+            }
+            Statement::ForNum((_, initial, limit, step, block)) => {
+                captured_vars.append(&mut initial.capture_variables(env));
+                captured_vars.append(&mut limit.capture_variables(env));
+                if let Some(step) = step {
+                    captured_vars.append(&mut step.capture_variables(env));
+                }
+                captured_vars.append(&mut block.capture_variables(env));
+            }
+            Statement::ForGeneric((_, exp_list, block)) => {
+                for exp in exp_list {
+                    captured_vars.append(&mut exp.capture_variables(env));
+                }
+                captured_vars.append(&mut block.capture_variables(env));
+            }
+            Statement::FunctionDecl((_, _, block)) => {
+                // Parameters do not capture any variables
+                captured_vars.append(&mut block.capture_variables(env));
+            }
+            Statement::LocalFuncDecl((_, _, block)) => {
+                // Parameters do not capture any variables
+                captured_vars.append(&mut block.capture_variables(env));
+            }
+            _ => {}
+        };
+        captured_vars
     }
 }
 
@@ -260,26 +330,22 @@ mod tests {
     fn var_exp(name: &str) -> Expression {
         Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar(name.to_string()))))
     }
+    fn integer_exp(n: i64) -> Expression {
+        Expression::Numeral(Numeral::Integer(n))
+    }
     fn lua_integer<'a>(n: i64) -> LuaValue<'a> {
         LuaValue::new(LuaVal::LuaNum(n.to_be_bytes(), false))
-    }
-    fn lua_float<'a>(n: f64) -> LuaValue<'a> {
-        LuaValue::new(LuaVal::LuaNum(n.to_be_bytes(), true))
     }
     fn lua_nil<'a>() -> LuaValue<'a> {
         LuaValue::new(LuaVal::LuaNil)
     }
-    fn lua_false<'a>() -> LuaValue<'a> {
-        LuaValue::new(LuaVal::LuaBool(false))
-    }
-    fn lua_true<'a>() -> LuaValue<'a> {
-        LuaValue::new(LuaVal::LuaBool(true))
-    }
-    fn lua_string<'a>(s: &str) -> LuaValue<'a> {
-        LuaValue::new(LuaVal::LuaString(s.to_string()))
-    }
-    fn lua_function<'a>(par_list: &'a ParList, block: &'a Block) -> LuaValue<'a> {
-        LuaValue::new(LuaVal::Function(LuaFunction { par_list, block }))
+    fn lua_function<'a>(par_list: &'a ParList, block: &'a Block, env: &Env<'a>) -> LuaValue<'a> {
+        let captured_variables = block.capture_variables(env);
+        LuaValue::new(LuaVal::Function(LuaFunction {
+            par_list,
+            block,
+            captured_variables,
+        }))
     }
 
     #[test]
@@ -481,21 +547,26 @@ mod tests {
         let exp_float = Expression::Numeral(Numeral::Float(num));
         let explist = vec![exp_float];
         let stat = Statement::Assignment((varlist, explist, false));
-        let return_stat = None;
+        let return_stat = Some(vec![var_exp("a"), var_exp("a")]);
         let block = Block {
             statements: vec![stat],
             return_stat: return_stat,
         };
         let par_list = ParList(vec![], false);
-        env.insert_global("f".to_string(), lua_function(&par_list, &block));
+
+        // Create function environment
+        env.insert_global("f".to_string(), lua_function(&par_list, &block, &env));
         // Function call statement
         let func_prefix = PrefixExp::Var(Var::NameVar("f".to_string()));
         let args = Args::ExpList(vec![]);
         let func_call = FunctionCall::Standard((Box::new(func_prefix), args));
         let func_call_stat = Statement::FunctionCall(func_call);
 
+        // Return "a" defined inside function
+        // Returned values are thrown away for statement function call
         assert_eq!(func_call_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_float(num)));
+        // After function call, return global "a"
+        assert_eq!(env.get("a"), Some(&lua_integer(a)));
     }
 
     #[test]
@@ -780,8 +851,9 @@ mod tests {
                         Box::new(var_exp("a")),
                         BinOp::Add,
                         Box::new(var_exp("b"))
-                    ))]),
-                }
+                    ))])
+                },
+                &env
             ))
         );
     }
@@ -813,8 +885,90 @@ mod tests {
                         BinOp::Add,
                         Box::new(var_exp("b"))
                     ))]),
-                }
+                },
+                &env
             ))
+        );
+    }
+
+    #[test]
+    fn test_exec_func_capture_variables() {
+        let mut env = Env::new();
+
+        let stat = Statement::Assignment((
+            vec![Var::NameVar("c".to_string())],
+            vec![Expression::BinaryOp((
+                Box::new(var_exp("a")),
+                BinOp::Add,
+                Box::new(var_exp("b")),
+            ))],
+            false,
+        ));
+        let func_decl = Statement::FunctionDecl((
+            "f".to_string(),
+            ParList(vec![], false),
+            Block {
+                statements: vec![stat],
+                return_stat: Some(vec![var_exp("c")]),
+            },
+        ));
+        let assignments = Statement::Assignment((
+            vec![Var::NameVar("a".to_string()), Var::NameVar("b".to_string())],
+            vec![integer_exp(10), integer_exp(20)],
+            true,
+        ));
+        let doblock = Statement::DoBlock(Block {
+            statements: vec![assignments, func_decl],
+            return_stat: None,
+        });
+
+        // f(100) executes a = 30, b = 20, return test
+        assert_eq!(doblock.exec(&mut env), Ok(Some(vec![])));
+        // Local variables can't be accessed after exiting scope
+        assert_eq!(env.get("a"), None);
+        assert_eq!(env.get("b"), None);
+
+        // But function (closure) can access them
+        let args = Args::ExpList(vec![]);
+        let func_call = FunctionCall::Standard((
+            Box::new(PrefixExp::Var(Var::NameVar("f".to_string()))),
+            args,
+        ));
+        let exp = PrefixExp::FunctionCall(func_call);
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(30))); // a + b = 10 + 20
+    }
+
+    #[test]
+    fn test_capture_variables() {
+        let mut env = Env::new();
+        env.insert_local("a".to_string(), lua_integer(1));
+        env.insert_local("b".to_string(), lua_integer(2));
+        env.insert_local("c".to_string(), lua_integer(3));
+        let block = Block {
+            statements: vec![Statement::Assignment((
+                vec![Var::NameVar("d".to_string())],
+                vec![Expression::BinaryOp((
+                    Box::new(var_exp("a")),
+                    BinOp::Add,
+                    Box::new(var_exp("b")),
+                ))],
+                false,
+            ))],
+            return_stat: Some(vec![var_exp("c"), var_exp("d")]),
+        };
+
+        assert_eq!(
+            block.capture_variables(&env),
+            vec![
+                ("a".to_string(), lua_integer(1)),
+                ("b".to_string(), lua_integer(2)),
+                ("c".to_string(), lua_integer(3)),
+                ("d".to_string(), lua_nil())
+            ]
+        );
+        assert_eq!(
+            block.exec(&mut env),
+            Ok(Some(vec![lua_integer(3), lua_integer(3)]))
         );
     }
 }

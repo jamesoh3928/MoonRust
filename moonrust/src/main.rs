@@ -26,7 +26,7 @@ fn main() {
     };
 
     // TODO: delete (keeping it to check if reading file correctly)
-    println!("Hello, {src}!");
+    println!("Reading file: , {src}!");
 
     // Parse the source code: TODO - currently `from_str` is not implemented
     let ast = match src.parse::<moonrust::AST>() {
@@ -41,7 +41,6 @@ fn main() {
     // Initialize environment
     // TODO: create new file for environment
     let mut env = environment::Env::new();
-    // let mut env = moonrust::interpreter::Env::new();
     match ast.exec(&mut env) {
         Ok(_) => (),
         Err(err) => {

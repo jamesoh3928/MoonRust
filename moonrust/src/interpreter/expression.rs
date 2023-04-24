@@ -20,7 +20,12 @@ impl Expression {
             // TODO: DotDotDot? maybe skip it for now
             Expression::DotDotDot => unimplemented!(),
             Expression::FunctionDef((par_list, block)) => {
-                LuaValue::new(LuaVal::Function(LuaFunction { par_list, block }))
+                let captured_variables = block.capture_variables(env);
+                LuaValue::new(LuaVal::Function(LuaFunction {
+                    par_list,
+                    block,
+                    captured_variables,
+                }))
             }
             Expression::PrefixExp(prefixexp) => prefixexp.eval(env)?,
             Expression::TableConstructor(fields) => {
@@ -96,6 +101,21 @@ impl Expression {
         };
         Ok(val)
     }
+
+    pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
+        match self {
+            Expression::FunctionDef((_, block)) => block.capture_variables(env),
+            Expression::PrefixExp(prefixexp) => prefixexp.capture_variables(env),
+            Expression::TableConstructor(_) => unimplemented!(),
+            Expression::BinaryOp((left, _, right)) => {
+                let mut vars = left.capture_variables(env);
+                vars.append(&mut right.capture_variables(env));
+                vars
+            }
+            Expression::UnaryOp((_, exp)) => exp.capture_variables(env),
+            _ => vec![],
+        }
+    }
 }
 
 impl PrefixExp {
@@ -120,16 +140,40 @@ impl PrefixExp {
             PrefixExp::FunctionCall(funcall) => {
                 // Call function and check if there is return value
                 let return_vals = funcall.exec(env)?;
-                if return_vals.len() != 1 {
-                    // TODO: double check how to deal when return value is not just 1
-                    return Err(ASTExecError(format!(
-                        "Function call did not return a value."
-                    )));
-                } else {
-                    Ok(return_vals[0].clone())
-                }
+                Ok(return_vals[0].clone())
             }
             PrefixExp::Exp(exp) => Ok(exp.eval(env)?),
+        }
+    }
+
+    pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
+        match self {
+            PrefixExp::Var(var) => var.capture_variables(env),
+            PrefixExp::FunctionCall(funcall) => funcall.capture_variables(env),
+            PrefixExp::Exp(exp) => exp.capture_variables(env),
+        }
+    }
+}
+
+impl Var {
+    pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
+        match self {
+            Var::NameVar(name) => match env.get(&name) {
+                // Value is cloned as Rc, which is not huge overhead
+                Some(val) => {
+                    vec![(name.clone(), val.clone())]
+                }
+                // If value is not found, then it is nil in captured environment
+                None => vec![(name.clone(), LuaValue::new(LuaVal::LuaNil))],
+            },
+            Var::BracketVar((name, exp)) => {
+                // TODO: implement after table
+                unimplemented!()
+            }
+            Var::DotVar((name, field)) => {
+                // TODO: implement after table
+                unimplemented!()
+            }
         }
     }
 }
@@ -141,7 +185,11 @@ impl FunctionCall {
                 let func = (*func).eval(env)?;
                 let rc = func.0;
                 match rc.as_ref() {
-                    LuaVal::Function(LuaFunction { par_list, block }) => {
+                    LuaVal::Function(LuaFunction {
+                        par_list,
+                        block,
+                        captured_variables,
+                    }) => {
                         // Evaluate arguments first
                         let args = match args {
                             Args::ExpList(exps_list) => {
@@ -160,26 +208,29 @@ impl FunctionCall {
                             }
                         };
 
-                        // Extend environment with function arguments
-                        env.extend_local_env();
+                        // Create environment for function
+                        let mut func_env = Env::vec_to_env(captured_variables);
+
+                        // Extend function environment with function arguments
+                        func_env.extend_local_env();
                         let par_length = par_list.0.len();
                         let arg_length = args.len();
                         for i in 0..par_length {
                             // Arguments are locally scoped
                             if i >= arg_length {
-                                env.insert_local(
+                                func_env.insert_local(
                                     par_list.0[i].clone(),
                                     LuaValue::new(LuaVal::LuaNil),
                                 );
                             } else {
-                                env.insert_local(par_list.0[i].clone(), args[i].clone());
+                                func_env.insert_local(par_list.0[i].clone(), args[i].clone());
                             }
                         }
 
-                        let result = block.exec(env)?;
+                        let result = block.exec(&mut func_env)?;
 
                         // Remove arguments from the environment
-                        env.pop_local_env();
+                        func_env.pop_local_env();
                         match result {
                             Some(vals) => Ok(vals),
                             None => Err(ASTExecError(format!(
@@ -196,6 +247,31 @@ impl FunctionCall {
             }
             FunctionCall::Method((object, method_name, args)) => {
                 // TODO: Lua object is basically a table (implement this after table is implemented)
+                unimplemented!()
+            }
+        }
+    }
+
+    pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
+        // Standard((Box<PrefixExp>, Args)),
+        // Method((Box<PrefixExp>, String, Args)),
+        match self {
+            FunctionCall::Standard((func, args)) => {
+                let mut captured_vars = func.capture_variables(env);
+                match args {
+                    Args::ExpList(exps_list) => {
+                        for exp in exps_list.iter() {
+                            captured_vars.append(&mut exp.capture_variables(env));
+                        }
+                    }
+                    Args::TableConstructor(table) => unimplemented!(),
+                    Args::LiteralString(_) => {
+                        // Do nothing
+                    }
+                }
+                captured_vars
+            }
+            FunctionCall::Method((object, method_name, args)) => {
                 unimplemented!()
             }
         }
@@ -228,8 +304,13 @@ mod tests {
     fn lua_string<'a>(s: &str) -> LuaValue<'a> {
         LuaValue::new(LuaVal::LuaString(s.to_string()))
     }
-    fn lua_function<'a>(par_list: &'a ParList, block: &'a Block) -> LuaValue<'a> {
-        LuaValue::new(LuaVal::Function(LuaFunction { par_list, block }))
+    fn lua_function<'a>(par_list: &'a ParList, block: &'a Block, env: &Env<'a>) -> LuaValue<'a> {
+        let captured_variables = block.capture_variables(env);
+        LuaValue::new(LuaVal::Function(LuaFunction {
+            par_list,
+            block,
+            captured_variables,
+        }))
     }
 
     #[test]
@@ -282,7 +363,7 @@ mod tests {
     }
 
     #[test]
-    fn test_eval_exp_func_def() {
+    fn test_eval_func_def() {
         // Test Expression eval method
         let mut env = Env::new();
 
@@ -295,15 +376,12 @@ mod tests {
         let exp_func_def = Expression::FunctionDef((par_list.clone(), block.clone()));
         assert_eq!(
             exp_func_def.eval(&mut env),
-            Ok(LuaValue::new(LuaVal::Function(LuaFunction {
-                par_list: &par_list,
-                block: &block
-            })))
+            Ok(lua_function(&par_list, &block, &env))
         );
     }
 
     #[test]
-    fn test_eval_exp_func_call() {
+    fn test_eval_func_call() {
         let mut env = Env::new();
 
         // Set statements
@@ -313,7 +391,7 @@ mod tests {
             Expression::Numeral(Numeral::Integer(20)),
         ];
         let stat = Statement::Assignment((varlist, explist, false));
-        let return_stat = Some(vec![var_exp("test")]);
+        let return_stat = Some(vec![var_exp("test"), var_exp("a"), var_exp("b")]);
 
         let par_list = ParList(vec![String::from("test")], false);
         let block = Block {
@@ -321,7 +399,7 @@ mod tests {
             return_stat: return_stat,
         };
 
-        env.insert_global(String::from("f"), lua_function(&par_list, &block));
+        env.insert_global(String::from("f"), lua_function(&par_list, &block, &env));
         let args = Args::ExpList(vec![Expression::Numeral(Numeral::Integer(100))]);
         let func_call = FunctionCall::Standard((
             Box::new(PrefixExp::Var(Var::NameVar("f".to_string()))),
@@ -346,5 +424,26 @@ mod tests {
         let right = Expression::Numeral(Numeral::Integer(20));
         let exp = Expression::BinaryOp((Box::new(left), BinOp::Add, Box::new(right)));
         assert_eq!(exp.eval(&mut env), Ok(lua_float(30.1)));
+    }
+
+    #[test]
+    fn test_capture_variables() {
+        let mut env = Env::new();
+        env.insert_local("a".to_string(), lua_integer(10));
+        env.insert_local("b".to_string(), lua_integer(20));
+        env.insert_local("c".to_string(), lua_integer(30));
+
+        let block = Block {
+            statements: vec![],
+            return_stat: Some(vec![var_exp("a"), var_exp("b"), var_exp("c"), var_exp("d")]),
+        };
+
+        let captured_varaibles = block.capture_variables(&env);
+        env.pop_local_env();
+        let func_env = Env::vec_to_env(&captured_varaibles);
+        assert_eq!(func_env.get("a"), Some(&lua_integer(10)));
+        assert_eq!(func_env.get("b"), Some(&lua_integer(20)));
+        assert_eq!(func_env.get("c"), Some(&lua_integer(30)));
+        assert_eq!(func_env.get("d"), Some(&lua_nil()));
     }
 }
