@@ -5,6 +5,13 @@ use crate::interpreter::LuaFunction;
 use crate::interpreter::LuaTable;
 use crate::interpreter::LuaVal;
 use crate::interpreter::LuaValue;
+use std::rc::Rc;
+
+enum IntFloatBool {
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+}
 
 impl Expression {
     pub fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<LuaValue<'a>, ASTExecError> {
@@ -143,10 +150,7 @@ impl Expression {
     ) -> Result<LuaValue<'a>, ASTExecError> {
         let left = left.eval(env)?;
         let right = right.eval(env)?;
-        enum IntOrFloat {
-            Int(i64),
-            Float(f64),
-        }
+
         fn execute_arithmetic<'a, F1, F2>(
             exec_ints: F1,
             exec_floats: F2,
@@ -154,8 +158,8 @@ impl Expression {
             right: LuaValue,
         ) -> Result<LuaValue<'a>, ASTExecError>
         where
-            F1: FnOnce(i64, i64) -> IntOrFloat,
-            F2: FnOnce(f64, f64) -> IntOrFloat,
+            F1: FnOnce(i64, i64) -> IntFloatBool,
+            F2: FnOnce(f64, f64) -> IntFloatBool,
         {
             // If both are integers, the operation is performed over integers and the result is an integer.
             // If both are numbers, then they are converted to floats
@@ -192,49 +196,125 @@ impl Expression {
             };
 
             match result {
-                IntOrFloat::Int(i) => Ok(LuaValue::new(LuaVal::LuaNum(i.to_be_bytes(), false))),
-                IntOrFloat::Float(f) => Ok(LuaValue::new(LuaVal::LuaNum(f.to_be_bytes(), true))),
+                IntFloatBool::Int(i) => Ok(LuaValue::new(LuaVal::LuaNum(i.to_be_bytes(), false))),
+                IntFloatBool::Float(f) => Ok(LuaValue::new(LuaVal::LuaNum(f.to_be_bytes(), true))),
+                IntFloatBool::Bool(bool) => Ok(LuaValue::new(LuaVal::LuaBool(bool))),
+            }
+        }
+
+        fn equal<'a>(
+            left: LuaValue<'a>,
+            right: LuaValue<'a>,
+        ) -> Result<LuaValue<'a>, ASTExecError> {
+            match (left.0.as_ref(), right.0.as_ref()) {
+                (LuaVal::LuaNil, LuaVal::LuaNil) => Ok(LuaValue::new(LuaVal::LuaBool(true))),
+                // If number, check if they are equal based on mathematical values
+                (LuaVal::LuaNum(_, _), LuaVal::LuaNum(_, _)) => execute_arithmetic(
+                    |i1, i2| IntFloatBool::Bool(i1 == i2),
+                    |f1, f2| IntFloatBool::Bool(f1 == f2),
+                    left,
+                    right,
+                ),
+                // If string, check if they are equal based on string values
+                (LuaVal::LuaString(s1), LuaVal::LuaString(s2)) => {
+                    Ok(LuaValue::new(LuaVal::LuaBool(s1 == s2)))
+                }
+                // If bool, check if they are equal based on bool values
+                (LuaVal::LuaBool(b1), LuaVal::LuaBool(b2)) => {
+                    Ok(LuaValue::new(LuaVal::LuaBool(b1 == b2)))
+                }
+                // If table, check if they are equal based on reference
+                (LuaVal::LuaTable(_), LuaVal::LuaTable(_)) => {
+                    // TODO: check after table is implemented
+                    Ok(LuaValue::new(LuaVal::LuaBool(Rc::ptr_eq(
+                        &left.0, &right.0,
+                    ))))
+                }
+                // If function, check if they are equal based on reference
+                (LuaVal::Function(_), LuaVal::Function(_)) => Ok(LuaValue::new(LuaVal::LuaBool(
+                    Rc::ptr_eq(&left.0, &right.0),
+                ))),
+                _ => Ok(LuaValue::new(LuaVal::LuaBool(false))),
+            }
+        }
+
+        fn less_or_greater_than<'a>(
+            left: LuaValue<'a>,
+            right: LuaValue<'a>,
+            is_less_than: bool,
+        ) -> Result<LuaValue<'a>, ASTExecError> {
+            match (left.0.as_ref(), right.0.as_ref()) {
+                // If number, check if they are equal based on mathematical values
+                (LuaVal::LuaNum(_, _), LuaVal::LuaNum(_, _)) => execute_arithmetic(
+                    |i1, i2| {
+                        if is_less_than {
+                            IntFloatBool::Bool(i1 < i2)
+                        } else {
+                            IntFloatBool::Bool(i1 > i2)
+                        }
+                    },
+                    |f1, f2| {
+                        if is_less_than {
+                            IntFloatBool::Bool(f1 < f2)
+                        } else {
+                            IntFloatBool::Bool(f1 > f2)
+                        }
+                    },
+                    left,
+                    right,
+                ),
+                // If string, check if they are equal based on string values
+                (LuaVal::LuaString(s1), LuaVal::LuaString(s2)) => Ok({
+                    if is_less_than {
+                        LuaValue::new(LuaVal::LuaBool(s1 < s2))
+                    } else {
+                        LuaValue::new(LuaVal::LuaBool(s1 > s2))
+                    }
+                }),
+                _ => Err(ASTExecError(
+                    "Cannot compare two values due to types".to_string(),
+                )),
             }
         }
 
         match op {
             BinOp::Add => {
-                let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 + i2);
-                let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 + f2);
+                let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 + i2);
+                let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 + f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Sub => {
-                let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 - i2);
-                let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 - f2);
+                let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 - i2);
+                let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 - f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Mult => {
-                let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 * i2);
-                let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 * f2);
+                let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 * i2);
+                let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 * f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Div => {
-                let exec_ints = |i1: i64, i2: i64| IntOrFloat::Float(i1 as f64 / i2 as f64);
-                let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 / f2);
+                let exec_ints = |i1: i64, i2: i64| IntFloatBool::Float(i1 as f64 / i2 as f64);
+                let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 / f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::IntegerDiv => {
-                let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 / i2);
-                let exec_floats = |f1: f64, f2: f64| IntOrFloat::Int((f1 / f2).floor() as i64);
+                let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 / i2);
+                let exec_floats = |f1: f64, f2: f64| IntFloatBool::Int((f1 / f2).floor() as i64);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Pow => {
                 let exec_ints = |i1: i64, i2: i64| {
                     let i1 = i1 as f64;
                     let i2 = i2 as f64;
-                    IntOrFloat::Float(i1.powf(i2))
+                    IntFloatBool::Float(i1.powf(i2))
                 };
-                let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1.powf(f2));
+                let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1.powf(f2));
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Mod => {
-                let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 % i2);
-                let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 % f2);
+                let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 % i2);
+                let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 % f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::BitAnd => Ok(LuaValue::new(LuaVal::LuaNum(
@@ -266,24 +346,12 @@ impl Expression {
                     right.into_string()?
                 ))))
             }
-            BinOp::LessThan => {
-                unimplemented!()
-            }
-            BinOp::LessEq => {
-                unimplemented!()
-            }
-            BinOp::GreaterThan => {
-                unimplemented!()
-            }
-            BinOp::GreaterEq => {
-                unimplemented!()
-            }
-            BinOp::Equal => {
-                unimplemented!()
-            }
-            BinOp::NotEqual => {
-                unimplemented!()
-            }
+            BinOp::LessThan => less_or_greater_than(left, right, true),
+            BinOp::LessEq => less_or_greater_than(left, right, false)?.negate_bool(),
+            BinOp::GreaterThan => less_or_greater_than(left, right, false),
+            BinOp::GreaterEq => less_or_greater_than(left, right, true)?.negate_bool(),
+            BinOp::Equal => equal(left, right),
+            BinOp::NotEqual => equal(left, right)?.negate_bool(),
             BinOp::LogicalAnd => {
                 unimplemented!()
             }
@@ -430,8 +498,6 @@ impl FunctionCall {
     }
 
     pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
-        // Standard((Box<PrefixExp>, Args)),
-        // Method((Box<PrefixExp>, String, Args)),
         match self {
             FunctionCall::Standard((func, args)) => {
                 let mut captured_vars = func.capture_variables(env);
@@ -1047,6 +1113,287 @@ mod tests {
             exp.eval(&mut env),
             Err(ASTExecError(
                 "Cannot convert value to String (types cannot be converted)".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_equal() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(2));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Equal, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(20));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Equal, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        let left = Expression::Numeral(Numeral::Float(2.0));
+        let right = Expression::Numeral(Numeral::Integer(2));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Equal, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        let left = Expression::Nil;
+        let right = Expression::Nil;
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Equal, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        let left = Expression::LiteralString("Same content".to_string());
+        let right = Expression::LiteralString("Same content".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Equal, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        // Function with same content but not same reference
+        let left = Expression::FunctionDef((
+            ParList(vec![], false),
+            Block {
+                statements: vec![],
+                return_stat: None,
+            },
+        ));
+        let right = Expression::FunctionDef((
+            ParList(vec![], false),
+            Block {
+                statements: vec![],
+                return_stat: None,
+            },
+        ));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Equal, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        // Function with same reference
+        let stat = Statement::FunctionDecl((
+            "f".to_string(),
+            ParList(vec![], false),
+            Block {
+                statements: vec![],
+                return_stat: None,
+            },
+        ));
+        stat.exec(&mut env).unwrap();
+        let exp =
+            Expression::BinaryOp((Box::new(var_exp("f")), BinOp::Equal, Box::new(var_exp("f"))));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        // TODO: add test for table after implementing table
+
+        let left = Expression::LiteralString("Different types".to_string());
+        let right = Expression::Numeral(Numeral::Float(2.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Equal, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+    }
+
+    #[test]
+    fn test_eval_bin_not_equal() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(2));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::NotEqual, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(20));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::NotEqual, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let left = Expression::Numeral(Numeral::Float(2.0));
+        let right = Expression::Numeral(Numeral::Integer(2));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::NotEqual, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let left = Expression::Nil;
+        let right = Expression::Nil;
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::NotEqual, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let left = Expression::LiteralString("Same content".to_string());
+        let right = Expression::LiteralString("Same content".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::NotEqual, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        // Function with same content but not same reference
+        let left = Expression::FunctionDef((
+            ParList(vec![], false),
+            Block {
+                statements: vec![],
+                return_stat: None,
+            },
+        ));
+        let right = Expression::FunctionDef((
+            ParList(vec![], false),
+            Block {
+                statements: vec![],
+                return_stat: None,
+            },
+        ));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::NotEqual, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        // Function with same reference
+        let stat = Statement::FunctionDecl((
+            "f".to_string(),
+            ParList(vec![], false),
+            Block {
+                statements: vec![],
+                return_stat: None,
+            },
+        ));
+        stat.exec(&mut env).unwrap();
+        let exp = Expression::BinaryOp((
+            Box::new(var_exp("f")),
+            BinOp::NotEqual,
+            Box::new(var_exp("f")),
+        ));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        // TODO: add test for table after implementing table
+
+        let left = Expression::LiteralString("Different types".to_string());
+        let right = Expression::Numeral(Numeral::Float(2.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::NotEqual, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+    }
+
+    #[test]
+    fn test_eval_bin_less_than() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(2));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LessThan, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let left = Expression::Numeral(Numeral::Float(2.0));
+        let right = Expression::Numeral(Numeral::Integer(2));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LessThan, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let left = Expression::Numeral(Numeral::Float(2.0));
+        let right = Expression::Numeral(Numeral::Integer(4));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LessThan, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        let left = Expression::LiteralString("abc".to_string());
+        let right = Expression::LiteralString("cba".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LessThan, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        let left = Expression::LiteralString("abc".to_string());
+        let right = Expression::Nil;
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LessThan, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot compare two values due to types".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_less_equal() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(2));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LessEq, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let left = Expression::Numeral(Numeral::Float(2.0));
+        let right = Expression::Numeral(Numeral::Integer(2));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LessEq, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        let left = Expression::Numeral(Numeral::Float(2.0));
+        let right = Expression::Numeral(Numeral::Integer(4));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LessEq, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        let left = Expression::LiteralString("abc".to_string());
+        let right = Expression::LiteralString("cba".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LessEq, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        let left = Expression::LiteralString("abc".to_string());
+        let right = Expression::Nil;
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LessEq, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot compare two values due to types".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_greater_than() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(2));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::GreaterThan, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        let left = Expression::Numeral(Numeral::Float(2.0));
+        let right = Expression::Numeral(Numeral::Integer(2));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::GreaterThan, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let left = Expression::Numeral(Numeral::Float(2.0));
+        let right = Expression::Numeral(Numeral::Integer(4));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::GreaterThan, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let left = Expression::LiteralString("abc".to_string());
+        let right = Expression::LiteralString("cba".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::GreaterThan, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let left = Expression::LiteralString("abc".to_string());
+        let right = Expression::Nil;
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::GreaterThan, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot compare two values due to types".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_greater_equal() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(2));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::GreaterEq, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        let left = Expression::Numeral(Numeral::Float(2.0));
+        let right = Expression::Numeral(Numeral::Integer(2));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::GreaterEq, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        let left = Expression::Numeral(Numeral::Float(2.0));
+        let right = Expression::Numeral(Numeral::Integer(4));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::GreaterEq, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let left = Expression::LiteralString("abc".to_string());
+        let right = Expression::LiteralString("cba".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::GreaterEq, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let left = Expression::LiteralString("abc".to_string());
+        let right = Expression::Nil;
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::GreaterEq, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot compare two values due to types".to_string()
             ))
         );
     }

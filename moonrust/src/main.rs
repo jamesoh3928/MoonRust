@@ -26,7 +26,7 @@ fn main() {
     };
 
     // TODO: delete (keeping it to check if reading file correctly)
-    println!("Reading file: , {src}!");
+    println!("Parsing: '{src}'");
 
     // Parse the source code: TODO - currently `from_str` is not implemented
     let ast = match src.parse::<moonrust::AST>() {

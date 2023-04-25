@@ -149,6 +149,15 @@ impl<'a> LuaValue<'a> {
         }
     }
 
+    pub fn negate_bool(self) -> Result<LuaValue<'a>, ASTExecError> {
+        match self.0.as_ref() {
+            LuaVal::LuaBool(b) => Ok(LuaValue::new(LuaVal::LuaBool(!b))),
+            _ => Err(ASTExecError(format!(
+                "Cannot negate value (only boolean can be negated)"
+            ))),
+        }
+    }
+
     pub fn into_int(self) -> Result<i64, ASTExecError> {
         match self.0.as_ref() {
             LuaVal::LuaNum(n, is_float) => {
