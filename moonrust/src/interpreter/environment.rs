@@ -126,6 +126,4 @@ impl<'a> Env<'a> {
         }
         new_env
     }
-
-    // TODO: maybe mutable get?
 }

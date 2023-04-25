@@ -224,7 +224,7 @@ impl Statement {
             }
             Statement::ForGeneric((names, exp_list, block)) => {
                 // Generic for statement must be used with iterator
-                // TODO: finish implementing this
+                // TODO: finish implementing this if there is extra time
                 if exp_list.len() != 1 {
                     return Err(ASTExecError(format!(
                         "Generic for loop must use iterator function"

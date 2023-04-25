@@ -1,5 +1,3 @@
-// TODO
-// 3. Table
 use crate::ast::*;
 use crate::interpreter::environment::Env;
 use std::fmt;
@@ -10,8 +8,6 @@ pub mod environment;
 pub mod expression;
 pub mod statement;
 
-// TODO: lua function and table are stored as reference (don't think function matters, but table might)
-//       current struct definition might be good enough
 #[derive(Debug, PartialEq)]
 pub enum LuaVal<'a> {
     LuaTable(LuaTable<'a>),

@@ -39,7 +39,6 @@ fn main() {
 
     // Execute the program
     // Initialize environment
-    // TODO: create new file for environment
     let mut env = environment::Env::new();
     match ast.exec(&mut env) {
         Ok(_) => (),
@@ -48,12 +47,4 @@ fn main() {
             process::exit(1);
         }
     }
-
-    // match "test".parse::<moonrust::AST>() {
-    //     Err(_) => (),
-    //     Ok(prog) => (),
-    // }
-
-    // TODO: read from the file (command line options: parsing, interpreting, repl - for future)
-    // https://git.cs.rit.edu/psr2225/jo9347psr/-/blob/main/prog02/birch/src/main.rs
 }

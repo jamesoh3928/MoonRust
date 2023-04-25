@@ -148,9 +148,6 @@ impl Expression {
         right: &'a Box<Expression>,
         env: &mut Env<'a>,
     ) -> Result<LuaValue<'a>, ASTExecError> {
-        let left = left.eval(env)?;
-        let right = right.eval(env)?;
-
         fn execute_arithmetic<'a, F1, F2>(
             exec_ints: F1,
             exec_floats: F2,
@@ -277,33 +274,40 @@ impl Expression {
             }
         }
 
+        let left = left.eval(env)?;
         match op {
             BinOp::Add => {
+                let right = right.eval(env)?;
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 + i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 + f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Sub => {
+                let right = right.eval(env)?;
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 - i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 - f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Mult => {
+                let right = right.eval(env)?;
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 * i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 * f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Div => {
+                let right = right.eval(env)?;
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Float(i1 as f64 / i2 as f64);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 / f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::IntegerDiv => {
+                let right = right.eval(env)?;
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 / i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Int((f1 / f2).floor() as i64);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Pow => {
+                let right = right.eval(env)?;
                 let exec_ints = |i1: i64, i2: i64| {
                     let i1 = i1 as f64;
                     let i2 = i2 as f64;
@@ -313,50 +317,77 @@ impl Expression {
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Mod => {
+                let right = right.eval(env)?;
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 % i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 % f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
-            BinOp::BitAnd => Ok(LuaValue::new(LuaVal::LuaNum(
-                (left.into_int()? & right.into_int()?).to_be_bytes(),
-                false,
-            ))),
-            BinOp::BitXor => Ok(LuaValue::new(LuaVal::LuaNum(
-                (left.into_int()? ^ right.into_int()?).to_be_bytes(),
-                false,
-            ))),
-            BinOp::BitOr => Ok(LuaValue::new(LuaVal::LuaNum(
-                (left.into_int()? | right.into_int()?).to_be_bytes(),
-                false,
-            ))),
-            BinOp::ShiftRight => Ok(LuaValue::new(LuaVal::LuaNum(
-                (left.into_int()? >> right.into_int()?).to_be_bytes(),
-                false,
-            ))),
-            BinOp::ShiftLeft => Ok(LuaValue::new(LuaVal::LuaNum(
-                (left.into_int()? << right.into_int()?).to_be_bytes(),
-                false,
-            ))),
+            BinOp::BitAnd => {
+                let right = right.eval(env)?;
+                Ok(LuaValue::new(LuaVal::LuaNum(
+                    (left.into_int()? & right.into_int()?).to_be_bytes(),
+                    false,
+                )))
+            }
+            BinOp::BitXor => {
+                let right = right.eval(env)?;
+                Ok(LuaValue::new(LuaVal::LuaNum(
+                    (left.into_int()? ^ right.into_int()?).to_be_bytes(),
+                    false,
+                )))
+            }
+            BinOp::BitOr => {
+                let right = right.eval(env)?;
+                Ok(LuaValue::new(LuaVal::LuaNum(
+                    (left.into_int()? | right.into_int()?).to_be_bytes(),
+                    false,
+                )))
+            }
+            BinOp::ShiftRight => {
+                let right = right.eval(env)?;
+                Ok(LuaValue::new(LuaVal::LuaNum(
+                    (left.into_int()? >> right.into_int()?).to_be_bytes(),
+                    false,
+                )))
+            }
+            BinOp::ShiftLeft => {
+                let right = right.eval(env)?;
+                Ok(LuaValue::new(LuaVal::LuaNum(
+                    (left.into_int()? << right.into_int()?).to_be_bytes(),
+                    false,
+                )))
+            }
             BinOp::Concat => {
                 // If both operands are strings or numbers, then the numbers are converted to strings in a non-specified format.
                 // Otherwise, the __concat metamethod is called (in our case, return error).
+                let right = right.eval(env)?;
                 Ok(LuaValue::new(LuaVal::LuaString(format!(
                     "{}{}",
                     left.into_string()?,
                     right.into_string()?
                 ))))
             }
-            BinOp::LessThan => less_or_greater_than(left, right, true),
-            BinOp::LessEq => less_or_greater_than(left, right, false)?.negate_bool(),
-            BinOp::GreaterThan => less_or_greater_than(left, right, false),
-            BinOp::GreaterEq => less_or_greater_than(left, right, true)?.negate_bool(),
-            BinOp::Equal => equal(left, right),
-            BinOp::NotEqual => equal(left, right)?.negate_bool(),
+            BinOp::LessThan => less_or_greater_than(left, right.eval(env)?, true),
+            BinOp::LessEq => less_or_greater_than(left, right.eval(env)?, false)?.negate_bool(),
+            BinOp::GreaterThan => less_or_greater_than(left, right.eval(env)?, false),
+            BinOp::GreaterEq => less_or_greater_than(left, right.eval(env)?, true)?.negate_bool(),
+            BinOp::Equal => equal(left, right.eval(env)?),
+            BinOp::NotEqual => equal(left, right.eval(env)?)?.negate_bool(),
             BinOp::LogicalAnd => {
-                unimplemented!()
+                if left.is_false() {
+                    Ok(left)
+                } else {
+                    // If left is true, return value on the right
+                    Ok(right.eval(env)?)
+                }
             }
             BinOp::LogicalOr => {
-                unimplemented!()
+                if left.is_true() {
+                    Ok(left)
+                } else {
+                    // If left is true, return value on the right
+                    Ok(right.eval(env)?)
+                }
             }
         }
     }
@@ -1396,6 +1427,66 @@ mod tests {
                 "Cannot compare two values due to types".to_string()
             ))
         );
+    }
+
+    #[test]
+    fn test_eval_bin_logical_and() {
+        let mut env = Env::new();
+
+        let left = Expression::Nil;
+        let right = Expression::Numeral(Numeral::Integer(10));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LogicalAnd, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_nil()));
+
+        let left = Expression::False;
+        // right should return error when evaluated
+        let right = Expression::BinaryOp((
+            Box::new(Expression::LiteralString("abc".to_string())),
+            BinOp::GreaterEq,
+            Box::new(Expression::Nil),
+        ));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LogicalAnd, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let left = Expression::False;
+        let right = Expression::Nil;
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LogicalAnd, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let left = Expression::Numeral(Numeral::Integer(10));
+        let right = Expression::Numeral(Numeral::Integer(20));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LogicalAnd, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(20)));
+    }
+
+    #[test]
+    fn test_eval_bin_logical_or() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(10));
+        let right = Expression::Numeral(Numeral::Integer(20));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LogicalOr, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(10)));
+
+        let left = Expression::Numeral(Numeral::Integer(10));
+        // right should return error when evaluated
+        let right = Expression::BinaryOp((
+            Box::new(Expression::LiteralString("abc".to_string())),
+            BinOp::GreaterEq,
+            Box::new(Expression::Nil),
+        ));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LogicalOr, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(10)));
+
+        let left = Expression::Nil;
+        let right = Expression::LiteralString("a".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LogicalOr, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_string("a")));
+
+        let left = Expression::False;
+        let right = Expression::Nil;
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::LogicalOr, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_nil()));
     }
 
     #[test]
