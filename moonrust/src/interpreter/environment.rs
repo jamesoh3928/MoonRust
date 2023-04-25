@@ -1,9 +1,6 @@
 use crate::interpreter::LuaValue;
 use std::collections::HashMap;
 
-// TODO: double check environment implementation
-// Dr. Fluet's advice: env: Vec<Table<String, Data>>, type Env = (Table<String, Data>, Vec<Table<String, Data>>)
-
 // One scope of bindings
 #[derive(Debug, PartialEq)]
 pub struct EnvTable<'a>(HashMap<String, LuaValue<'a>>);
@@ -17,7 +14,7 @@ impl<'a> EnvTable<'a> {
     }
 
     // Insert a new variable or update an existing one
-    pub fn insert(&mut self, name: String, var: LuaValue<'a>) -> Option<LuaValue<'a>>{
+    pub fn insert(&mut self, name: String, var: LuaValue<'a>) -> Option<LuaValue<'a>> {
         self.0.insert(name, var)
     }
 }
@@ -66,9 +63,7 @@ impl<'a> LocalEnv<'a> {
 
     pub fn insert(&mut self, name: String, var: LuaValue<'a>) -> Option<LuaValue<'a>> {
         match self.0.last_mut() {
-            Some(table) => {
-                table.insert(name, var)
-            }
+            Some(table) => table.insert(name, var),
             None => panic!("Environment stack is empty"),
         }
     }
