@@ -47,136 +47,9 @@ impl Expression {
                 unimplemented!()
             }
             Expression::BinaryOp((left, op, right)) => {
-                // If both are integers, the operation is performed over integers and the result is an integer.
-                // If both are numbers, then they are converted to floats
-                // TODO: probably  split into different function
-                // Sub,
-                // Mult,
-                // Div,
-                // IntegerDiv,
-                // Pow,
-                // Mod,
-                // BitAnd,
-                // BitXor,
-                // BitOr,
-                // ShiftRight,
-                // ShiftLeft,
-                // Concat,
-                // LessThan,
-                // LessEq,
-                // GreaterThan,
-                // GreaterEq,
-                // Equal,
-                // NotEqual,
-                // LogicalAnd,
-                // LogicalOr,
-                match op {
-                    BinOp::Add => {
-                        let left = left.eval(env)?;
-                        let right = right.eval(env)?;
-                        match (left.0.as_ref(), right.0.as_ref()) {
-                            (
-                                LuaVal::LuaNum(bytes1, is_float1),
-                                LuaVal::LuaNum(bytes2, is_float2),
-                            ) => {
-                                if !*is_float1 && !*is_float2 {
-                                    // Both are integers
-                                    let i1 = i64::from_be_bytes(*bytes1);
-                                    let i2 = i64::from_be_bytes(*bytes2);
-                                    LuaValue::new(LuaVal::LuaNum((i1 + i2).to_be_bytes(), false))
-                                } else if *is_float1 {
-                                    // Left is float, right is integer
-                                    let f1 = f64::from_be_bytes(*bytes1);
-                                    let i2 = i64::from_be_bytes(*bytes2);
-                                    LuaValue::new(LuaVal::LuaNum(
-                                        (f1 + i2 as f64).to_be_bytes(),
-                                        true,
-                                    ))
-                                } else if *is_float2 {
-                                    // Right is float, left is integer
-                                    let i1 = i64::from_be_bytes(*bytes1);
-                                    let f2 = f64::from_be_bytes(*bytes2);
-                                    LuaValue::new(LuaVal::LuaNum(
-                                        (i1 as f64 + f2).to_be_bytes(),
-                                        true,
-                                    ))
-                                } else {
-                                    // Both are float
-                                    let f1 = f64::from_be_bytes(*bytes1);
-                                    let f2 = f64::from_be_bytes(*bytes2);
-                                    LuaValue::new(LuaVal::LuaNum((f1 + f2).to_be_bytes(), true))
-                                }
-                            }
-                            // TODO: string coercion to numbers (maybe skip for now)
-                            _ => {
-                                return Err(ASTExecError(format!(
-                                    "Cannot add values that are not numbers"
-                                )));
-                            }
-                        }
-                    }
-                    _ => unimplemented!(),
-                }
+                Expression::eval_binary_exp(op, left, right, env)?
             }
-            Expression::UnaryOp((op, exp)) => {
-                match op {
-                    UnOp::Negate => {
-                        let val = exp.eval(env)?;
-                        match val.0.as_ref() {
-                            LuaVal::LuaNum(bytes, is_float) => {
-                                if !*is_float {
-                                    // Integer
-                                    let i = i64::from_be_bytes(*bytes);
-                                    LuaValue::new(LuaVal::LuaNum((-i).to_be_bytes(), false))
-                                } else {
-                                    // Float
-                                    let f = f64::from_be_bytes(*bytes);
-                                    LuaValue::new(LuaVal::LuaNum((-f).to_be_bytes(), true))
-                                }
-                            }
-                            _ => {
-                                return Err(ASTExecError(format!(
-                                    "Cannot negate values that are not numbers"
-                                )));
-                            }
-                        }
-                    }
-                    UnOp::LogicalNot => {
-                        if exp.eval(env)?.is_true() {
-                            // Negate the true
-                            LuaValue::new(LuaVal::LuaBool(false))
-                        } else {
-                            // Negate the false
-                            LuaValue::new(LuaVal::LuaBool(true))
-                        }
-                    }
-                    UnOp::Length => {
-                        match exp.eval(env)?.0.as_ref() {
-                            LuaVal::LuaString(s) => {
-                                // length of a string is its number of bytes
-                                LuaValue::new(LuaVal::LuaNum((s.len() as i64).to_be_bytes(), false))
-                            }
-                            LuaVal::LuaTable(table) => {
-                                // TODO: implement after table
-                                // The length operator applied on a table returns a border in that table (check reference manual)
-                                unimplemented!()
-                            }
-                            _ => {
-                                return Err(ASTExecError(format!(
-                                    "Cannot get length of value that is not a string or table"
-                                )));
-                            }
-                        }
-                    }
-                    UnOp::BitNot => {
-                        // TODO: check automatic coercion to integer
-                        // operate on all bits of those integers, and result in an integer.
-                        let val = exp.eval(env)?;
-                        let val = val.into_int()?;
-                        LuaValue::new(LuaVal::LuaNum((!val).to_be_bytes(), false))
-                    }
-                }
-            }
+            Expression::UnaryOp((op, exp)) => Expression::eval_unary_exp(op, exp, env)?,
         };
         Ok(val)
     }
@@ -193,6 +66,220 @@ impl Expression {
             }
             Expression::UnaryOp((_, exp)) => exp.capture_variables(env),
             _ => vec![],
+        }
+    }
+
+    pub fn eval_unary_exp<'a>(
+        op: &UnOp,
+        exp: &'a Box<Expression>,
+        env: &mut Env<'a>,
+    ) -> Result<LuaValue<'a>, ASTExecError> {
+        match op {
+            UnOp::Negate => {
+                let val = exp.eval(env)?;
+                match val.0.as_ref() {
+                    LuaVal::LuaNum(bytes, is_float) => {
+                        if !*is_float {
+                            // Integer
+                            let i = i64::from_be_bytes(*bytes);
+                            Ok(LuaValue::new(LuaVal::LuaNum((-i).to_be_bytes(), false)))
+                        } else {
+                            // Float
+                            let f = f64::from_be_bytes(*bytes);
+                            Ok(LuaValue::new(LuaVal::LuaNum((-f).to_be_bytes(), true)))
+                        }
+                    }
+                    _ => {
+                        return Err(ASTExecError(format!(
+                            "Cannot negate values that are not numbers"
+                        )));
+                    }
+                }
+            }
+            UnOp::LogicalNot => {
+                if exp.eval(env)?.is_true() {
+                    // Negate the true
+                    Ok(LuaValue::new(LuaVal::LuaBool(false)))
+                } else {
+                    // Negate the false
+                    Ok(LuaValue::new(LuaVal::LuaBool(true)))
+                }
+            }
+            UnOp::Length => {
+                match exp.eval(env)?.0.as_ref() {
+                    LuaVal::LuaString(s) => {
+                        // length of a string is its number of bytes
+                        Ok(LuaValue::new(LuaVal::LuaNum(
+                            (s.len() as i64).to_be_bytes(),
+                            false,
+                        )))
+                    }
+                    LuaVal::LuaTable(table) => {
+                        // TODO: implement after table
+                        // The length operator applied on a table returns a border in that table (check reference manual)
+                        unimplemented!()
+                    }
+                    _ => {
+                        return Err(ASTExecError(format!(
+                            "Cannot get length of value that is not a string or table"
+                        )));
+                    }
+                }
+            }
+            UnOp::BitNot => {
+                // operate on all bits of those integers, and result in an integer.
+                let val = exp.eval(env)?;
+                let val = val.into_int()?;
+                Ok(LuaValue::new(LuaVal::LuaNum((!val).to_be_bytes(), false)))
+            }
+        }
+    }
+
+    pub fn eval_binary_exp<'a>(
+        op: &BinOp,
+        left: &'a Box<Expression>,
+        right: &'a Box<Expression>,
+        env: &mut Env<'a>,
+    ) -> Result<LuaValue<'a>, ASTExecError> {
+        let left = left.eval(env)?;
+        let right = right.eval(env)?;
+        enum IntOrFloat {
+            Int(i64),
+            Float(f64),
+        }
+        fn execute_bin_op<'a, F1, F2>(
+            exec_ints: F1,
+            exec_floats: F2,
+            left: LuaValue,
+            right: LuaValue,
+        ) -> Result<LuaValue<'a>, ASTExecError>
+        where
+            F1: FnOnce(i64, i64) -> IntOrFloat,
+            F2: FnOnce(f64, f64) -> IntOrFloat,
+        {
+            // If both are integers, the operation is performed over integers and the result is an integer.
+            // If both are numbers, then they are converted to floats
+            let result = match (left.0.as_ref(), right.0.as_ref()) {
+                (LuaVal::LuaNum(bytes1, is_float1), LuaVal::LuaNum(bytes2, is_float2)) => {
+                    if *is_float1 && *is_float2 {
+                        // Both are float
+                        let f1 = f64::from_be_bytes(*bytes1);
+                        let f2 = f64::from_be_bytes(*bytes2);
+                        exec_floats(f1, f2)
+                    } else if *is_float1 {
+                        // Left is float, right is integer
+                        let f1 = f64::from_be_bytes(*bytes1);
+                        let i2 = i64::from_be_bytes(*bytes2);
+                        exec_floats(f1, i2 as f64)
+                    } else if *is_float2 {
+                        // Right is float, left is integer
+                        let i1 = i64::from_be_bytes(*bytes1);
+                        let f2 = f64::from_be_bytes(*bytes2);
+                        exec_floats(i1 as f64, f2)
+                    } else {
+                        // Both are integers
+                        let i1 = i64::from_be_bytes(*bytes1);
+                        let i2 = i64::from_be_bytes(*bytes2);
+                        exec_ints(i1, i2)
+                    }
+                }
+                // TODO: string coercion to numbers (maybe skip for now)
+                _ => {
+                    return Err(ASTExecError(format!(
+                        "Cannot execute opration on values that are not numbers"
+                    )));
+                }
+            };
+
+            match result {
+                IntOrFloat::Int(i) => Ok(LuaValue::new(LuaVal::LuaNum(i.to_be_bytes(), false))),
+                IntOrFloat::Float(f) => Ok(LuaValue::new(LuaVal::LuaNum(f.to_be_bytes(), true))),
+            }
+        }
+
+        match op {
+            BinOp::Add => {
+                let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 + i2);
+                let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 + f2);
+                execute_bin_op(exec_ints, exec_floats, left, right)
+            }
+            BinOp::Sub => {
+                let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 - i2);
+                let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 - f2);
+                execute_bin_op(exec_ints, exec_floats, left, right)
+            }
+            BinOp::Mult => {
+                let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 * i2);
+                let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 * f2);
+                execute_bin_op(exec_ints, exec_floats, left, right)
+            }
+            BinOp::Div => {
+                let exec_ints = |i1: i64, i2: i64| IntOrFloat::Float(i1 as f64 / i2 as f64);
+                let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 / f2);
+                execute_bin_op(exec_ints, exec_floats, left, right)
+            }
+            BinOp::IntegerDiv => {
+                let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 / i2);
+                let exec_floats = |f1: f64, f2: f64| IntOrFloat::Int((f1 / f2).floor() as i64);
+                execute_bin_op(exec_ints, exec_floats, left, right)
+            }
+            BinOp::Pow => {
+                let exec_ints = |i1: i64, i2: i64| {
+                    let i1 = i1 as f64;
+                    let i2 = i2 as f64;
+                    IntOrFloat::Float(i1.powf(i2))
+                };
+                let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1.powf(f2));
+                execute_bin_op(exec_ints, exec_floats, left, right)
+            }
+            BinOp::Mod => {
+                let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 % i2);
+                let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 % f2);
+                // IntOrFloat::Float(f1 - (f1 / f2).floor() * f2);
+                execute_bin_op(exec_ints, exec_floats, left, right)
+            }
+            BinOp::BitAnd => {
+                unimplemented!()
+            }
+            BinOp::BitXor => {
+                unimplemented!()
+            }
+            BinOp::BitOr => {
+                unimplemented!()
+            }
+            BinOp::ShiftRight => {
+                unimplemented!()
+            }
+            BinOp::ShiftLeft => {
+                unimplemented!()
+            }
+            BinOp::Concat => {
+                unimplemented!()
+            }
+            BinOp::LessThan => {
+                unimplemented!()
+            }
+            BinOp::LessEq => {
+                unimplemented!()
+            }
+            BinOp::GreaterThan => {
+                unimplemented!()
+            }
+            BinOp::GreaterEq => {
+                unimplemented!()
+            }
+            BinOp::Equal => {
+                unimplemented!()
+            }
+            BinOp::NotEqual => {
+                unimplemented!()
+            }
+            BinOp::LogicalAnd => {
+                unimplemented!()
+            }
+            BinOp::LogicalOr => {
+                unimplemented!()
+            }
         }
     }
 }
@@ -506,6 +593,237 @@ mod tests {
         let right = Expression::Numeral(Numeral::Integer(20));
         let exp = Expression::BinaryOp((Box::new(left), BinOp::Add, Box::new(right)));
         assert_eq!(exp.eval(&mut env), Ok(lua_float(30.1)));
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Float(10.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Add, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(30.1)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::Numeral(Numeral::Float(0.9));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Add, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(11 as f64)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::LiteralString("Can't add string".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Add, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot execute opration on values that are not numbers".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_sub() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(10));
+        let right = Expression::Numeral(Numeral::Integer(20));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Sub, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(-10)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::Numeral(Numeral::Integer(20));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Sub, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(-9.9)));
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Float(10.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Sub, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(9.9)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::Numeral(Numeral::Float(0.9));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Sub, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(9.2)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::LiteralString("Can't subtract with string".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Sub, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot execute opration on values that are not numbers".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_mult() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(10));
+        let right = Expression::Numeral(Numeral::Integer(20));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Mult, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(200)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::Numeral(Numeral::Integer(20));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Mult, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(202.0)));
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Float(-10.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Mult, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(-202.0)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::Numeral(Numeral::Float(0.9));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Mult, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(9.09)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::LiteralString("Can't multipy string".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Sub, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot execute opration on values that are not numbers".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_div() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(10));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Div, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(2.0)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::Numeral(Numeral::Integer(10));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Div, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(1.01)));
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Float(10.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Div, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(20 as f64 / 10.1)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::Numeral(Numeral::Float(0.9));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Div, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(10.1 / 0.9)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::LiteralString("Can't float divide with string".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Div, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot execute opration on values that are not numbers".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_int_div() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(10));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::IntegerDiv, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(2)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::Numeral(Numeral::Integer(10));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::IntegerDiv, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(1)));
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Float(10.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::IntegerDiv, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(1)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::Numeral(Numeral::Float(0.9));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::IntegerDiv, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(11)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::LiteralString("Can't floor divide with string".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::IntegerDiv, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot execute opration on values that are not numbers".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_pow() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(2));
+        let right = Expression::Numeral(Numeral::Integer(10));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Pow, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(1024.0)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::Numeral(Numeral::Integer(3));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Pow, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(1030.301)));
+
+        let left = Expression::Numeral(Numeral::Integer(2));
+        let right = Expression::Numeral(Numeral::Float(10.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Pow, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(2.0_f64.powf(10.1))));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::Numeral(Numeral::Float(0.9));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Pow, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(10.1_f64.powf(0.9))));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::LiteralString("Can't power with string".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Pow, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot execute opration on values that are not numbers".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_mod() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(10));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Mod, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(0)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::Numeral(Numeral::Integer(10));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Mod, Box::new(right)));
+        // In Rust, 10.1 % 10.0 = 0.09999999999999964
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(10.1 % 10.0)));
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Float(10.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Mod, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(9.9)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::Numeral(Numeral::Float(0.9));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Mod, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(10.1 % 0.9)));
+
+        let left = Expression::Numeral(Numeral::Float(10.1));
+        let right = Expression::LiteralString("Can't mod with string".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Mod, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot execute opration on values that are not numbers".to_string()
+            ))
+        );
     }
 
     #[test]
@@ -597,7 +915,8 @@ mod tests {
         assert_eq!(
             exp.eval(&mut env),
             Err(ASTExecError(
-                "Cannot convert float that does not have exact integer value to integer".to_string()
+                "Cannot convert float that does not have exact integer value to integer"
+                    .to_string()
             ))
         );
     }
