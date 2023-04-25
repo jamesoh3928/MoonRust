@@ -30,7 +30,7 @@ impl Expression {
             Expression::PrefixExp(prefixexp) => prefixexp.eval(env)?,
             Expression::TableConstructor(fields) => {
                 // TODO
-                let mut table = LuaTable::new(fields.len());
+                let table = LuaTable::new(fields.len());
                 for field in fields.into_iter() {
                     match field {
                         Field::BracketedAssign((exp1, exp2)) => {
@@ -49,6 +49,27 @@ impl Expression {
             Expression::BinaryOp((left, op, right)) => {
                 // If both are integers, the operation is performed over integers and the result is an integer.
                 // If both are numbers, then they are converted to floats
+                // TODO: probably  split into different function
+                // Sub,
+                // Mult,
+                // Div,
+                // IntegerDiv,
+                // Pow,
+                // Mod,
+                // BitAnd,
+                // BitXor,
+                // BitOr,
+                // ShiftRight,
+                // ShiftLeft,
+                // Concat,
+                // LessThan,
+                // LessEq,
+                // GreaterThan,
+                // GreaterEq,
+                // Equal,
+                // NotEqual,
+                // LogicalAnd,
+                // LogicalOr,
                 match op {
                     BinOp::Add => {
                         let left = left.eval(env)?;
@@ -97,7 +118,65 @@ impl Expression {
                     _ => unimplemented!(),
                 }
             }
-            Expression::UnaryOp((op, exp)) => unimplemented!(),
+            Expression::UnaryOp((op, exp)) => {
+                match op {
+                    UnOp::Negate => {
+                        let val = exp.eval(env)?;
+                        match val.0.as_ref() {
+                            LuaVal::LuaNum(bytes, is_float) => {
+                                if !*is_float {
+                                    // Integer
+                                    let i = i64::from_be_bytes(*bytes);
+                                    LuaValue::new(LuaVal::LuaNum((-i).to_be_bytes(), false))
+                                } else {
+                                    // Float
+                                    let f = f64::from_be_bytes(*bytes);
+                                    LuaValue::new(LuaVal::LuaNum((-f).to_be_bytes(), true))
+                                }
+                            }
+                            _ => {
+                                return Err(ASTExecError(format!(
+                                    "Cannot negate values that are not numbers"
+                                )));
+                            }
+                        }
+                    }
+                    UnOp::LogicalNot => {
+                        if exp.eval(env)?.is_true() {
+                            // Negate the true
+                            LuaValue::new(LuaVal::LuaBool(false))
+                        } else {
+                            // Negate the false
+                            LuaValue::new(LuaVal::LuaBool(true))
+                        }
+                    }
+                    UnOp::Length => {
+                        match exp.eval(env)?.0.as_ref() {
+                            LuaVal::LuaString(s) => {
+                                // length of a string is its number of bytes
+                                LuaValue::new(LuaVal::LuaNum((s.len() as i64).to_be_bytes(), false))
+                            }
+                            LuaVal::LuaTable(table) => {
+                                // TODO: implement after table
+                                // The length operator applied on a table returns a border in that table (check reference manual)
+                                unimplemented!()
+                            }
+                            _ => {
+                                return Err(ASTExecError(format!(
+                                    "Cannot get length of value that is not a string or table"
+                                )));
+                            }
+                        }
+                    }
+                    UnOp::BitNot => {
+                        // TODO: check automatic coercion to integer
+                        // operate on all bits of those integers, and result in an integer.
+                        let val = exp.eval(env)?;
+                        let val = val.into_int()?;
+                        LuaValue::new(LuaVal::LuaNum((!val).to_be_bytes(), false))
+                    }
+                }
+            }
         };
         Ok(val)
     }
@@ -246,7 +325,8 @@ impl FunctionCall {
                 }
             }
             FunctionCall::Method((object, method_name, args)) => {
-                // TODO: Lua object is basically a table (implement this after table is implemented)
+                // TODO: implement after table
+                // TODO: Lua object is basically a table
                 unimplemented!()
             }
         }
@@ -264,6 +344,7 @@ impl FunctionCall {
                             captured_vars.append(&mut exp.capture_variables(env));
                         }
                     }
+                    // TODO: implement after table
                     Args::TableConstructor(table) => unimplemented!(),
                     Args::LiteralString(_) => {
                         // Do nothing
@@ -272,6 +353,7 @@ impl FunctionCall {
                 captured_vars
             }
             FunctionCall::Method((object, method_name, args)) => {
+                // TODO: implement after table
                 unimplemented!()
             }
         }
@@ -412,7 +494,7 @@ mod tests {
     }
 
     #[test]
-    fn test_eval_bin_exp_add() {
+    fn test_eval_bin_add() {
         let mut env = Env::new();
 
         let left = Expression::Numeral(Numeral::Integer(10));
@@ -424,6 +506,100 @@ mod tests {
         let right = Expression::Numeral(Numeral::Integer(20));
         let exp = Expression::BinaryOp((Box::new(left), BinOp::Add, Box::new(right)));
         assert_eq!(exp.eval(&mut env), Ok(lua_float(30.1)));
+    }
+
+    #[test]
+    fn test_eval_un_negate() {
+        let mut env = Env::new();
+
+        let exp = Expression::Numeral(Numeral::Integer(10));
+        let exp = Expression::UnaryOp((UnOp::Negate, Box::new(exp)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(-10)));
+
+        let exp = Expression::Numeral(Numeral::Float(10.1));
+        let exp = Expression::UnaryOp((UnOp::Negate, Box::new(exp)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_float(-10.1)));
+
+        let exp = Expression::LiteralString("String cannot be negated".to_string());
+        let exp = Expression::UnaryOp((UnOp::Negate, Box::new(exp)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot negate values that are not numbers".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_un_not() {
+        let mut env = Env::new();
+
+        let exp = Expression::Numeral(Numeral::Integer(10));
+        let exp = Expression::UnaryOp((UnOp::LogicalNot, Box::new(exp)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let exp =
+            Expression::LiteralString("Everything other than nil and false is true".to_string());
+        let exp = Expression::UnaryOp((UnOp::LogicalNot, Box::new(exp)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        let exp = Expression::False;
+        let exp = Expression::UnaryOp((UnOp::LogicalNot, Box::new(exp)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        let exp = Expression::Nil;
+        let exp = Expression::UnaryOp((UnOp::LogicalNot, Box::new(exp)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+    }
+
+    #[test]
+    fn test_eval_un_length() {
+        let mut env = Env::new();
+
+        let exp = Expression::LiteralString("Let's get string length".to_string());
+        let exp = Expression::UnaryOp((UnOp::Length, Box::new(exp)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Ok(lua_integer("Let's get string length".len() as i64))
+        );
+
+        // TODO: impelement after table (add test case for table)
+
+        let exp = Expression::Numeral(Numeral::Integer(10));
+        let exp = Expression::UnaryOp((UnOp::Length, Box::new(exp)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot get length of value that is not a string or table".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_un_bitnot() {
+        let mut env = Env::new();
+
+        let exp = Expression::Numeral(Numeral::Integer(100));
+        let exp = Expression::UnaryOp((UnOp::BitNot, Box::new(exp)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(-101)));
+
+        let exp = Expression::LiteralString("Let's bitwise not string".to_string());
+        let exp = Expression::UnaryOp((UnOp::BitNot, Box::new(exp)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot convert value to integer (types cannot be converted)".to_string()
+            ))
+        );
+
+        let exp = Expression::Numeral(Numeral::Float(10.04));
+        let exp = Expression::UnaryOp((UnOp::BitNot, Box::new(exp)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot convert float that does not have exact integer value to integer".to_string()
+            ))
+        );
     }
 
     #[test]

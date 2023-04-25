@@ -1,5 +1,4 @@
 // TODO
-// 1. Ask question about capturing varaibles in function (closure)
 // 3. Table
 use crate::ast::*;
 use crate::interpreter::environment::Env;
@@ -149,9 +148,31 @@ impl<'a> LuaValue<'a> {
             ))),
         }
     }
+
+    pub fn into_int(self) -> Result<i64, ASTExecError> {
+        match self.0.as_ref() {
+            LuaVal::LuaNum(n, is_float) => {
+                if *is_float {
+                    let n = f64::from_be_bytes(*n);
+                    if n.floor() == n.ceil() {
+                        Ok(n.floor() as i64)
+                    } else {
+                        Err(ASTExecError(format!(
+                            "Cannot convert float that does not have exact integer value to integer"
+                        )))
+                    }
+                } else {
+                    Ok(i64::from_be_bytes(*n))
+                }
+            }
+            _ => Err(ASTExecError(format!(
+                "Cannot convert value to integer (types cannot be converted)"
+            ))),
+        }
+    }
 }
 
-// TODO: Or use hashmap representation?
+// TODO: use hashmap representation since key can be only string or number
 #[derive(Debug, PartialEq)]
 pub struct LuaTable<'a>(Rc<RefCell<Vec<(LuaValue<'a>, LuaValue<'a>)>>>);
 impl<'a> LuaTable<'a> {

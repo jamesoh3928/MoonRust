@@ -30,7 +30,7 @@ impl Statement {
                         Var::NameVar(name) => {
                             results.push((name, val));
                         }
-                        // TODO: assignments for tables
+                        // TODO: implement after table
                         Var::BracketVar((name, exp)) => {
                             unimplemented!()
                         }
@@ -41,7 +41,6 @@ impl Statement {
                 }
 
                 // Insert into the environment
-                // TODO: with local keyword, always insert new local variable, without, first check update
                 for (name, val) in results {
                     if *is_local {
                         // With local keyword, always insert new local variable or overwrite existing
