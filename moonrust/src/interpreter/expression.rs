@@ -147,7 +147,7 @@ impl Expression {
             Int(i64),
             Float(f64),
         }
-        fn execute_bin_op<'a, F1, F2>(
+        fn execute_arithmetic<'a, F1, F2>(
             exec_ints: F1,
             exec_floats: F2,
             left: LuaValue,
@@ -201,27 +201,27 @@ impl Expression {
             BinOp::Add => {
                 let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 + i2);
                 let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 + f2);
-                execute_bin_op(exec_ints, exec_floats, left, right)
+                execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Sub => {
                 let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 - i2);
                 let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 - f2);
-                execute_bin_op(exec_ints, exec_floats, left, right)
+                execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Mult => {
                 let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 * i2);
                 let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 * f2);
-                execute_bin_op(exec_ints, exec_floats, left, right)
+                execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Div => {
                 let exec_ints = |i1: i64, i2: i64| IntOrFloat::Float(i1 as f64 / i2 as f64);
                 let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 / f2);
-                execute_bin_op(exec_ints, exec_floats, left, right)
+                execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::IntegerDiv => {
                 let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 / i2);
                 let exec_floats = |f1: f64, f2: f64| IntOrFloat::Int((f1 / f2).floor() as i64);
-                execute_bin_op(exec_ints, exec_floats, left, right)
+                execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Pow => {
                 let exec_ints = |i1: i64, i2: i64| {
@@ -230,31 +230,41 @@ impl Expression {
                     IntOrFloat::Float(i1.powf(i2))
                 };
                 let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1.powf(f2));
-                execute_bin_op(exec_ints, exec_floats, left, right)
+                execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Mod => {
                 let exec_ints = |i1: i64, i2: i64| IntOrFloat::Int(i1 % i2);
                 let exec_floats = |f1: f64, f2: f64| IntOrFloat::Float(f1 % f2);
-                // IntOrFloat::Float(f1 - (f1 / f2).floor() * f2);
-                execute_bin_op(exec_ints, exec_floats, left, right)
+                execute_arithmetic(exec_ints, exec_floats, left, right)
             }
-            BinOp::BitAnd => {
-                unimplemented!()
-            }
-            BinOp::BitXor => {
-                unimplemented!()
-            }
-            BinOp::BitOr => {
-                unimplemented!()
-            }
-            BinOp::ShiftRight => {
-                unimplemented!()
-            }
-            BinOp::ShiftLeft => {
-                unimplemented!()
-            }
+            BinOp::BitAnd => Ok(LuaValue::new(LuaVal::LuaNum(
+                (left.into_int()? & right.into_int()?).to_be_bytes(),
+                false,
+            ))),
+            BinOp::BitXor => Ok(LuaValue::new(LuaVal::LuaNum(
+                (left.into_int()? ^ right.into_int()?).to_be_bytes(),
+                false,
+            ))),
+            BinOp::BitOr => Ok(LuaValue::new(LuaVal::LuaNum(
+                (left.into_int()? | right.into_int()?).to_be_bytes(),
+                false,
+            ))),
+            BinOp::ShiftRight => Ok(LuaValue::new(LuaVal::LuaNum(
+                (left.into_int()? >> right.into_int()?).to_be_bytes(),
+                false,
+            ))),
+            BinOp::ShiftLeft => Ok(LuaValue::new(LuaVal::LuaNum(
+                (left.into_int()? << right.into_int()?).to_be_bytes(),
+                false,
+            ))),
             BinOp::Concat => {
-                unimplemented!()
+                // If both operands are strings or numbers, then the numbers are converted to strings in a non-specified format.
+                // Otherwise, the __concat metamethod is called (in our case, return error).
+                Ok(LuaValue::new(LuaVal::LuaString(format!(
+                    "{}{}",
+                    left.into_string()?,
+                    right.into_string()?
+                ))))
             }
             BinOp::LessThan => {
                 unimplemented!()
@@ -822,6 +832,221 @@ mod tests {
             exp.eval(&mut env),
             Err(ASTExecError(
                 "Cannot execute opration on values that are not numbers".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_bitand() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(13));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::BitAnd, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(4)));
+
+        let left = Expression::Numeral(Numeral::Float(20.0));
+        let right = Expression::Numeral(Numeral::Float(13.0));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::BitAnd, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(4)));
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Float(13.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::BitAnd, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot convert float that does not have exact integer value to integer"
+                    .to_string()
+            ))
+        );
+
+        let left = Expression::Numeral(Numeral::Integer(10));
+        let right = Expression::LiteralString("Can't bitwise and with string".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::BitAnd, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot convert value to integer (types cannot be converted)".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_bitxor() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(13));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::BitXor, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(25)));
+
+        let left = Expression::Numeral(Numeral::Float(20.0));
+        let right = Expression::Numeral(Numeral::Float(13.0));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::BitXor, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(25)));
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Float(13.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::BitXor, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot convert float that does not have exact integer value to integer"
+                    .to_string()
+            ))
+        );
+
+        let left = Expression::Numeral(Numeral::Integer(10));
+        let right = Expression::LiteralString("Can't bitwise and with string".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::BitXor, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot convert value to integer (types cannot be converted)".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_bitor() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(13));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::BitOr, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(29)));
+
+        let left = Expression::Numeral(Numeral::Float(20.0));
+        let right = Expression::Numeral(Numeral::Float(13.0));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::BitOr, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(29)));
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Float(13.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::BitOr, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot convert float that does not have exact integer value to integer"
+                    .to_string()
+            ))
+        );
+
+        let left = Expression::Numeral(Numeral::Integer(10));
+        let right = Expression::LiteralString("Can't bitwise and with string".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::BitOr, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot convert value to integer (types cannot be converted)".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_bitsl() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(13));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::ShiftLeft, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(163840)));
+
+        let left = Expression::Numeral(Numeral::Float(20.0));
+        let right = Expression::Numeral(Numeral::Float(13.0));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::ShiftLeft, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(163840)));
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Float(13.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::ShiftLeft, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot convert float that does not have exact integer value to integer"
+                    .to_string()
+            ))
+        );
+
+        let left = Expression::Numeral(Numeral::Integer(10));
+        let right = Expression::LiteralString("Can't bitwise and with string".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::ShiftLeft, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot convert value to integer (types cannot be converted)".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_bitsr() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(2));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::ShiftRight, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(5)));
+
+        let left = Expression::Numeral(Numeral::Float(20.0));
+        let right = Expression::Numeral(Numeral::Float(2.0));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::ShiftRight, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(5)));
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Float(2.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::ShiftRight, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot convert float that does not have exact integer value to integer"
+                    .to_string()
+            ))
+        );
+
+        let left = Expression::Numeral(Numeral::Integer(10));
+        let right = Expression::LiteralString("Can't bitwise and with string".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::ShiftRight, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot convert value to integer (types cannot be converted)".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_eval_bin_concat() {
+        let mut env = Env::new();
+
+        let left = Expression::Numeral(Numeral::Integer(20));
+        let right = Expression::Numeral(Numeral::Integer(2));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Concat, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_string("202")));
+
+        let left = Expression::Numeral(Numeral::Float(20.0));
+        let right = Expression::Numeral(Numeral::Float(2.0));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Concat, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_string("20.02.0")));
+
+        let left = Expression::Numeral(Numeral::Float(20.0));
+        let right = Expression::LiteralString("test".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Concat, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_string("20.0test")));
+
+        let left = Expression::LiteralString("Hello ".to_string());
+        let right = Expression::LiteralString("World!".to_string());
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Concat, Box::new(right)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_string("Hello World!")));
+
+        let left = Expression::Nil;
+        let right = Expression::Numeral(Numeral::Float(2.1));
+        let exp = Expression::BinaryOp((Box::new(left), BinOp::Concat, Box::new(right)));
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(
+                "Cannot convert value to String (types cannot be converted)".to_string()
             ))
         );
     }

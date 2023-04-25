@@ -170,6 +170,28 @@ impl<'a> LuaValue<'a> {
             ))),
         }
     }
+
+    pub fn into_string(self) -> Result<String, ASTExecError> {
+        match self.0.as_ref() {
+            LuaVal::LuaNum(n, is_float) => {
+                if *is_float {
+                    let n = f64::from_be_bytes(*n);
+                    if n.floor() != n.ceil() {
+                        Ok(n.to_string())
+                    } else {
+                        // If n = 23.0, make it print as 23.0 instead of 23
+                        Ok(format!("{:.1}", n))
+                    }
+                } else {
+                    Ok(i64::from_be_bytes(*n).to_string())
+                }
+            }
+            LuaVal::LuaString(s) => Ok(s.clone()),
+            _ => Err(ASTExecError(format!(
+                "Cannot convert value to String (types cannot be converted)"
+            ))),
+        }
+    }
 }
 
 // TODO: use hashmap representation since key can be only string or number
