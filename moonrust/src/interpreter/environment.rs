@@ -13,6 +13,10 @@ impl<'a> EnvTable<'a> {
         self.0.get(name)
     }
 
+    pub fn get_mut(&mut self, name: &str) -> Option<&mut LuaValue<'a>> {
+        self.0.get_mut(name)
+    }
+
     // Insert a new variable or update an existing one
     pub fn insert(&mut self, name: String, var: LuaValue<'a>) -> Option<LuaValue<'a>> {
         self.0.insert(name, var)
@@ -61,11 +65,21 @@ impl<'a> LocalEnv<'a> {
         }
     }
 
+    // Always inserting into the current scope
     pub fn insert(&mut self, name: String, var: LuaValue<'a>) -> Option<LuaValue<'a>> {
         match self.0.last_mut() {
             Some(table) => table.insert(name, var),
             None => panic!("Environment stack is empty"),
         }
+    }
+
+    pub fn update(&mut self, name: String, var: LuaValue<'a>) -> Option<LuaValue<'a>> {
+        for table in self.0.iter_mut().rev() {
+            if let Some(_) = table.get(&name) {
+                return table.insert(name, var);
+            }
+        }
+        None
     }
 }
 
@@ -108,6 +122,10 @@ impl<'a> Env<'a> {
 
     pub fn insert_local(&mut self, name: String, var: LuaValue<'a>) {
         self.local.insert(name, var);
+    }
+
+    pub fn update_local(&mut self, name: String, var: LuaValue<'a>) {
+        self.local.update(name, var);
     }
 
     pub fn insert_global(&mut self, name: String, var: LuaValue<'a>) {
