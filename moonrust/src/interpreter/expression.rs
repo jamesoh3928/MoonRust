@@ -462,8 +462,8 @@ impl Var {
                 Some(val) => {
                     vec![(name.clone(), val.clone())]
                 }
-                // If value is not found, then it is nil in captured environment
-                None => vec![(name.clone(), LuaValue::new(LuaVal::LuaNil))],
+                // If value is not found, not captured
+                None => vec![],
             },
             Var::BracketVar((name, exp)) => {
                 // TODO: implement after table
@@ -493,7 +493,8 @@ impl FunctionCall {
                         let args = args.eval(env)?;
 
                         // Create environment for function
-                        let mut func_env = Env::vec_to_env(captured_variables);
+                        let mut func_env =
+                            Env::vec_to_env(captured_variables, env.get_global_env().clone());
 
                         // Extend function environment with function arguments
                         func_env.extend_local_env();
@@ -523,7 +524,6 @@ impl FunctionCall {
                         }
                     }
                     LuaVal::Print => {
-                        // CONTINUE
                         let args = args.eval(env)?;
                         let mut stdout = io::stdout().lock();
                         FunctionCall::print_fn(args, &mut stdout)
@@ -534,7 +534,8 @@ impl FunctionCall {
                     }
                     _ => {
                         return Err(ASTExecError(format!(
-                            "Cannot call non-function value with arguments."
+                            "Cannot call non-function value with arguments. Environment: {:?}, RC: {:?}",
+                            env, rc
                         )))
                     }
                 }
@@ -1790,7 +1791,7 @@ mod tests {
 
         let captured_varaibles = block.capture_variables(&env);
         env.pop_local_env();
-        let func_env = Env::vec_to_env(&captured_varaibles);
+        let func_env = Env::vec_to_env(&captured_varaibles, env.get_global_env().clone());
         assert_eq!(
             func_env.get("a"),
             Some(&LuaValue::extract_first_return_val(lua_integer(10)))
@@ -1803,9 +1804,6 @@ mod tests {
             func_env.get("c"),
             Some(&LuaValue::extract_first_return_val(lua_integer(30)))
         );
-        assert_eq!(
-            func_env.get("d"),
-            Some(&LuaValue::extract_first_return_val(lua_nil()))
-        );
+        assert_eq!(func_env.get("d"), None);
     }
 }

@@ -1,11 +1,9 @@
 function factorial(n)
-    if n == 0 then
-      return 1
-    else
-      return n * factorial(n - 1)
-    end
+  if n == 0 then
+    return 1
+  else
+    return n * factorial(n - 1)
   end
-  
-  result = factorial(5)
-  print(result)
+end
+
 print(factorial(5))

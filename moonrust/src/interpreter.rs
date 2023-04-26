@@ -306,6 +306,11 @@ impl Block {
             if return_vals.is_none() {
                 // Break statement
                 return Ok(None);
+            } else if let Some(return_vals) = return_vals {
+                if !return_vals.is_empty() {
+                    // Return statement inside statement list
+                    return Ok(Some(return_vals));
+                }
             }
         }
 
@@ -319,7 +324,7 @@ impl Block {
         let mut return_vals = Vec::with_capacity(explist.len());
         let mut i = 0;
         for exp in explist.iter() {
-            // For each expression, only the first return value is used, 
+            // For each expression, only the first return value is used,
             // but last expression can use multiple return values
             if i == explist.len() - 1 {
                 return_vals.append(&mut exp.eval(env).unwrap());

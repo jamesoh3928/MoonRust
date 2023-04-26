@@ -122,18 +122,17 @@ impl Statement {
             Statement::If((exp, block, elseifs, elseblock)) => {
                 let condition = LuaValue::extract_first_return_val(exp.eval(env)?);
                 if condition.is_true() {
-                    block.exec(env)?;
+                    return block.exec(env);
                 } else {
                     // Do elseifs
                     for (exp, block) in elseifs {
                         let condition = LuaValue::extract_first_return_val(exp.eval(env)?);
                         if condition.is_true() {
-                            block.exec(env)?;
-                            return Ok(Some(vec![]));
+                            return block.exec(env);
                         }
                     }
                     if let Some(elseblock) = elseblock {
-                        elseblock.exec(env)?;
+                        return elseblock.exec(env);
                     }
                 }
             }
@@ -970,7 +969,6 @@ mod tests {
                 ("a".to_string(), lua_integer(1)),
                 ("b".to_string(), lua_integer(2)),
                 ("c".to_string(), lua_integer(3)),
-                ("d".to_string(), lua_nil())
             ]
         );
         assert_eq!(

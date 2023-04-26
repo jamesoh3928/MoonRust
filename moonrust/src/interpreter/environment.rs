@@ -1,8 +1,8 @@
-use crate::interpreter::{LuaValue, LuaVal};
+use crate::interpreter::{LuaVal, LuaValue};
 use std::collections::HashMap;
 
 // One scope of bindings
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct EnvTable<'a>(HashMap<String, LuaValue<'a>>);
 impl<'a> EnvTable<'a> {
     pub fn new() -> Self {
@@ -86,6 +86,14 @@ impl<'a> Env<'a> {
         env
     }
 
+    pub fn get_global_env(&self) -> &EnvTable<'a> {
+        &self.global
+    }
+
+    pub fn set_global_env(&mut self, env: EnvTable<'a>) {
+        self.global = env;
+    }
+
     pub fn get_local(&self, name: &str) -> Option<&LuaValue<'a>> {
         self.local.get(name)
     }
@@ -95,7 +103,7 @@ impl<'a> Env<'a> {
     }
 
     pub fn get(&self, name: &str) -> Option<&LuaValue<'a>> {
-        self.get_local(name).or_else(|| self.get_global(name))
+        self.local.get(name).or_else(|| self.global.get(name))
     }
 
     pub fn insert_local(&mut self, name: String, var: LuaValue<'a>) {
@@ -117,8 +125,12 @@ impl<'a> Env<'a> {
     }
 
     // Used for function (closures) capturing variables
-    pub fn vec_to_env(captured_vars: &Vec<(String, LuaValue<'a>)>) -> Env<'a> {
+    pub fn vec_to_env(
+        captured_vars: &Vec<(String, LuaValue<'a>)>,
+        global_env: EnvTable<'a>,
+    ) -> Env<'a> {
         let mut new_env = Env::new();
+        new_env.set_global_env(global_env);
         for (name, var) in captured_vars {
             new_env.insert_local(name.clone(), var.clone());
         }
