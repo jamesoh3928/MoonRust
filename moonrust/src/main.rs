@@ -36,6 +36,8 @@ fn main() {
         }
     };
 
+    println!("AST: {:#?}", ast);
+
     // Execute the program
     // Initialize environment
     let mut env = environment::Env::new();

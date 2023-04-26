@@ -21,7 +21,7 @@ impl Statement {
                     let var = &varlist[i];
                     // If there are fewer values than needed, the list is extended with nil's
                     let val = if i < explist.len() {
-                        explist[i].eval(env).unwrap()
+                        LuaValue::extract_first_return_val(explist[i].eval(env).unwrap())
                     } else {
                         LuaValue::new(LuaVal::LuaNil)
                     };
@@ -82,7 +82,7 @@ impl Statement {
             Statement::While((exp, block)) => {
                 // Execute block until exp returns false
                 // Local variables are lost in each iteration
-                while exp.eval(env)?.is_true() {
+                while LuaValue::extract_first_return_val(exp.eval(env)?).is_true() {
                     let return_vals = block.exec(env)?;
                     match return_vals {
                         Some(return_vals) => {
@@ -112,7 +112,7 @@ impl Statement {
                             return Ok(Some(vec![]));
                         }
                     }
-                    if exp.eval(env)?.is_true() {
+                    if LuaValue::extract_first_return_val(exp.eval(env)?).is_true() {
                         break;
                     }
                     // Pop local environment before next iteration
@@ -120,13 +120,13 @@ impl Statement {
                 }
             }
             Statement::If((exp, block, elseifs, elseblock)) => {
-                let condition = exp.eval(env)?;
+                let condition = LuaValue::extract_first_return_val(exp.eval(env)?);
                 if condition.is_true() {
                     block.exec(env)?;
                 } else {
                     // Do elseifs
                     for (exp, block) in elseifs {
-                        let condition = exp.eval(env)?;
+                        let condition = LuaValue::extract_first_return_val(exp.eval(env)?);
                         if condition.is_true() {
                             block.exec(env)?;
                             return Ok(Some(vec![]));
@@ -138,7 +138,7 @@ impl Statement {
                 }
             }
             Statement::ForNum((name, exp1, exp2, exp3, block)) => {
-                let initial = match exp1.eval(env)? {
+                let initial = match LuaValue::extract_first_return_val(exp1.eval(env)?) {
                     LuaValue(rc) => match rc.as_ref() {
                         LuaVal::LuaNum(bytes, is_float) => {
                             if *is_float {
@@ -155,9 +155,9 @@ impl Statement {
                         }
                     },
                 };
-                let limit = exp2.eval(env)?;
+                let limit = LuaValue::extract_first_return_val(exp2.eval(env)?);
                 let step = match exp3 {
-                    Some(exp) => match exp.eval(env)? {
+                    Some(exp) => match LuaValue::extract_first_return_val(exp.eval(env)?) {
                         LuaValue(rc) => match rc.as_ref() {
                             LuaVal::LuaNum(bytes, is_float) => {
                                 if *is_float {
@@ -717,17 +717,15 @@ mod tests {
             Box::new(Expression::Numeral(Numeral::Integer(15))),
         ));
         let block = Block {
-            statements: vec![
-                Statement::Assignment((
-                    vec![Var::NameVar("a".to_string())],
-                    vec![Expression::BinaryOp((
-                        Box::new(var_exp("a")),
-                        BinOp::Add,
-                        Box::new(Expression::Numeral(Numeral::Integer(2))),
-                    ))],
-                    false,
-                )),
-            ],
+            statements: vec![Statement::Assignment((
+                vec![Var::NameVar("a".to_string())],
+                vec![Expression::BinaryOp((
+                    Box::new(var_exp("a")),
+                    BinOp::Add,
+                    Box::new(Expression::Numeral(Numeral::Integer(2))),
+                ))],
+                false,
+            ))],
             return_stat: None,
         };
 
@@ -944,7 +942,7 @@ mod tests {
             args,
         ));
         let exp = PrefixExp::FunctionCall(func_call);
-        assert_eq!(exp.eval(&mut env), Ok(lua_integer(30))); // a + b = 10 + 20
+        assert_eq!(exp.eval(&mut env), Ok(vec![lua_integer(30)])); // a + b = 10 + 20
     }
 
     #[test]

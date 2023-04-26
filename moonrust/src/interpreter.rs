@@ -199,6 +199,15 @@ impl<'a> LuaValue<'a> {
             ))),
         }
     }
+
+    fn extract_first_return_val(return_vals: Vec<LuaValue>) -> LuaValue {
+        if return_vals.is_empty() {
+            // If no return values, return nil
+            LuaValue::new(LuaVal::LuaNil)
+        } else {
+            return_vals[0].clone()
+        }
+    }
 }
 
 impl<'a> Display for LuaValue<'a> {
@@ -306,10 +315,16 @@ impl Block {
             None => return Ok(Some(vec![])),
         };
 
-        let mut return_vals = vec![LuaValue::new(LuaVal::LuaNil); explist.len()];
+        let mut return_vals = Vec::with_capacity(explist.len());
         let mut i = 0;
         for exp in explist.iter() {
-            return_vals[i] = exp.eval(env).unwrap();
+            // For each expression, only the first return value is used, 
+            // but last expression can use multiple return values
+            if i == explist.len() - 1 {
+                return_vals.append(&mut exp.eval(env).unwrap());
+                break;
+            }
+            return_vals.push(LuaValue::extract_first_return_val(exp.eval(env).unwrap()));
             i += 1;
         }
         Ok(Some(return_vals))

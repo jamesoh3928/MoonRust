@@ -14,25 +14,25 @@ enum IntFloatBool {
 }
 
 impl Expression {
-    pub fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<LuaValue<'a>, ASTExecError> {
+    pub fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
         let val = match self {
-            Expression::Nil => LuaValue::new(LuaVal::LuaNil),
-            Expression::False => LuaValue::new(LuaVal::LuaBool(false)),
-            Expression::True => LuaValue::new(LuaVal::LuaBool(true)),
+            Expression::Nil => vec![LuaValue::new(LuaVal::LuaNil)],
+            Expression::False => vec![LuaValue::new(LuaVal::LuaBool(false))],
+            Expression::True => vec![LuaValue::new(LuaVal::LuaBool(true))],
             Expression::Numeral(n) => match n {
-                Numeral::Integer(i) => LuaValue::new(LuaVal::LuaNum(i.to_be_bytes(), false)),
-                Numeral::Float(f) => LuaValue::new(LuaVal::LuaNum(f.to_be_bytes(), true)),
+                Numeral::Integer(i) => vec![LuaValue::new(LuaVal::LuaNum(i.to_be_bytes(), false))],
+                Numeral::Float(f) => vec![LuaValue::new(LuaVal::LuaNum(f.to_be_bytes(), true))],
             },
-            Expression::LiteralString(s) => LuaValue::new(LuaVal::LuaString(s.clone())),
+            Expression::LiteralString(s) => vec![LuaValue::new(LuaVal::LuaString(s.clone()))],
             // TODO: DotDotDot? maybe skip it for now
             Expression::DotDotDot => unimplemented!(),
             Expression::FunctionDef((par_list, block)) => {
                 let captured_variables = block.capture_variables(env);
-                LuaValue::new(LuaVal::Function(LuaFunction {
+                vec![LuaValue::new(LuaVal::Function(LuaFunction {
                     par_list,
                     block,
                     captured_variables,
-                }))
+                }))]
             }
             Expression::PrefixExp(prefixexp) => prefixexp.eval(env)?,
             Expression::TableConstructor(fields) => {
@@ -54,9 +54,9 @@ impl Expression {
                 unimplemented!()
             }
             Expression::BinaryOp((left, op, right)) => {
-                Expression::eval_binary_exp(op, left, right, env)?
+                vec![Expression::eval_binary_exp(op, left, right, env)?]
             }
-            Expression::UnaryOp((op, exp)) => Expression::eval_unary_exp(op, exp, env)?,
+            Expression::UnaryOp((op, exp)) => vec![Expression::eval_unary_exp(op, exp, env)?],
         };
         Ok(val)
     }
@@ -83,7 +83,7 @@ impl Expression {
     ) -> Result<LuaValue<'a>, ASTExecError> {
         match op {
             UnOp::Negate => {
-                let val = exp.eval(env)?;
+                let val = LuaValue::extract_first_return_val(exp.eval(env)?);
                 match val.0.as_ref() {
                     LuaVal::LuaNum(bytes, is_float) => {
                         if !*is_float {
@@ -104,7 +104,7 @@ impl Expression {
                 }
             }
             UnOp::LogicalNot => {
-                if exp.eval(env)?.is_true() {
+                if LuaValue::extract_first_return_val(exp.eval(env)?).is_true() {
                     // Negate the true
                     Ok(LuaValue::new(LuaVal::LuaBool(false)))
                 } else {
@@ -113,7 +113,10 @@ impl Expression {
                 }
             }
             UnOp::Length => {
-                match exp.eval(env)?.0.as_ref() {
+                match LuaValue::extract_first_return_val(exp.eval(env)?)
+                    .0
+                    .as_ref()
+                {
                     LuaVal::LuaString(s) => {
                         // length of a string is its number of bytes
                         Ok(LuaValue::new(LuaVal::LuaNum(
@@ -135,7 +138,7 @@ impl Expression {
             }
             UnOp::BitNot => {
                 // operate on all bits of those integers, and result in an integer.
-                let val = exp.eval(env)?;
+                let val = LuaValue::extract_first_return_val(exp.eval(env)?);
                 let val = val.into_int()?;
                 Ok(LuaValue::new(LuaVal::LuaNum((!val).to_be_bytes(), false)))
             }
@@ -274,40 +277,40 @@ impl Expression {
             }
         }
 
-        let left = left.eval(env)?;
+        let left = LuaValue::extract_first_return_val(left.eval(env)?);
         match op {
             BinOp::Add => {
-                let right = right.eval(env)?;
+                let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 + i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 + f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Sub => {
-                let right = right.eval(env)?;
+                let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 - i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 - f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Mult => {
-                let right = right.eval(env)?;
+                let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 * i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 * f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Div => {
-                let right = right.eval(env)?;
+                let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Float(i1 as f64 / i2 as f64);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 / f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::IntegerDiv => {
-                let right = right.eval(env)?;
+                let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 / i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Int((f1 / f2).floor() as i64);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Pow => {
-                let right = right.eval(env)?;
+                let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 let exec_ints = |i1: i64, i2: i64| {
                     let i1 = i1 as f64;
                     let i2 = i2 as f64;
@@ -317,41 +320,41 @@ impl Expression {
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::Mod => {
-                let right = right.eval(env)?;
+                let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 % i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 % f2);
                 execute_arithmetic(exec_ints, exec_floats, left, right)
             }
             BinOp::BitAnd => {
-                let right = right.eval(env)?;
+                let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 Ok(LuaValue::new(LuaVal::LuaNum(
                     (left.into_int()? & right.into_int()?).to_be_bytes(),
                     false,
                 )))
             }
             BinOp::BitXor => {
-                let right = right.eval(env)?;
+                let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 Ok(LuaValue::new(LuaVal::LuaNum(
                     (left.into_int()? ^ right.into_int()?).to_be_bytes(),
                     false,
                 )))
             }
             BinOp::BitOr => {
-                let right = right.eval(env)?;
+                let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 Ok(LuaValue::new(LuaVal::LuaNum(
                     (left.into_int()? | right.into_int()?).to_be_bytes(),
                     false,
                 )))
             }
             BinOp::ShiftRight => {
-                let right = right.eval(env)?;
+                let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 Ok(LuaValue::new(LuaVal::LuaNum(
                     (left.into_int()? >> right.into_int()?).to_be_bytes(),
                     false,
                 )))
             }
             BinOp::ShiftLeft => {
-                let right = right.eval(env)?;
+                let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 Ok(LuaValue::new(LuaVal::LuaNum(
                     (left.into_int()? << right.into_int()?).to_be_bytes(),
                     false,
@@ -360,25 +363,45 @@ impl Expression {
             BinOp::Concat => {
                 // If both operands are strings or numbers, then the numbers are converted to strings in a non-specified format.
                 // Otherwise, the __concat metamethod is called (in our case, return error).
-                let right = right.eval(env)?;
+                let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 Ok(LuaValue::new(LuaVal::LuaString(format!(
                     "{}{}",
                     left.into_string()?,
                     right.into_string()?
                 ))))
             }
-            BinOp::LessThan => less_or_greater_than(left, right.eval(env)?, true),
-            BinOp::LessEq => less_or_greater_than(left, right.eval(env)?, false)?.negate_bool(),
-            BinOp::GreaterThan => less_or_greater_than(left, right.eval(env)?, false),
-            BinOp::GreaterEq => less_or_greater_than(left, right.eval(env)?, true)?.negate_bool(),
-            BinOp::Equal => equal(left, right.eval(env)?),
-            BinOp::NotEqual => equal(left, right.eval(env)?)?.negate_bool(),
+            BinOp::LessThan => less_or_greater_than(
+                left,
+                LuaValue::extract_first_return_val(right.eval(env)?),
+                true,
+            ),
+            BinOp::LessEq => less_or_greater_than(
+                left,
+                LuaValue::extract_first_return_val(right.eval(env)?),
+                false,
+            )?
+            .negate_bool(),
+            BinOp::GreaterThan => less_or_greater_than(
+                left,
+                LuaValue::extract_first_return_val(right.eval(env)?),
+                false,
+            ),
+            BinOp::GreaterEq => less_or_greater_than(
+                left,
+                LuaValue::extract_first_return_val(right.eval(env)?),
+                true,
+            )?
+            .negate_bool(),
+            BinOp::Equal => equal(left, LuaValue::extract_first_return_val(right.eval(env)?)),
+            BinOp::NotEqual => {
+                equal(left, LuaValue::extract_first_return_val(right.eval(env)?))?.negate_bool()
+            }
             BinOp::LogicalAnd => {
                 if left.is_false() {
                     Ok(left)
                 } else {
                     // If left is true, return value on the right
-                    Ok(right.eval(env)?)
+                    Ok(LuaValue::extract_first_return_val(right.eval(env)?))
                 }
             }
             BinOp::LogicalOr => {
@@ -386,7 +409,7 @@ impl Expression {
                     Ok(left)
                 } else {
                     // If left is true, return value on the right
-                    Ok(right.eval(env)?)
+                    Ok(LuaValue::extract_first_return_val(right.eval(env)?))
                 }
             }
         }
@@ -394,13 +417,13 @@ impl Expression {
 }
 
 impl PrefixExp {
-    pub fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<LuaValue<'a>, ASTExecError> {
+    pub fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
         match self {
             PrefixExp::Var(var) => {
                 match var {
                     Var::NameVar(name) => match env.get(&name) {
-                        Some(val) => Ok(val.clone()),
-                        None => Ok(LuaValue::new(LuaVal::LuaNil)),
+                        Some(val) => Ok(vec![val.clone()]),
+                        None => Ok(vec![LuaValue::new(LuaVal::LuaNil)]),
                     },
                     Var::BracketVar((name, exp)) => {
                         // TODO: implement after table
@@ -413,10 +436,9 @@ impl PrefixExp {
                 }
             }
             PrefixExp::FunctionCall(funcall) => {
-                // CONTINUE: return the vector instead of one value
                 // Call function and check if there is return value
                 let return_vals = funcall.exec(env)?;
-                Ok(return_vals[0].clone())
+                Ok(return_vals)
             }
             PrefixExp::Exp(exp) => Ok(exp.eval(env)?),
         }
@@ -458,7 +480,7 @@ impl FunctionCall {
     pub fn exec<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
         match self {
             FunctionCall::Standard((func, args)) => {
-                let func = (*func).eval(env)?;
+                let func = LuaValue::extract_first_return_val((*func).eval(env)?);
                 let rc = func.0;
                 match rc.as_ref() {
                     LuaVal::Function(LuaFunction {
@@ -556,8 +578,16 @@ impl Args {
         match self {
             Args::ExpList(exps_list) => {
                 let mut args = Vec::with_capacity(exps_list.len());
+                let mut i = 0;
                 for exp in exps_list.iter() {
-                    args.push(exp.eval(env)?);
+                    // For each argument, only the first return value is used,
+                    // but last argument can use multiple return values
+                    if i == exps_list.len() - 1 {
+                        args.append(&mut exp.eval(env)?);
+                    } else {
+                        args.push(LuaValue::extract_first_return_val(exp.eval(env)?));
+                    }
+                    i += 1;
                 }
                 Ok(args)
             }
@@ -578,31 +608,42 @@ mod tests {
     fn var_exp(name: &str) -> Expression {
         Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar(name.to_string()))))
     }
-    fn lua_integer<'a>(n: i64) -> LuaValue<'a> {
-        LuaValue::new(LuaVal::LuaNum(n.to_be_bytes(), false))
+    fn lua_integer<'a>(n: i64) -> Vec<LuaValue<'a>> {
+        vec![LuaValue::new(LuaVal::LuaNum(n.to_be_bytes(), false))]
     }
-    fn lua_float<'a>(n: f64) -> LuaValue<'a> {
-        LuaValue::new(LuaVal::LuaNum(n.to_be_bytes(), true))
+    fn lua_integers<'a>(nums: Vec<i64>) -> Vec<LuaValue<'a>> {
+        let mut v = Vec::with_capacity(nums.len());
+        for n in nums {
+            v.push(LuaValue::new(LuaVal::LuaNum(n.to_be_bytes(), false)));
+        }
+        v
     }
-    fn lua_nil<'a>() -> LuaValue<'a> {
-        LuaValue::new(LuaVal::LuaNil)
+    fn lua_float<'a>(n: f64) -> Vec<LuaValue<'a>> {
+        vec![LuaValue::new(LuaVal::LuaNum(n.to_be_bytes(), true))]
     }
-    fn lua_false<'a>() -> LuaValue<'a> {
-        LuaValue::new(LuaVal::LuaBool(false))
+    fn lua_nil<'a>() -> Vec<LuaValue<'a>> {
+        vec![LuaValue::new(LuaVal::LuaNil)]
     }
-    fn lua_true<'a>() -> LuaValue<'a> {
-        LuaValue::new(LuaVal::LuaBool(true))
+    fn lua_false<'a>() -> Vec<LuaValue<'a>> {
+        vec![LuaValue::new(LuaVal::LuaBool(false))]
     }
-    fn lua_string<'a>(s: &str) -> LuaValue<'a> {
-        LuaValue::new(LuaVal::LuaString(s.to_string()))
+    fn lua_true<'a>() -> Vec<LuaValue<'a>> {
+        vec![LuaValue::new(LuaVal::LuaBool(true))]
     }
-    fn lua_function<'a>(par_list: &'a ParList, block: &'a Block, env: &Env<'a>) -> LuaValue<'a> {
+    fn lua_string<'a>(s: &str) -> Vec<LuaValue<'a>> {
+        vec![LuaValue::new(LuaVal::LuaString(s.to_string()))]
+    }
+    fn lua_function<'a>(
+        par_list: &'a ParList,
+        block: &'a Block,
+        env: &Env<'a>,
+    ) -> Vec<LuaValue<'a>> {
         let captured_variables = block.capture_variables(env);
-        LuaValue::new(LuaVal::Function(LuaFunction {
+        vec![LuaValue::new(LuaVal::Function(LuaFunction {
             par_list,
             block,
             captured_variables,
-        }))
+        }))]
     }
 
     #[test]
@@ -691,22 +732,76 @@ mod tests {
             return_stat: return_stat,
         };
 
-        env.insert_global(String::from("f"), lua_function(&par_list, &block, &env));
+        env.insert_global(
+            String::from("f"),
+            LuaValue::extract_first_return_val(lua_function(&par_list, &block, &env)),
+        );
         let args = Args::ExpList(vec![Expression::Numeral(Numeral::Integer(100))]);
         let func_call = FunctionCall::Standard((
             Box::new(PrefixExp::Var(Var::NameVar("f".to_string()))),
             args,
         ));
-        let exp = PrefixExp::FunctionCall(func_call);
+        let exp = PrefixExp::FunctionCall(func_call.clone());
 
         // f(100) executes a = 30, b = 20, return test
-        // TODO CONTINUE: function call needs to return multiple values
-        assert_eq!(exp.eval(&mut env), Ok(lua_integer(100)));
+        assert_eq!(exp.eval(&mut env), Ok(lua_integers(vec![100, 30, 20])));
+
+        // Function with return values of function call
+        let func_call_exp = Expression::PrefixExp(Box::new(PrefixExp::FunctionCall(func_call)));
+        let par_list = ParList(vec![], false);
+        let block = Block {
+            statements: vec![],
+            return_stat: Some(vec![
+                func_call_exp.clone(),
+                func_call_exp.clone(),
+                func_call_exp.clone(),
+            ]),
+        };
+        env.insert_global(
+            String::from("f2"),
+            LuaValue::extract_first_return_val(lua_function(&par_list, &block, &env)),
+        );
+        let func_call2 = PrefixExp::FunctionCall(FunctionCall::Standard((
+            Box::new(PrefixExp::Var(Var::NameVar("f2".to_string()))),
+            Args::ExpList(vec![]),
+        )));
+        // Each return value return one of the values, but last one return all
+        assert_eq!(
+            func_call2.eval(&mut env),
+            Ok(lua_integers(vec![100, 100, 100, 30, 20]))
+        );
+
+        // Function with taking function that return multiple values as arguments
+        let par_list = ParList(
+            vec![String::from("a"), String::from("b"), String::from("c")],
+            false,
+        );
+        let block = Block {
+            statements: vec![],
+            return_stat: Some(vec![var_exp("a"), var_exp("b"), var_exp("c")]),
+        };
+        env.insert_global(
+            String::from("f3"),
+            LuaValue::extract_first_return_val(lua_function(&par_list, &block, &env)),
+        );
+        let args = Args::ExpList(vec![
+            func_call_exp.clone(),
+            func_call_exp.clone(),
+        ]);
+        let func_call3 = PrefixExp::FunctionCall(FunctionCall::Standard((
+            Box::new(PrefixExp::Var(Var::NameVar("f3".to_string()))),
+            args,
+        )));
+        // Each argument take one return value of each expression except last one
+        assert_eq!(
+            func_call3.eval(&mut env),
+            Ok(lua_integers(vec![100, 100, 30]))
+        );
     }
 
     #[test]
     fn test_eval_print() {
-        // TODO: currently index out of bound for return value
+        // TODO CONTINUE: currently index out of bound for return value
         let mut env = Env::new();
 
         // Integer, float, boolean, string, nil
@@ -1626,9 +1721,18 @@ mod tests {
     #[test]
     fn test_capture_variables() {
         let mut env = Env::new();
-        env.insert_local("a".to_string(), lua_integer(10));
-        env.insert_local("b".to_string(), lua_integer(20));
-        env.insert_local("c".to_string(), lua_integer(30));
+        env.insert_local(
+            "a".to_string(),
+            LuaValue::extract_first_return_val(lua_integer(10)),
+        );
+        env.insert_local(
+            "b".to_string(),
+            LuaValue::extract_first_return_val(lua_integer(20)),
+        );
+        env.insert_local(
+            "c".to_string(),
+            LuaValue::extract_first_return_val(lua_integer(30)),
+        );
 
         let block = Block {
             statements: vec![],
@@ -1638,9 +1742,21 @@ mod tests {
         let captured_varaibles = block.capture_variables(&env);
         env.pop_local_env();
         let func_env = Env::vec_to_env(&captured_varaibles);
-        assert_eq!(func_env.get("a"), Some(&lua_integer(10)));
-        assert_eq!(func_env.get("b"), Some(&lua_integer(20)));
-        assert_eq!(func_env.get("c"), Some(&lua_integer(30)));
-        assert_eq!(func_env.get("d"), Some(&lua_nil()));
+        assert_eq!(
+            func_env.get("a"),
+            Some(&LuaValue::extract_first_return_val(lua_integer(10)))
+        );
+        assert_eq!(
+            func_env.get("b"),
+            Some(&LuaValue::extract_first_return_val(lua_integer(20)))
+        );
+        assert_eq!(
+            func_env.get("c"),
+            Some(&LuaValue::extract_first_return_val(lua_integer(30)))
+        );
+        assert_eq!(
+            func_env.get("d"),
+            Some(&LuaValue::extract_first_return_val(lua_nil()))
+        );
     }
 }
