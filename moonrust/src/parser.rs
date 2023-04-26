@@ -22,10 +22,10 @@ impl FromStr for AST {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match parse(s) {
             Ok(ast) => Ok(ast.1),
-            Err(err) => Err(ASTParseError(format!(
-                "Could not parse file: {}",
-                err.to_string()
-            ))),
+            Err(e) => {
+                let msg = e.to_string();
+                Err(ASTParseError(format!("Could not parse file: {msg}")))
+            }
         }
     }
 }

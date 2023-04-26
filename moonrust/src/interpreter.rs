@@ -1,5 +1,3 @@
-// TODO
-// 3. Table
 use crate::ast::*;
 use crate::interpreter::environment::Env;
 use std::fmt;
@@ -10,8 +8,6 @@ pub mod environment;
 pub mod expression;
 pub mod statement;
 
-// TODO: lua function and table are stored as reference (don't think function matters, but table might)
-//       current struct definition might be good enough
 #[derive(Debug, PartialEq)]
 pub enum LuaVal<'a> {
     LuaTable(LuaTable<'a>),
@@ -20,6 +16,8 @@ pub enum LuaVal<'a> {
     LuaNum([u8; 8], bool), // numerals as an array of 8 bytes, bool for is_float
     LuaString(String),
     Function(LuaFunction<'a>),
+    Print,
+    Read,
 }
 
 // Lua function captures environment in function call
@@ -149,6 +147,15 @@ impl<'a> LuaValue<'a> {
         }
     }
 
+    pub fn negate_bool(self) -> Result<LuaValue<'a>, ASTExecError> {
+        match self.0.as_ref() {
+            LuaVal::LuaBool(b) => Ok(LuaValue::new(LuaVal::LuaBool(!b))),
+            _ => Err(ASTExecError(format!(
+                "Cannot negate value (only boolean can be negated)"
+            ))),
+        }
+    }
+
     pub fn into_int(self) -> Result<i64, ASTExecError> {
         match self.0.as_ref() {
             LuaVal::LuaNum(n, is_float) => {
@@ -190,6 +197,33 @@ impl<'a> LuaValue<'a> {
             _ => Err(ASTExecError(format!(
                 "Cannot convert value to String (types cannot be converted)"
             ))),
+        }
+    }
+}
+
+impl<'a> Display for LuaValue<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &*self.0 {
+            LuaVal::LuaNil => write!(f, "nil"),
+            LuaVal::LuaBool(b) => write!(f, "{b}"),
+            LuaVal::LuaNum(n, is_float) => {
+                if *is_float {
+                    let n = f64::from_be_bytes(*n);
+                    if n.floor() != n.ceil() {
+                        write!(f, "{n}")
+                    } else {
+                        // If n = 23.0, make it print as 23.0 instead of 23
+                        write!(f, "{:.1}", n)
+                    }
+                } else {
+                    write!(f, "{}", i64::from_be_bytes(*n))
+                }
+            }
+            LuaVal::LuaString(s) => write!(f, "{}", s),
+            LuaVal::LuaTable(t) => write!(f, "{:?}", t),
+            LuaVal::Function(func) => write!(f, "{:?}", func),
+            LuaVal::Print => write!(f, "print"),
+            LuaVal::Read => write!(f, "read"),
         }
     }
 }

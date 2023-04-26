@@ -224,7 +224,7 @@ impl Statement {
             }
             Statement::ForGeneric((names, exp_list, block)) => {
                 // Generic for statement must be used with iterator
-                // TODO: finish implementing this
+                // TODO: finish implementing this if there is extra time
                 if exp_list.len() != 1 {
                     return Err(ASTExecError(format!(
                         "Generic for loop must use iterator function"
@@ -704,7 +704,6 @@ mod tests {
 
     #[test]
     fn test_exec_stat_while() {
-        // TODO: increment few times when binary expression is implemented
         let mut env = Env::new();
         let stat = Statement::Assignment((
             vec![Var::NameVar("a".to_string())],
@@ -712,8 +711,11 @@ mod tests {
             false,
         ));
         stat.exec(&mut env).unwrap();
-        // TODO: change the condition after binary operation is implemented
-        let condition = Expression::True;
+        let condition = Expression::BinaryOp((
+            Box::new(var_exp("a")),
+            BinOp::LessEq,
+            Box::new(Expression::Numeral(Numeral::Integer(15))),
+        ));
         let block = Block {
             statements: vec![
                 Statement::Assignment((
@@ -721,40 +723,48 @@ mod tests {
                     vec![Expression::BinaryOp((
                         Box::new(var_exp("a")),
                         BinOp::Add,
-                        Box::new(var_exp("a")),
+                        Box::new(Expression::Numeral(Numeral::Integer(2))),
                     ))],
                     false,
                 )),
-                Statement::Break,
             ],
             return_stat: None,
         };
 
         let while_stat = Statement::While((condition, block));
         assert_eq!(while_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_integer(20)));
+        assert_eq!(env.get("a"), Some(&lua_integer(16)));
     }
 
     #[test]
     fn test_exec_stat_for_num() {
-        // TODO: increment few times when binary expression is implemented
         let mut env = Env::new();
+        let stat = Statement::Assignment((
+            vec![Var::NameVar("a".to_string())],
+            vec![Expression::Numeral(Numeral::Integer(10))],
+            false,
+        ));
+        stat.exec(&mut env).unwrap();
         let for_stat = Statement::ForNum((
             "i".to_string(),
-            Expression::Numeral(Numeral::Integer(0)),
-            Expression::Numeral(Numeral::Integer(2)),
+            Expression::Numeral(Numeral::Integer(1)),
+            Expression::Numeral(Numeral::Integer(5)),
             None,
             Block {
                 statements: vec![Statement::Assignment((
                     vec![Var::NameVar("a".to_string())],
-                    vec![Expression::Numeral(Numeral::Integer(20))],
+                    vec![Expression::BinaryOp((
+                        Box::new(var_exp("a")),
+                        BinOp::Add,
+                        Box::new(var_exp("i")),
+                    ))],
                     false,
                 ))],
                 return_stat: None,
             },
         ));
         assert_eq!(for_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_integer(20)));
+        assert_eq!(env.get("a"), Some(&lua_integer(25)));
     }
 
     #[test]
