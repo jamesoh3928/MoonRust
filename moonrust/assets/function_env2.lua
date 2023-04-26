@@ -1,11 +1,11 @@
 do
-    do 
-      function f()
-        return x
-      end
+  do 
+    function f()
+      return x
     end
   end
-  
-  local x = 2
-  print(f())
-  print(x)
+end
+
+local x = 2
+print(f())
+print(x)

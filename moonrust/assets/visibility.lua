@@ -1,12 +1,12 @@
-x = 10                -- global variable
-do                    -- new block
-    local x = x         -- new 'x', with value 10
-    print(x)            --> 10
+x = 10
+do
+    local x = x
+    print(x)
     x = x+1
-    do                  -- another block
-        local x = x+1     -- another 'x'
-        print(x)          --> 12
+    do
+        local x = x+1
+        print(x)
     end
-    print(x)            --> 11
+    print(x)
 end
-print(x)              --> 10  (the global one)
+print(x)
