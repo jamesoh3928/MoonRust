@@ -1,4 +1,4 @@
-use crate::interpreter::LuaValue;
+use crate::interpreter::{LuaValue, LuaVal};
 use std::collections::HashMap;
 
 // One scope of bindings
@@ -77,10 +77,13 @@ pub struct Env<'a> {
 
 impl<'a> Env<'a> {
     pub fn new() -> Self {
-        Env {
+        let mut env = Env {
             global: EnvTable::new(),
             local: LocalEnv::new(),
-        }
+        };
+        // Insert built-in functions
+        env.insert_global("print".to_string(), LuaValue::new(LuaVal::Print));
+        env
     }
 
     pub fn get_local(&self, name: &str) -> Option<&LuaValue<'a>> {

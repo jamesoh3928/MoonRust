@@ -413,6 +413,7 @@ impl PrefixExp {
                 }
             }
             PrefixExp::FunctionCall(funcall) => {
+                // CONTINUE: return the vector instead of one value
                 // Call function and check if there is return value
                 let return_vals = funcall.exec(env)?;
                 Ok(return_vals[0].clone())
@@ -466,22 +467,7 @@ impl FunctionCall {
                         captured_variables,
                     }) => {
                         // Evaluate arguments first
-                        let args = match args {
-                            Args::ExpList(exps_list) => {
-                                let mut args = Vec::with_capacity(exps_list.len());
-                                for exp in exps_list.iter() {
-                                    args.push(exp.eval(env)?);
-                                }
-                                args
-                            }
-                            Args::TableConstructor(table) => {
-                                // TODO: implement after table (single argument of table)
-                                unimplemented!()
-                            }
-                            Args::LiteralString(s) => {
-                                vec![LuaValue::new(LuaVal::LuaString(s.clone()))]
-                            }
-                        };
+                        let args = args.eval(env)?;
 
                         // Create environment for function
                         let mut func_env = Env::vec_to_env(captured_variables);
@@ -512,6 +498,17 @@ impl FunctionCall {
                                 "Break statement can be only used in while, repeat, or for loop"
                             ))),
                         }
+                    }
+                    LuaVal::Print => {
+                        let args = args.eval(env)?;
+                        for arg in args.iter() {
+                            print!("{} ", arg);
+                        }
+                        Ok(vec![])
+                    }
+                    LuaVal::Read => {
+                        // TODO: use io::stdin().read_line(&mut input)
+                        unimplemented!()
                     }
                     _ => {
                         return Err(ASTExecError(format!(
@@ -550,6 +547,25 @@ impl FunctionCall {
                 // TODO: implement after table
                 unimplemented!()
             }
+        }
+    }
+}
+
+impl Args {
+    fn eval<'a>(&'a self, env: &mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
+        match self {
+            Args::ExpList(exps_list) => {
+                let mut args = Vec::with_capacity(exps_list.len());
+                for exp in exps_list.iter() {
+                    args.push(exp.eval(env)?);
+                }
+                Ok(args)
+            }
+            Args::TableConstructor(table) => {
+                // TODO: implement after table (single argument of table)
+                unimplemented!()
+            }
+            Args::LiteralString(s) => Ok(vec![LuaValue::new(LuaVal::LuaString(s.clone()))]),
         }
     }
 }
@@ -684,7 +700,30 @@ mod tests {
         let exp = PrefixExp::FunctionCall(func_call);
 
         // f(100) executes a = 30, b = 20, return test
+        // TODO CONTINUE: function call needs to return multiple values
         assert_eq!(exp.eval(&mut env), Ok(lua_integer(100)));
+    }
+
+    #[test]
+    fn test_eval_print() {
+        // TODO: currently index out of bound for return value
+        let mut env = Env::new();
+
+        // Integer, float, boolean, string, nil
+        let args = Args::ExpList(vec![
+            Expression::Numeral(Numeral::Integer(10)),
+            Expression::Numeral(Numeral::Float(10.1)),
+            Expression::False,
+            Expression::LiteralString("Hello World!".to_string()),
+            Expression::Nil,
+        ]);
+        let func_call = FunctionCall::Standard((
+            Box::new(PrefixExp::Var(Var::NameVar("print".to_string()))),
+            args,
+        ));
+        let exp = PrefixExp::FunctionCall(func_call);
+
+        assert_eq!(exp.eval(&mut env), Ok(lua_integer(10)));
     }
 
     #[test]
