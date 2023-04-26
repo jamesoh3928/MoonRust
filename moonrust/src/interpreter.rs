@@ -229,8 +229,9 @@ impl<'a> Display for LuaValue<'a> {
                 }
             }
             LuaVal::LuaString(s) => write!(f, "{}", s),
-            LuaVal::LuaTable(t) => write!(f, "{:?}", t),
-            LuaVal::Function(func) => write!(f, "{:?}", func),
+            LuaVal::LuaTable(t) => write!(f, "{:p}", t),
+            // Display function as reference
+            LuaVal::Function(func) => write!(f, "{:p}", func),
             LuaVal::Print => write!(f, "print"),
             LuaVal::Read => write!(f, "read"),
         }

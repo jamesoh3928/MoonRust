@@ -5,6 +5,7 @@ use crate::interpreter::LuaFunction;
 use crate::interpreter::LuaTable;
 use crate::interpreter::LuaVal;
 use crate::interpreter::LuaValue;
+use std::io;
 use std::rc::Rc;
 
 enum IntFloatBool {
@@ -522,11 +523,10 @@ impl FunctionCall {
                         }
                     }
                     LuaVal::Print => {
+                        // CONTINUE
                         let args = args.eval(env)?;
-                        for arg in args.iter() {
-                            print!("{} ", arg);
-                        }
-                        Ok(vec![])
+                        let mut stdout = io::stdout().lock();
+                        FunctionCall::print_fn(args, &mut stdout)
                     }
                     LuaVal::Read => {
                         // TODO: use io::stdin().read_line(&mut input)
@@ -545,6 +545,33 @@ impl FunctionCall {
                 unimplemented!()
             }
         }
+    }
+
+    fn print_fn<'a, W>(
+        args: Vec<LuaValue>,
+        stdout: &mut W,
+    ) -> Result<Vec<LuaValue<'a>>, ASTExecError>
+    where
+        W: std::io::Write,
+    {
+        let mut i = 0;
+        for arg in args.iter() {
+            match if i == args.len() - 1 {
+                writeln!(stdout, "{}", arg)
+            } else {
+                write!(stdout, "{} ", arg)
+            } {
+                Ok(_) => {}
+                Err(_) => {
+                    return Err(ASTExecError(format!(
+                        "Cannot print value of type {:?}",
+                        arg.0
+                    )))
+                }
+            }
+            i += 1;
+        }
+        Ok(vec![])
     }
 
     pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
@@ -603,6 +630,7 @@ impl Args {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{self, Write};
 
     // Helper functions
     fn var_exp(name: &str) -> Expression {
@@ -784,10 +812,7 @@ mod tests {
             String::from("f3"),
             LuaValue::extract_first_return_val(lua_function(&par_list, &block, &env)),
         );
-        let args = Args::ExpList(vec![
-            func_call_exp.clone(),
-            func_call_exp.clone(),
-        ]);
+        let args = Args::ExpList(vec![func_call_exp.clone(), func_call_exp.clone()]);
         let func_call3 = PrefixExp::FunctionCall(FunctionCall::Standard((
             Box::new(PrefixExp::Var(Var::NameVar("f3".to_string()))),
             args,
@@ -801,24 +826,48 @@ mod tests {
 
     #[test]
     fn test_eval_print() {
-        // TODO CONTINUE: currently index out of bound for return value
         let mut env = Env::new();
 
-        // Integer, float, boolean, string, nil
+        // Integer, float, boolean, string, nil, function
+        // TODO: add table after implementing table (print reference)
+        let par_list = ParList(vec![], false);
+        let block = Block {
+            statements: vec![],
+            return_stat: None,
+        };
+        let f = LuaValue::extract_first_return_val(lua_function(&par_list, &block, &env));
+        env.insert_global("f".to_string(), f);
         let args = Args::ExpList(vec![
             Expression::Numeral(Numeral::Integer(10)),
             Expression::Numeral(Numeral::Float(10.1)),
             Expression::False,
             Expression::LiteralString("Hello World!".to_string()),
             Expression::Nil,
+            var_exp("f"),
         ]);
-        let func_call = FunctionCall::Standard((
+        let print_call = FunctionCall::Standard((
             Box::new(PrefixExp::Var(Var::NameVar("print".to_string()))),
-            args,
+            args.clone(),
         ));
-        let exp = PrefixExp::FunctionCall(func_call);
+        let print_exp = PrefixExp::FunctionCall(print_call);
 
-        assert_eq!(exp.eval(&mut env), Ok(lua_integer(10)));
+        // Capture the output of `print`
+        assert_eq!(print_exp.eval(&mut env), Ok(vec![]));
+
+        let mut output = Vec::new();
+        assert_eq!(
+            FunctionCall::print_fn(args.eval(&mut env).unwrap(), &mut output),
+            Ok(vec![])
+        );
+        let func_reference = if let LuaVal::Function(f) = env.get_global("f").unwrap().0.as_ref() {
+            f
+        } else {
+            unreachable!("Expected function")
+        };
+        assert_eq!(
+            String::from_utf8(output).unwrap(),
+            format!("10 10.1 false Hello World! nil {:p}\n", func_reference)
+        );
     }
 
     #[test]

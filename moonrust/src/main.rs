@@ -25,9 +25,6 @@ fn main() {
         }
     };
 
-    // TODO: delete (keeping it to check if reading file correctly)
-    println!("Parsing: '{src}'");
-
     let ast = match src.parse::<moonrust::AST>() {
         Ok(ast) => ast,
         Err(ast_parse_error) => {
@@ -36,6 +33,7 @@ fn main() {
         }
     };
 
+    // TODO: add flag for printing AST
     println!("AST: {:#?}", ast);
 
     // Execute the program

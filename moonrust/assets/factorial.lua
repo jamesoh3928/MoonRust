@@ -8,3 +8,4 @@ function factorial(n)
   
   result = factorial(5)
   print(result)
+print(factorial(5))
