@@ -1,5 +1,5 @@
 use nom::character::complete::char;
-use nom::combinator::{fail, opt, verify};
+use nom::combinator::{complete, fail, opt, verify};
 use nom::multi::{many0, separated_list0, separated_list1};
 use nom::sequence::{delimited, terminated};
 use nom::{
@@ -14,11 +14,11 @@ use super::expression::parse_exp;
 use super::{util::*, ParseResult};
 
 use crate::ast::{Expression, FunctionCall, PrefixExp, Statement};
-use crate::parser::common::{parse_block, parse_parlist};
+use crate::parser::common::parse_block;
 use crate::parser::expression;
 
 pub fn parse_stmt(input: &str) -> ParseResult<Statement> {
-    alt((
+    complete(alt((
         parse_semicolon,
         parse_stmt_prefixexp,
         parse_break,
@@ -29,9 +29,8 @@ pub fn parse_stmt(input: &str) -> ParseResult<Statement> {
         parse_for_num,
         parse_for_generic,
         parse_function_decl,
-        local_func_decl,
-        // parse_local_assgn,
-    ))(input)
+        parse_local_func_decl,
+    )))(input)
 }
 /// Parse a single semicolon. Toss the result since it provides no
 /// semantic information.
@@ -104,19 +103,15 @@ fn parse_if(input: &str) -> ParseResult<Statement> {
     // If((Expression, Block, Vec<(Expression, Block)>, Option<Block>))
     map(
         tuple((
-            ws(tag("if")),
-            expression::parse_exp,
-            ws(tag("then")),
-            parse_block,
-            many0(tuple((
-                preceded(ws(tag("elseif")), expression::parse_exp),
+            preceded(ws(tag("if")), parse_exp),
+            preceded(ws(tag("then")), parse_block),
+            many0(pair(
+                preceded(ws(tag("elseif")), parse_exp),
                 preceded(ws(tag("then")), parse_block),
-            ))),
-            ws(tag("else")),
-            opt(parse_block),
-            ws(tag("end")),
+            )),
+            terminated(opt(preceded(ws(tag("else")), parse_block)), ws(tag("end"))),
         )),
-        |result| Statement::If((result.1, result.3, result.4, result.6)),
+        Statement::If,
     )(input)
 }
 
@@ -125,64 +120,67 @@ fn parse_for_num(input: &str) -> ParseResult<Statement> {
 
     map(
         tuple((
-            pair(
-                ws(tag("for")),
-                tuple((
-                    expression::parse_exp,
-                    expression::parse_exp,
-                    opt(expression::parse_exp),
-                )),
-            ),
-            parse_block,
+            map(preceded(ws(tag("for")), identifier), String::from),
+            preceded(ws(tag("=")), parse_exp),
+            preceded(ws(tag(",")), parse_exp),
+            opt(preceded(ws(tag(",")), parse_exp)),
+            delimited(ws(tag("do")), parse_block, ws(tag("end"))),
         )),
-        |result| {
-            Statement::ForNum((
-                String::from(result.0 .0),
-                result.0 .1 .0,
-                result.0 .1 .1,
-                result.0 .1 .2,
-                result.1,
-            ))
-        },
+        Statement::ForNum,
     )(input)
 }
 
 // redo
 fn parse_for_generic(input: &str) -> ParseResult<Statement> {
     // ForGeneric((Vec<String>, Vec<Expression>, Block))
-
     map(
         tuple((
-            ws(tag("for")),
-            separated_list1(ws(alt((char(','), char(';')))), parse_string),
-            separated_list1(ws(alt((char(','), char(';')))), expression::parse_exp),
-            preceded(parse_parlist, parse_block),
+            preceded(
+                ws(tag("for")),
+                separated_list1(ws(tag(",")), map(identifier, String::from)),
+            ),
+            preceded(ws(tag("in")), separated_list1(ws(tag(",")), parse_exp)),
+            delimited(ws(tag("do")), parse_block, ws(tag("end"))),
         )),
-        |result| Statement::ForGeneric((result.1, result.2, result.3)),
+        Statement::ForGeneric,
     )(input)
 }
 
 fn parse_function_decl(input: &str) -> ParseResult<Statement> {
     // FunctionDecl((String, ParList, Block)) where String = name of function being declared
     map(
-        tuple((
-            ws(tag("function")),
-            ws(identifier),
-            preceded(parse_parlist, parse_funcbody),
-        )),
-        |result| Statement::FunctionDecl((String::from(result.1), result.2 .0, result.2 .1)),
+        pair(
+            preceded(
+                ws(tag("function")),
+                map(
+                    pair(
+                        separated_list1(char('.'), identifier),
+                        opt(preceded(ws(char(':')), identifier)),
+                    ),
+                    |result| {
+                        let mut name = String::new();
+                        for st in result.0.into_iter() {
+                            name.push_str(st);
+                        }
+                        name.push_str(result.1.unwrap_or(""));
+                        name
+                    },
+                ),
+            ),
+            parse_funcbody,
+        ),
+        |result| Statement::FunctionDecl((result.0, result.1 .0, result.1 .1)),
     )(input)
 }
 
-fn local_func_decl(input: &str) -> ParseResult<Statement> {
+fn parse_local_func_decl(input: &str) -> ParseResult<Statement> {
     // LocalFuncDecl((String, ParList, Block))
     map(
-        tuple((
-            ws(tag("function")),
-            ws(identifier),
-            preceded(parse_parlist, parse_funcbody),
-        )),
-        |result| Statement::LocalFuncDecl((String::from(result.1), result.2 .0, result.2 .1)),
+        preceded(
+            pair(ws(tag("local")), ws(tag("function"))),
+            pair(map(identifier, String::from), parse_funcbody),
+        ),
+        |result| Statement::LocalFuncDecl((result.0, result.1 .0, result.1 .1)),
     )(input)
 }
 
@@ -255,7 +253,7 @@ pub fn parse_return(input: &str) -> ParseResult<Vec<Expression>> {
 #[cfg(test)]
 mod tests {
 
-    use crate::ast::{Args, BinOp, Block, Numeral, ParList, PrefixExp, Var};
+    use crate::ast::{Args, BinOp, Block, Numeral, ParList, PrefixExp, UnOp, Var};
 
     use super::*;
 
@@ -466,63 +464,45 @@ mod tests {
         let input = "
             if(c < 43)
             then
-                print(c is less than 43)
+                return \"yes\"
             elseif (c > 43)
             then
-                print(c is greater than 43)
+                return \"no\"
             else
-                print(c is equal to 43)
+                return \"maybe\"
             end
         ";
 
         let expected = Ok((
-            "", // unconsumed data
+            "",
             Statement::If((
-                // if
-                Expression::BinaryOp((
+                Expression::PrefixExp(Box::new(PrefixExp::Exp(Expression::BinaryOp((
                     Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
                         Var::NameVar(String::from("c")),
                     )))),
                     BinOp::LessThan,
                     Box::new(Expression::Numeral(Numeral::Integer(43))),
-                )),
+                ))))),
                 Block {
-                    statements: vec![Statement::FunctionCall(FunctionCall::Standard((
-                        Box::new(PrefixExp::Exp(Expression::LiteralString(String::from(
-                            "print",
-                        )))),
-                        Args::LiteralString(String::from("c is less than 43")),
-                    )))],
-                    return_stat: None,
+                    statements: vec![],
+                    return_stat: Some(vec![Expression::LiteralString(String::from("yes"))]),
                 },
-                // elseif
                 vec![(
-                    Expression::BinaryOp((
+                    Expression::PrefixExp(Box::new(PrefixExp::Exp(Expression::BinaryOp((
                         Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
                             Var::NameVar(String::from("c")),
                         )))),
                         BinOp::GreaterThan,
                         Box::new(Expression::Numeral(Numeral::Integer(43))),
-                    )),
+                    ))))),
                     Block {
-                        statements: vec![Statement::FunctionCall(FunctionCall::Standard((
-                            Box::new(PrefixExp::Exp(Expression::LiteralString(String::from(
-                                "print",
-                            )))),
-                            Args::LiteralString(String::from("c is greater than 43")),
-                        )))],
-                        return_stat: None,
+                        statements: vec![],
+                        return_stat: Some(vec![Expression::LiteralString(String::from("no"))]),
                     },
                 )],
-                // else
                 Some(Block {
-                    statements: vec![Statement::FunctionCall(FunctionCall::Standard((
-                        Box::new(PrefixExp::Exp(Expression::LiteralString(String::from(
-                            "print",
-                        )))),
-                        Args::LiteralString(String::from("c is equal to 43")),
-                    )))],
-                    return_stat: None,
+                    statements: vec![],
+                    return_stat: Some(vec![Expression::LiteralString(String::from("maybe"))]),
                 }),
             )),
         ));
@@ -544,22 +524,19 @@ mod tests {
         let expected = Ok((
             "",
             Statement::ForNum((
-                String::from("for"),
-                Expression::BinaryOp((
-                    Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                        Var::NameVar(String::from("i")),
-                    )))),
-                    BinOp::Equal,
-                    Box::new(Expression::Numeral(Numeral::Integer(10))),
-                )),
-                Expression::Nil,
-                None,
+                String::from("i"),
+                Expression::Numeral(Numeral::Integer(10)),
+                Expression::Numeral(Numeral::Integer(1)),
+                Some(Expression::UnaryOp((
+                    UnOp::Negate,
+                    Box::new(Expression::Numeral(Numeral::Integer(1))),
+                ))),
                 Block {
                     statements: vec![Statement::FunctionCall(FunctionCall::Standard((
-                        Box::new(PrefixExp::Exp(Expression::LiteralString(String::from(
-                            "print",
-                        )))),
-                        Args::LiteralString(String::from("i")),
+                        Box::new(PrefixExp::Var(Var::NameVar(String::from("print")))),
+                        Args::ExpList(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(
+                            Var::NameVar(String::from("i")),
+                        )))]),
                     )))],
                     return_stat: None,
                 },
@@ -575,39 +552,34 @@ mod tests {
         // ForGeneric((Vec<String>, Vec<Expression>, Block))
 
         let input = "
-            names = {'Kyle', 'Venus', 'Nova'}
-            for nameCount = 1, 3 do
-                print (names[nameCount])
+            for index, name in names do
+                print(name)
+                print(index)
             end
         ";
 
         let expected = Ok((
             "",
             Statement::ForGeneric((
-                vec![String::from("names")],
-                vec![
-                    Expression::BinaryOp((
-                        Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                            Var::NameVar(String::from("nameCount")),
-                        )))),
-                        BinOp::Equal,
-                        Box::new(Expression::Numeral(Numeral::Integer(1))),
-                    )),
-                    Expression::BinaryOp((
-                        Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                            Var::NameVar(String::from("nameCount")),
-                        )))),
-                        BinOp::LessEq,
-                        Box::new(Expression::Numeral(Numeral::Integer(3))),
-                    )),
-                ],
+                vec![String::from("index"), String::from("name")],
+                vec![Expression::PrefixExp(Box::new(PrefixExp::Var(
+                    Var::NameVar(String::from("names")),
+                )))],
                 Block {
-                    statements: vec![Statement::FunctionCall(FunctionCall::Standard((
-                        Box::new(PrefixExp::Exp(Expression::LiteralString(String::from(
-                            "print",
-                        )))),
-                        Args::LiteralString(String::from("names[nameCount]")),
-                    )))],
+                    statements: vec![
+                        Statement::FunctionCall(FunctionCall::Standard((
+                            Box::new(PrefixExp::Var(Var::NameVar(String::from("print")))),
+                            Args::ExpList(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(
+                                Var::NameVar(String::from("name")),
+                            )))]),
+                        ))),
+                        Statement::FunctionCall(FunctionCall::Standard((
+                            Box::new(PrefixExp::Var(Var::NameVar(String::from("print")))),
+                            Args::ExpList(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(
+                                Var::NameVar(String::from("index")),
+                            )))]),
+                        ))),
+                    ],
                     return_stat: None,
                 },
             )),
@@ -673,9 +645,7 @@ mod tests {
                         )),
                         Block {
                             statements: vec![],
-                            return_stat: Some(vec![Expression::PrefixExp(Box::new(
-                                PrefixExp::Var(Var::NameVar(String::from("num1"))),
-                            ))]),
+                            return_stat: Some(vec![Expression::Numeral(Numeral::Integer(1))]),
                         },
                         vec![],
                         None,

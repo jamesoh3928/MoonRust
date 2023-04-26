@@ -7,11 +7,11 @@ use std::fmt::{Display, Formatter};
 
 use nom::{combinator::map, IResult};
 
-// TODO: added lot of `Box`es to avoid infinite recursion, but not sure if this is the best way to do it
 use crate::ast::*;
 use std::str::FromStr;
 
 use self::common::parse_block;
+use self::util::ws;
 
 /// Just to simplify the return type of each parse function
 type ParseResult<'a, T> = IResult<&'a str, T>;
@@ -22,14 +22,17 @@ impl FromStr for AST {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match parse(s) {
             Ok(ast) => Ok(ast.1),
-            Err(_) => Err(ASTParseError(String::from("Could not parse file"))),
+            Err(err) => Err(ASTParseError(format!(
+                "Could not parse file: {}",
+                err.to_string()
+            ))),
         }
     }
 }
 
 /// Parse the input program file into an AST.
 pub fn parse(input: &str) -> ParseResult<AST> {
-    map(parse_block, |block| AST(block))(input)
+    map(ws(parse_block), |block| AST(block))(input)
 }
 
 #[derive(Debug, PartialEq)]
@@ -40,16 +43,71 @@ impl Display for ASTParseError {
     }
 }
 
-// TODO: add unit tests?
-// #[cfg(test)]
-// mod tests {
-//     #[test]
-//     fn exploration() {
-//         assert_eq!(2 + 2, 4);
-//     }
+#[cfg(test)]
+mod tests {
+    use crate::AST;
 
-//     #[test]
-//     fn another() {
-//         panic!("Make this test fail");
-//     }
-// }
+    use super::*;
+
+    #[test]
+    fn accepts_ast() {
+        let input = "
+        a = 3 + 5 + 10.0
+        a = 3 + 5 + 10.0
+        a = 3 + 5 + 10.0
+        ";
+
+        let result = parse(input);
+
+        assert_eq!(
+            result,
+            Ok((
+                "",
+                AST(Block {
+                    statements: vec![
+                        Statement::Assignment((
+                            vec![Var::NameVar(String::from("a"))],
+                            vec![Expression::BinaryOp((
+                                Box::new(Expression::BinaryOp((
+                                    Box::new(Expression::Numeral(Numeral::Integer(3))),
+                                    BinOp::Add,
+                                    Box::new(Expression::Numeral(Numeral::Integer(5)))
+                                ))),
+                                BinOp::Add,
+                                Box::new(Expression::Numeral(Numeral::Float(10.0)))
+                            ))],
+                            false
+                        )),
+                        Statement::Assignment((
+                            vec![Var::NameVar(String::from("a"))],
+                            vec![Expression::BinaryOp((
+                                Box::new(Expression::BinaryOp((
+                                    Box::new(Expression::Numeral(Numeral::Integer(3))),
+                                    BinOp::Add,
+                                    Box::new(Expression::Numeral(Numeral::Integer(5)))
+                                ))),
+                                BinOp::Add,
+                                Box::new(Expression::Numeral(Numeral::Float(10.0)))
+                            ))],
+                            false
+                        )),
+                        Statement::Assignment((
+                            vec![Var::NameVar(String::from("a"))],
+                            vec![Expression::BinaryOp((
+                                Box::new(Expression::BinaryOp((
+                                    Box::new(Expression::Numeral(Numeral::Integer(3))),
+                                    BinOp::Add,
+                                    Box::new(Expression::Numeral(Numeral::Integer(5)))
+                                ))),
+                                BinOp::Add,
+                                Box::new(Expression::Numeral(Numeral::Float(10.0)))
+                            ))],
+                            false
+                        ))
+                    ],
+                    return_stat: None
+                })
+            ))
+        )
+    }
+}

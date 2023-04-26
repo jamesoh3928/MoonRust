@@ -1,6 +1,6 @@
 use clap::Parser;
-use moonrust::interpreter::environment;
 use moonrust;
+use moonrust::interpreter::environment;
 use std::fs;
 use std::process;
 
@@ -28,7 +28,6 @@ fn main() {
     // TODO: delete (keeping it to check if reading file correctly)
     println!("Reading file: , {src}!");
 
-    // Parse the source code: TODO - currently `from_str` is not implemented
     let ast = match src.parse::<moonrust::AST>() {
         Ok(ast) => ast,
         Err(ast_parse_error) => {
@@ -39,7 +38,6 @@ fn main() {
 
     // Execute the program
     // Initialize environment
-    // TODO: create new file for environment
     let mut env = environment::Env::new();
     match ast.exec(&mut env) {
         Ok(_) => (),
