@@ -84,10 +84,12 @@ impl Expression {
     ) -> Result<LuaValue<'a>, ASTExecError> {
         match op {
             UnOp::Negate => {
-                let val = LuaValue::extract_first_return_val(exp.eval(env)?);
-                match val.0.as_ref() {
+                match &*LuaValue::extract_first_return_val(exp.eval(env)?)
+                    .0
+                    .borrow()
+                {
                     LuaVal::LuaNum(bytes, is_float) => {
-                        if !*is_float {
+                        if !is_float {
                             // Integer
                             let i = i64::from_be_bytes(*bytes);
                             Ok(LuaValue::new(LuaVal::LuaNum((-i).to_be_bytes(), false)))
@@ -114,9 +116,9 @@ impl Expression {
                 }
             }
             UnOp::Length => {
-                match LuaValue::extract_first_return_val(exp.eval(env)?)
+                match &*LuaValue::extract_first_return_val(exp.eval(env)?)
                     .0
-                    .as_ref()
+                    .borrow()
                 {
                     LuaVal::LuaString(s) => {
                         // length of a string is its number of bytes
@@ -155,8 +157,8 @@ impl Expression {
         fn execute_arithmetic<'a, F1, F2>(
             exec_ints: F1,
             exec_floats: F2,
-            left: LuaValue,
-            right: LuaValue,
+            left: &LuaVal,
+            right: &LuaVal,
         ) -> Result<LuaValue<'a>, ASTExecError>
         where
             F1: FnOnce(i64, i64) -> IntFloatBool,
@@ -164,7 +166,7 @@ impl Expression {
         {
             // If both are integers, the operation is performed over integers and the result is an integer.
             // If both are numbers, then they are converted to floats
-            let result = match (left.0.as_ref(), right.0.as_ref()) {
+            let result = match (left, right) {
                 (LuaVal::LuaNum(bytes1, is_float1), LuaVal::LuaNum(bytes2, is_float2)) => {
                     if *is_float1 && *is_float2 {
                         // Both are float
@@ -207,14 +209,14 @@ impl Expression {
             left: LuaValue<'a>,
             right: LuaValue<'a>,
         ) -> Result<LuaValue<'a>, ASTExecError> {
-            match (left.0.as_ref(), right.0.as_ref()) {
+            match (&*left.0.borrow(), &*right.0.borrow()) {
                 (LuaVal::LuaNil, LuaVal::LuaNil) => Ok(LuaValue::new(LuaVal::LuaBool(true))),
                 // If number, check if they are equal based on mathematical values
                 (LuaVal::LuaNum(_, _), LuaVal::LuaNum(_, _)) => execute_arithmetic(
                     |i1, i2| IntFloatBool::Bool(i1 == i2),
                     |f1, f2| IntFloatBool::Bool(f1 == f2),
-                    left,
-                    right,
+                    &*left.0.borrow(),
+                    &*right.0.borrow(),
                 ),
                 // If string, check if they are equal based on string values
                 (LuaVal::LuaString(s1), LuaVal::LuaString(s2)) => {
@@ -244,7 +246,7 @@ impl Expression {
             right: LuaValue<'a>,
             is_less_than: bool,
         ) -> Result<LuaValue<'a>, ASTExecError> {
-            match (left.0.as_ref(), right.0.as_ref()) {
+            match (&*left.0.borrow(), &*right.0.borrow()) {
                 // If number, check if they are equal based on mathematical values
                 (LuaVal::LuaNum(_, _), LuaVal::LuaNum(_, _)) => execute_arithmetic(
                     |i1, i2| {
@@ -261,8 +263,8 @@ impl Expression {
                             IntFloatBool::Bool(f1 > f2)
                         }
                     },
-                    left,
-                    right,
+                    &*left.0.borrow(),
+                    &*right.0.borrow(),
                 ),
                 // If string, check if they are equal based on string values
                 (LuaVal::LuaString(s1), LuaVal::LuaString(s2)) => Ok({
@@ -284,31 +286,36 @@ impl Expression {
                 let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 + i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 + f2);
-                execute_arithmetic(exec_ints, exec_floats, left, right)
+                let result = execute_arithmetic(exec_ints, exec_floats, &*left.0.borrow(), &*right.0.borrow());
+                result
             }
             BinOp::Sub => {
                 let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 - i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 - f2);
-                execute_arithmetic(exec_ints, exec_floats, left, right)
+                let result = execute_arithmetic(exec_ints, exec_floats, &*left.0.borrow(), &*right.0.borrow());
+                result
             }
             BinOp::Mult => {
                 let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 * i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 * f2);
-                execute_arithmetic(exec_ints, exec_floats, left, right)
+                let result = execute_arithmetic(exec_ints, exec_floats, &*left.0.borrow(), &*right.0.borrow());
+                result
             }
             BinOp::Div => {
                 let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Float(i1 as f64 / i2 as f64);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 / f2);
-                execute_arithmetic(exec_ints, exec_floats, left, right)
+                let result = execute_arithmetic(exec_ints, exec_floats, &*left.0.borrow(), &*right.0.borrow());
+                result
             }
             BinOp::IntegerDiv => {
                 let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 / i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Int((f1 / f2).floor() as i64);
-                execute_arithmetic(exec_ints, exec_floats, left, right)
+                let result = execute_arithmetic(exec_ints, exec_floats, &*left.0.borrow(), &*right.0.borrow());
+                result
             }
             BinOp::Pow => {
                 let right = LuaValue::extract_first_return_val(right.eval(env)?);
@@ -318,13 +325,15 @@ impl Expression {
                     IntFloatBool::Float(i1.powf(i2))
                 };
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1.powf(f2));
-                execute_arithmetic(exec_ints, exec_floats, left, right)
+                let result = execute_arithmetic(exec_ints, exec_floats, &*left.0.borrow(), &*right.0.borrow());
+                result
             }
             BinOp::Mod => {
                 let right = LuaValue::extract_first_return_val(right.eval(env)?);
                 let exec_ints = |i1: i64, i2: i64| IntFloatBool::Int(i1 % i2);
                 let exec_floats = |f1: f64, f2: f64| IntFloatBool::Float(f1 % f2);
-                execute_arithmetic(exec_ints, exec_floats, left, right)
+                let result = execute_arithmetic(exec_ints, exec_floats, &*left.0.borrow(), &*right.0.borrow());
+                result
             }
             BinOp::BitAnd => {
                 let right = LuaValue::extract_first_return_val(right.eval(env)?);
@@ -481,9 +490,7 @@ impl FunctionCall {
     pub fn exec<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
         match self {
             FunctionCall::Standard((func, args)) => {
-                let func = LuaValue::extract_first_return_val((*func).eval(env)?);
-                let rc = func.0;
-                match rc.as_ref() {
+                match &*LuaValue::extract_first_return_val((*func).eval(env)?).0.borrow() {
                     LuaVal::Function(LuaFunction {
                         par_list,
                         block,
@@ -494,7 +501,7 @@ impl FunctionCall {
 
                         // Create environment for function
                         let mut func_env =
-                            Env::vec_to_env(captured_variables, env.get_global_env().clone());
+                            Env::vec_to_env(&captured_variables, env.get_global_env().clone());
 
                         // Extend function environment with function arguments
                         func_env.extend_local_env();
@@ -534,8 +541,7 @@ impl FunctionCall {
                     }
                     _ => {
                         return Err(ASTExecError(format!(
-                            "Cannot call non-function value with arguments. Environment: {:?}, RC: {:?}",
-                            env, rc
+                            "Cannot call non-function value with arguments."
                         )))
                     }
                 }
@@ -860,7 +866,9 @@ mod tests {
             FunctionCall::print_fn(args.eval(&mut env).unwrap(), &mut output),
             Ok(vec![])
         );
-        let func_reference = if let LuaVal::Function(f) = env.get_global("f").unwrap().0.as_ref() {
+        let func_reference = &*env.get_global("f").unwrap().0.borrow();
+        let func_reference = if let LuaVal::Function(f) = func_reference
+        {
             f
         } else {
             unreachable!("Expected function")

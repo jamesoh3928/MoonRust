@@ -139,7 +139,7 @@ impl Statement {
             }
             Statement::ForNum((name, exp1, exp2, exp3, block)) => {
                 let initial = match LuaValue::extract_first_return_val(exp1.eval(env)?) {
-                    LuaValue(rc) => match rc.as_ref() {
+                    LuaValue(rc) => match &*rc.borrow() {
                         LuaVal::LuaNum(bytes, is_float) => {
                             if *is_float {
                                 return Err(ASTExecError(format!(
@@ -158,7 +158,7 @@ impl Statement {
                 let limit = LuaValue::extract_first_return_val(exp2.eval(env)?);
                 let step = match exp3 {
                     Some(exp) => match LuaValue::extract_first_return_val(exp.eval(env)?) {
-                        LuaValue(rc) => match rc.as_ref() {
+                        LuaValue(rc) => match &*rc.borrow() {
                             LuaVal::LuaNum(bytes, is_float) => {
                                 if *is_float {
                                     return Err(ASTExecError(format!(
@@ -368,11 +368,11 @@ mod tests {
         let stat = Statement::Assignment((varlist, explist, false));
         assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
         assert_eq!(
-            *env.get("a").unwrap().0,
+            *env.get("a").unwrap().0.borrow(),
             LuaVal::LuaNum(a.to_be_bytes(), false)
         );
         assert_eq!(
-            *env.get("b").unwrap().0,
+            *env.get("b").unwrap().0.borrow(),
             LuaVal::LuaNum(b.to_be_bytes(), false)
         );
 
@@ -391,14 +391,14 @@ mod tests {
         let stat = Statement::Assignment((varlist, explist, false));
         assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
         assert_eq!(
-            *env.get("a").unwrap().0,
+            *env.get("a").unwrap().0.borrow(),
             LuaVal::LuaNum(a.to_be_bytes(), false)
         );
         assert_eq!(
-            *env.get("b").unwrap().0,
+            *env.get("b").unwrap().0.borrow(),
             LuaVal::LuaNum(b.to_be_bytes(), false)
         );
-        assert_eq!(*env.get("c").unwrap().0, LuaVal::LuaNil);
+        assert_eq!(*env.get("c").unwrap().0.borrow(), LuaVal::LuaNil);
 
         // varlist.len < explist.len
         let a: i64 = 30;
@@ -412,11 +412,11 @@ mod tests {
         let stat = Statement::Assignment((varlist, explist, false));
         assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
         assert_eq!(
-            *env.get("a").unwrap().0,
+            *env.get("a").unwrap().0.borrow(),
             LuaVal::LuaNum(a.to_be_bytes(), false)
         );
         assert_eq!(
-            *env.get("b").unwrap().0,
+            *env.get("b").unwrap().0.borrow(),
             LuaVal::LuaNum(b.to_be_bytes(), false)
         );
 
@@ -434,11 +434,11 @@ mod tests {
 
         // Get local variable first
         assert_eq!(
-            *env.get_local("a").unwrap().0,
+            *env.get_local("a").unwrap().0.borrow(),
             LuaVal::LuaNum(a.to_be_bytes(), false)
         );
         assert_eq!(
-            *env.get_local("b").unwrap().0,
+            *env.get_local("b").unwrap().0.borrow(),
             LuaVal::LuaNum(b.to_be_bytes(), false)
         );
         assert_eq!(env.get_global("a"), None);
@@ -464,10 +464,10 @@ mod tests {
         let stat = Statement::Assignment((varlist, explist, false));
         assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
         assert_eq!(
-            *env.get("a").unwrap().0,
+            *env.get("a").unwrap().0.borrow(),
             LuaVal::LuaNum(a.to_be_bytes(), false)
         );
-        assert_eq!(*env.get("b").unwrap().0, LuaVal::LuaNil);
+        assert_eq!(*env.get("b").unwrap().0.borrow(), LuaVal::LuaNil);
 
         // string reassignment (in assignment for b, should know value of a as 10)
         let a = "testA";
@@ -484,9 +484,9 @@ mod tests {
         ];
         let stat = Statement::Assignment((varlist, explist, false));
         assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(*env.get("a").unwrap().0, LuaVal::LuaString(a.to_string()));
+        assert_eq!(*env.get("a").unwrap().0.borrow(), LuaVal::LuaString(a.to_string()));
         assert_eq!(
-            *env.get("b").unwrap().0,
+            *env.get("b").unwrap().0.borrow(),
             LuaVal::LuaNum(10_i64.to_be_bytes(), false)
         );
     }
@@ -505,7 +505,7 @@ mod tests {
         ));
         assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
         assert_eq!(
-            *env.get("a").unwrap().0,
+            *env.get("a").unwrap().0.borrow(),
             LuaVal::LuaNum(a.to_be_bytes(), false)
         );
 
@@ -529,7 +529,7 @@ mod tests {
         );
         // Exited the environment so accessing global "a"
         assert_eq!(
-            *env.get("a").unwrap().0,
+            *env.get("a").unwrap().0.borrow(),
             LuaVal::LuaNum(a.to_be_bytes(), false)
         );
     }

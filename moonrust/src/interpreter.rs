@@ -30,10 +30,10 @@ pub struct LuaFunction<'a> {
 
 // Wrapper around LuaVal to allow multiple owners
 #[derive(Debug, PartialEq, Clone)]
-pub struct LuaValue<'a>(Rc<LuaVal<'a>>);
+pub struct LuaValue<'a>(Rc<RefCell<LuaVal<'a>>>);
 impl<'a> LuaValue<'a> {
     pub fn new(val: LuaVal<'a>) -> Self {
-        LuaValue(Rc::new(val))
+        LuaValue(Rc::new(RefCell::new(val)))
     }
 
     pub fn clone(&self) -> LuaValue<'a> {
@@ -42,7 +42,7 @@ impl<'a> LuaValue<'a> {
 
     pub fn is_false(&self) -> bool {
         // All values different from nil and false test true
-        match &*self.0 {
+        match &*self.0.borrow() {
             LuaVal::LuaNil => true,
             LuaVal::LuaBool(false) => true,
             _ => false,
@@ -54,7 +54,7 @@ impl<'a> LuaValue<'a> {
     }
 
     pub fn is_zero(&self) -> bool {
-        match &*self.0 {
+        match &*self.0.borrow() {
             LuaVal::LuaNum(num, is_float) => {
                 if *is_float {
                     let num = f64::from_be_bytes(*num);
@@ -69,7 +69,7 @@ impl<'a> LuaValue<'a> {
     }
 
     pub fn is_positive(&self) -> bool {
-        match &*self.0 {
+        match &*self.0.borrow() {
             LuaVal::LuaNum(num, is_float) => {
                 if *is_float {
                     let num = f64::from_be_bytes(*num);
@@ -84,7 +84,7 @@ impl<'a> LuaValue<'a> {
     }
 
     pub fn is_negative(&self) -> bool {
-        match &*self.0 {
+        match &*self.0.borrow() {
             LuaVal::LuaNum(num, is_float) => {
                 if *is_float {
                     let num = f64::from_be_bytes(*num);
@@ -99,14 +99,14 @@ impl<'a> LuaValue<'a> {
     }
 
     pub fn is_nil(&self) -> bool {
-        match &*self.0 {
+        match &*self.0.borrow() {
             LuaVal::LuaNil => true,
             _ => false,
         }
     }
 
     pub fn is_greater_or_equal(&self, num: i64) -> Result<bool, ASTExecError> {
-        match &*self.0 {
+        match &*self.0.borrow() {
             LuaVal::LuaNum(n, is_float) => {
                 if *is_float {
                     let n = f64::from_be_bytes(*n);
@@ -127,7 +127,7 @@ impl<'a> LuaValue<'a> {
     }
 
     pub fn is_less_or_equal(&self, num: i64) -> Result<bool, ASTExecError> {
-        match &*self.0 {
+        match &*self.0.borrow() {
             LuaVal::LuaNum(n, is_float) => {
                 if *is_float {
                     let n = f64::from_be_bytes(*n);
@@ -148,7 +148,7 @@ impl<'a> LuaValue<'a> {
     }
 
     pub fn negate_bool(self) -> Result<LuaValue<'a>, ASTExecError> {
-        match self.0.as_ref() {
+        match *self.0.borrow() {
             LuaVal::LuaBool(b) => Ok(LuaValue::new(LuaVal::LuaBool(!b))),
             _ => Err(ASTExecError(format!(
                 "Cannot negate value (only boolean can be negated)"
@@ -157,10 +157,10 @@ impl<'a> LuaValue<'a> {
     }
 
     pub fn into_int(self) -> Result<i64, ASTExecError> {
-        match self.0.as_ref() {
+        match *self.0.borrow() {
             LuaVal::LuaNum(n, is_float) => {
-                if *is_float {
-                    let n = f64::from_be_bytes(*n);
+                if is_float {
+                    let n = f64::from_be_bytes(n);
                     if n.floor() == n.ceil() {
                         Ok(n.floor() as i64)
                     } else {
@@ -169,7 +169,7 @@ impl<'a> LuaValue<'a> {
                         )))
                     }
                 } else {
-                    Ok(i64::from_be_bytes(*n))
+                    Ok(i64::from_be_bytes(n))
                 }
             }
             _ => Err(ASTExecError(format!(
@@ -179,7 +179,7 @@ impl<'a> LuaValue<'a> {
     }
 
     pub fn into_string(self) -> Result<String, ASTExecError> {
-        match self.0.as_ref() {
+        match &*self.0.borrow() {
             LuaVal::LuaNum(n, is_float) => {
                 if *is_float {
                     let n = f64::from_be_bytes(*n);
@@ -212,7 +212,7 @@ impl<'a> LuaValue<'a> {
 
 impl<'a> Display for LuaValue<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &*self.0 {
+        match &*self.0.borrow() {
             LuaVal::LuaNil => write!(f, "nil"),
             LuaVal::LuaBool(b) => write!(f, "{b}"),
             LuaVal::LuaNum(n, is_float) => {

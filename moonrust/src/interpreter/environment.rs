@@ -81,7 +81,7 @@ impl<'a> LocalEnv<'a> {
             // TODO: delete
             // if let Some(val) = table.get_mut(&name) {
             //     // Update the value with value inside var
-            //     *val = var.0.clone();
+            //     *val.0.borrow_mut() = var;
             // }
         }
         None
@@ -134,6 +134,7 @@ impl<'a> Env<'a> {
     }
 
     pub fn insert_global(&mut self, name: String, var: LuaValue<'a>) {
+        // TODO CONTINUE: check if it exist, if so, update
         self.global.insert(name, var);
     }
 
