@@ -6,4 +6,4 @@ function factorial(n)
   end
 end
 
-print(factorial(5))
+print(factorial(20))

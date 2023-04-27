@@ -78,6 +78,11 @@ impl<'a> LocalEnv<'a> {
             if let Some(_) = table.get(&name) {
                 return table.insert(name, var);
             }
+            // TODO: delete
+            // if let Some(val) = table.get_mut(&name) {
+            //     // Update the value with value inside var
+            //     *val = var.0.clone();
+            // }
         }
         None
     }
