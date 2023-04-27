@@ -48,7 +48,7 @@ impl Statement {
                     } else {
                         if env.get_local(name).is_some() {
                             // Update local variable
-                            env.insert_local(name.clone(), val);
+                            env.update_local(name.clone(), val);
                         } else {
                             // Update or insert global variable
                             env.insert_global(name.clone(), val);
@@ -87,6 +87,7 @@ impl Statement {
                     match return_vals {
                         Some(return_vals) => {
                             if !return_vals.is_empty() {
+                                // Return statement
                                 return Ok(Some(return_vals));
                             }
                         }
