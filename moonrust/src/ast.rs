@@ -62,6 +62,7 @@ impl Display for Statement {
                     writeln!(f, "else")?;
                     elseb.fmt(f)?;
                 }
+                write!(f, " end")?;
             }
             Statement::ForNum((name, exp1, exp2, maybe_exp3, block)) => {
                 write!(f, "for ")?;
@@ -329,7 +330,10 @@ pub struct ParList(pub Vec<String>, pub bool); // boolean flag is true if there 
 impl Display for ParList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0.is_empty() {
-            write!(f, "...")
+            if self.1 {
+                return write!(f, "...");
+            }
+            Ok(())
         } else {
             format_list(&self.0, f, false)?;
 

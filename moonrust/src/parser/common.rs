@@ -3,7 +3,7 @@ use nom::{
     bytes::complete::tag,
     character::complete::char,
     combinator::{map, opt},
-    multi::{many0, separated_list1},
+    multi::{many0, separated_list0, separated_list1},
     sequence::{delimited, pair, preceded, separated_pair, terminated},
 };
 
@@ -80,7 +80,7 @@ fn parse_fieldlist(input: &str) -> ParseResult<Vec<Field>> {
 }
 
 fn parse_field(input: &str) -> ParseResult<Field> {
-    let result = alt((
+    alt((
         map(
             separated_pair(
                 delimited(ws(char('[')), parse_exp, ws(char(']'))),
@@ -90,13 +90,11 @@ fn parse_field(input: &str) -> ParseResult<Field> {
             |result| Field::BracketedAssign(result),
         ),
         map(
-            separated_pair(ws(identifier), ws(char('=')), ws(parse_exp)),
+            separated_pair(identifier, ws(char('=')), parse_exp),
             |result| Field::NameAssign((String::from(result.0), result.1)),
         ),
         map(parse_exp, |result| Field::UnnamedAssign(result)),
-    ))(input);
-
-    result
+    ))(input)
 }
 
 #[derive(Debug)]
@@ -133,7 +131,7 @@ fn parse_tail(input: &str) -> ParseResult<Tail> {
 
 fn parse_prefix_part(input: &str) -> ParseResult<PrefixPart> {
     alt((
-        map(pair(identifier, many0(parse_tail)), |result| {
+        map(pair(ws(identifier), many0(parse_tail)), |result| {
             PrefixPart::NamePart((String::from(result.0), result.1))
         }),
         map(
@@ -213,7 +211,7 @@ pub fn parse_args(input: &str) -> ParseResult<Args> {
         map(
             delimited(
                 ws(char('(')),
-                separated_list1(ws(char(',')), parse_exp),
+                separated_list0(ws(char(',')), parse_exp),
                 ws(char(')')),
             ),
             |result| Args::ExpList(result),
@@ -227,7 +225,17 @@ pub fn parse_args(input: &str) -> ParseResult<Args> {
 
 pub fn parse_funcbody(input: &str) -> ParseResult<(ParList, Block)> {
     terminated(
-        pair(delimited(char('('), parse_parlist, char(')')), parse_block),
+        pair(
+            delimited(
+                char('('),
+                map(opt(parse_parlist), |result| match result {
+                    Some(parlist) => parlist,
+                    None => ParList(Vec::new(), false),
+                }),
+                char(')'),
+            ),
+            parse_block,
+        ),
         ws(tag("end")),
     )(input)
 }
