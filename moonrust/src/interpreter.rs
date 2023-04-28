@@ -3,6 +3,9 @@ use crate::interpreter::environment::Env;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::{cell::RefCell, rc::Rc};
+use std::collections::HashMap;
+
+use self::environment::LocalEnv;
 
 pub mod environment;
 pub mod expression;
@@ -10,7 +13,7 @@ pub mod statement;
 
 #[derive(Debug, PartialEq)]
 pub enum LuaVal<'a> {
-    LuaTable(LuaTable<'a>),
+    LuaTable(RefCell<LuaTable<'a>>),
     LuaNil,
     LuaBool(bool),
     LuaNum([u8; 8], bool), // numerals as an array of 8 bytes, bool for is_float
@@ -25,7 +28,7 @@ pub enum LuaVal<'a> {
 pub struct LuaFunction<'a> {
     par_list: &'a ParList,
     block: &'a Block,
-    captured_variables: Vec<(String, LuaValue<'a>)>,
+    captured_env: LocalEnv<'a>,
 }
 
 // Wrapper around LuaVal to allow multiple owners
@@ -239,11 +242,19 @@ impl<'a> Display for LuaValue<'a> {
 }
 
 // TODO: use hashmap representation since key can be only string or number
-#[derive(Debug, PartialEq)]
-pub struct LuaTable<'a>(Rc<RefCell<Vec<(LuaValue<'a>, LuaValue<'a>)>>>);
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
+enum TableKey {
+    String(String),
+    Number(i64),
+}
+
+// TODO: IMPORTANT - make sure to update hashmap inside the RefCell when the table is being mutated
+// Instead of overwriting the entire Rc
+#[derive(Debug, PartialEq, Clone)]
+pub struct LuaTable<'a>(Rc<RefCell<HashMap<TableKey, LuaValue<'a>>>>);
 impl<'a> LuaTable<'a> {
-    pub fn new(capacity: usize) -> Self {
-        LuaTable(Rc::new(RefCell::new(Vec::with_capacity(capacity))))
+    pub fn new() -> Self {
+        LuaTable(Rc::new(RefCell::new(HashMap::new())))
     }
 
     // TODO: implement table methods
@@ -337,19 +348,20 @@ impl Block {
     }
 
     // Find captured variables in the block
-    fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
-        // CONTINUE: not capturing variables correctly
-        let mut captured_vars = vec![];
-        for statement in &self.statements {
-            captured_vars.append(&mut statement.capture_variables(env));
-        }
-        if let Some(return_stat) = &self.return_stat {
-            for exp in return_stat {
-                captured_vars.append(&mut exp.capture_variables(env));
-            }
-        }
-        captured_vars
-    }
+    // Dead code
+    // fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
+    //     // CONTINUE: not capturing variables correctly
+    //     let mut captured_vars = vec![];
+    //     for statement in &self.statements {
+    //         captured_vars.append(&mut statement.capture_variables(env));
+    //     }
+    //     if let Some(return_stat) = &self.return_stat {
+    //         for exp in return_stat {
+    //             captured_vars.append(&mut exp.capture_variables(env));
+    //         }
+    //     }
+    //     captured_vars
+    // }
 }
 
 #[derive(Debug, PartialEq)]

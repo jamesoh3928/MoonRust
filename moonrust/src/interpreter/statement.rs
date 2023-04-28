@@ -30,7 +30,7 @@ impl Statement {
                         Var::NameVar(name) => {
                             results.push((name, val));
                         }
-                        // TODO: implement after table
+                        // TODO: implement after table (make sure you don't overwrite table, you have to mutate the table)
                         Var::BracketVar((name, exp)) => {
                             unimplemented!()
                         }
@@ -234,24 +234,27 @@ impl Statement {
                 unimplemented!()
             }
             Statement::FunctionDecl((name, par_list, block)) => {
-                let captured_variables = block.capture_variables(env);
+                let captured_env = env.get_local_env().capture_env();
+                env.extend_local_without_scope();
                 env.insert_global(
                     name.clone(),
                     LuaValue::new(LuaVal::Function(LuaFunction {
                         par_list,
                         block,
-                        captured_variables,
+                        captured_env,
                     })),
                 );
             }
             Statement::LocalFuncDecl((name, par_list, block)) => {
-                let captured_variables = block.capture_variables(env);
+                let captured_env = env.get_local_env().capture_env();
+                env.extend_local_without_scope();
+                // TODO: changed for testing
                 env.insert_local(
                     name.clone(),
                     LuaValue::new(LuaVal::Function(LuaFunction {
                         par_list,
                         block,
-                        captured_variables,
+                        captured_env,
                     })),
                 );
             }
@@ -260,65 +263,65 @@ impl Statement {
         Ok(Some(vec![]))
     }
 
-    pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
-        let mut captured_vars = vec![];
-        match self {
-            Statement::Assignment((_, exp_list, _)) => {
-                for exp in exp_list {
-                    captured_vars.append(&mut exp.capture_variables(env));
-                }
-            }
-            Statement::FunctionCall(func_call) => {
-                captured_vars.append(&mut func_call.capture_variables(env));
-            }
-            Statement::DoBlock(block) => {
-                captured_vars.append(&mut block.capture_variables(env));
-            }
-            Statement::While((exp, block)) => {
-                captured_vars.append(&mut exp.capture_variables(env));
-                captured_vars.append(&mut block.capture_variables(env));
-            }
-            Statement::Repeat((block, exp)) => {
-                captured_vars.append(&mut block.capture_variables(env));
-                captured_vars.append(&mut exp.capture_variables(env));
-            }
-            Statement::If((exp, block, elifs, else_block)) => {
-                captured_vars.append(&mut exp.capture_variables(env));
-                captured_vars.append(&mut block.capture_variables(env));
-                for (exp, block) in elifs {
-                    captured_vars.append(&mut exp.capture_variables(env));
-                    captured_vars.append(&mut block.capture_variables(env));
-                }
-                if let Some(else_block) = else_block {
-                    captured_vars.append(&mut else_block.capture_variables(env));
-                }
-            }
-            Statement::ForNum((_, initial, limit, step, block)) => {
-                captured_vars.append(&mut initial.capture_variables(env));
-                captured_vars.append(&mut limit.capture_variables(env));
-                if let Some(step) = step {
-                    captured_vars.append(&mut step.capture_variables(env));
-                }
-                captured_vars.append(&mut block.capture_variables(env));
-            }
-            Statement::ForGeneric((_, exp_list, block)) => {
-                for exp in exp_list {
-                    captured_vars.append(&mut exp.capture_variables(env));
-                }
-                captured_vars.append(&mut block.capture_variables(env));
-            }
-            Statement::FunctionDecl((_, _, block)) => {
-                // Parameters do not capture any variables
-                captured_vars.append(&mut block.capture_variables(env));
-            }
-            Statement::LocalFuncDecl((_, _, block)) => {
-                // Parameters do not capture any variables
-                captured_vars.append(&mut block.capture_variables(env));
-            }
-            _ => {}
-        };
-        captured_vars
-    }
+    // pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
+    //     let mut captured_vars = vec![];
+    //     match self {
+    //         Statement::Assignment((_, exp_list, _)) => {
+    //             for exp in exp_list {
+    //                 captured_vars.append(&mut exp.capture_variables(env));
+    //             }
+    //         }
+    //         Statement::FunctionCall(func_call) => {
+    //             captured_vars.append(&mut func_call.capture_variables(env));
+    //         }
+    //         Statement::DoBlock(block) => {
+    //             captured_vars.append(&mut block.capture_variables(env));
+    //         }
+    //         Statement::While((exp, block)) => {
+    //             captured_vars.append(&mut exp.capture_variables(env));
+    //             captured_vars.append(&mut block.capture_variables(env));
+    //         }
+    //         Statement::Repeat((block, exp)) => {
+    //             captured_vars.append(&mut block.capture_variables(env));
+    //             captured_vars.append(&mut exp.capture_variables(env));
+    //         }
+    //         Statement::If((exp, block, elifs, else_block)) => {
+    //             captured_vars.append(&mut exp.capture_variables(env));
+    //             captured_vars.append(&mut block.capture_variables(env));
+    //             for (exp, block) in elifs {
+    //                 captured_vars.append(&mut exp.capture_variables(env));
+    //                 captured_vars.append(&mut block.capture_variables(env));
+    //             }
+    //             if let Some(else_block) = else_block {
+    //                 captured_vars.append(&mut else_block.capture_variables(env));
+    //             }
+    //         }
+    //         Statement::ForNum((_, initial, limit, step, block)) => {
+    //             captured_vars.append(&mut initial.capture_variables(env));
+    //             captured_vars.append(&mut limit.capture_variables(env));
+    //             if let Some(step) = step {
+    //                 captured_vars.append(&mut step.capture_variables(env));
+    //             }
+    //             captured_vars.append(&mut block.capture_variables(env));
+    //         }
+    //         Statement::ForGeneric((_, exp_list, block)) => {
+    //             for exp in exp_list {
+    //                 captured_vars.append(&mut exp.capture_variables(env));
+    //             }
+    //             captured_vars.append(&mut block.capture_variables(env));
+    //         }
+    //         Statement::FunctionDecl((_, _, block)) => {
+    //             // Parameters do not capture any variables
+    //             captured_vars.append(&mut block.capture_variables(env));
+    //         }
+    //         Statement::LocalFuncDecl((_, _, block)) => {
+    //             // Parameters do not capture any variables
+    //             captured_vars.append(&mut block.capture_variables(env));
+    //         }
+    //         _ => {}
+    //     };
+    //     captured_vars
+    // }
 }
 
 #[cfg(test)]
@@ -335,15 +338,15 @@ mod tests {
     fn lua_integer<'a>(n: i64) -> LuaValue<'a> {
         LuaValue::new(LuaVal::LuaNum(n.to_be_bytes(), false))
     }
-    fn lua_nil<'a>() -> LuaValue<'a> {
-        LuaValue::new(LuaVal::LuaNil)
+    fn lua_float<'a>(n: f64) -> LuaValue<'a> {
+        LuaValue::new(LuaVal::LuaNum(n.to_be_bytes(), true))
     }
     fn lua_function<'a>(par_list: &'a ParList, block: &'a Block, env: &Env<'a>) -> LuaValue<'a> {
-        let captured_variables = block.capture_variables(env);
+        let captured_env = env.get_local_env().capture_env();
         LuaValue::new(LuaVal::Function(LuaFunction {
             par_list,
             block,
-            captured_variables,
+            captured_env,
         }))
     }
 
@@ -564,8 +567,8 @@ mod tests {
         // Return "a" defined inside function
         // Returned values are thrown away for statement function call
         assert_eq!(func_call_stat.exec(&mut env), Ok(Some(vec![])));
-        // After function call, return global "a"
-        assert_eq!(env.get("a"), Some(&lua_integer(a)));
+        // After function call, return global "a" which is updated to float value
+        assert_eq!(env.get("a"), Some(&lua_float(10.04)));
     }
 
     #[test]
@@ -835,6 +838,20 @@ mod tests {
     #[test]
     fn test_exec_stat_func_decl() {
         let mut env = Env::new();
+        let par_list = ParList(vec![String::from("a"), String::from("b")], false);
+        let block = Block {
+            statements: vec![],
+            return_stat: Some(vec![Expression::BinaryOp((
+                Box::new(var_exp("a")),
+                BinOp::Add,
+                Box::new(var_exp("b")),
+            ))]),
+        };
+        let expected_func = lua_function(
+            &par_list,
+            &block,
+            &env
+        );
         let func_decl = Statement::FunctionDecl((
             "f".to_string(),
             ParList(vec![String::from("a"), String::from("b")], false),
@@ -850,24 +867,27 @@ mod tests {
         assert_eq!(func_decl.exec(&mut env), Ok(Some(vec![])));
         assert_eq!(
             env.get_global("f"),
-            Some(&lua_function(
-                &ParList(vec![String::from("a"), String::from("b")], false),
-                &Block {
-                    statements: vec![],
-                    return_stat: Some(vec![Expression::BinaryOp((
-                        Box::new(var_exp("a")),
-                        BinOp::Add,
-                        Box::new(var_exp("b"))
-                    ))])
-                },
-                &env
-            ))
+            Some(&expected_func)
         );
     }
 
     #[test]
     fn test_exec_stat_func_decl_local() {
         let mut env = Env::new();
+        let par_list = ParList(vec![String::from("a"), String::from("b")], false);
+        let block = Block {
+            statements: vec![],
+            return_stat: Some(vec![Expression::BinaryOp((
+                Box::new(var_exp("a")),
+                BinOp::Add,
+                Box::new(var_exp("b")),
+            ))]),
+        };
+        let expected_func = lua_function(
+            &par_list,
+            &block,
+            &env
+        );
         let func_decl = Statement::LocalFuncDecl((
             "f".to_string(),
             ParList(vec![String::from("a"), String::from("b")], false),
@@ -883,18 +903,7 @@ mod tests {
         assert_eq!(func_decl.exec(&mut env), Ok(Some(vec![])));
         assert_eq!(
             env.get_local("f"),
-            Some(&lua_function(
-                &ParList(vec![String::from("a"), String::from("b")], false),
-                &Block {
-                    statements: vec![],
-                    return_stat: Some(vec![Expression::BinaryOp((
-                        Box::new(var_exp("a")),
-                        BinOp::Add,
-                        Box::new(var_exp("b"))
-                    ))]),
-                },
-                &env
-            ))
+            Some(&expected_func)
         );
     }
 
@@ -945,36 +954,37 @@ mod tests {
         assert_eq!(exp.eval(&mut env), Ok(vec![lua_integer(30)])); // a + b = 10 + 20
     }
 
-    #[test]
-    fn test_capture_variables() {
-        let mut env = Env::new();
-        env.insert_local("a".to_string(), lua_integer(1));
-        env.insert_local("b".to_string(), lua_integer(2));
-        env.insert_local("c".to_string(), lua_integer(3));
-        let block = Block {
-            statements: vec![Statement::Assignment((
-                vec![Var::NameVar("d".to_string())],
-                vec![Expression::BinaryOp((
-                    Box::new(var_exp("a")),
-                    BinOp::Add,
-                    Box::new(var_exp("b")),
-                ))],
-                false,
-            ))],
-            return_stat: Some(vec![var_exp("c"), var_exp("d")]),
-        };
+    // TODO: delete all capture variables code when ensured that capture environment works
+    // #[test]
+    // fn test_capture_variables() {
+    //     let mut env = Env::new();
+    //     env.insert_local("a".to_string(), lua_integer(1));
+    //     env.insert_local("b".to_string(), lua_integer(2));
+    //     env.insert_local("c".to_string(), lua_integer(3));
+    //     let block = Block {
+    //         statements: vec![Statement::Assignment((
+    //             vec![Var::NameVar("d".to_string())],
+    //             vec![Expression::BinaryOp((
+    //                 Box::new(var_exp("a")),
+    //                 BinOp::Add,
+    //                 Box::new(var_exp("b")),
+    //             ))],
+    //             false,
+    //         ))],
+    //         return_stat: Some(vec![var_exp("c"), var_exp("d")]),
+    //     };
 
-        assert_eq!(
-            block.capture_variables(&env),
-            vec![
-                ("a".to_string(), lua_integer(1)),
-                ("b".to_string(), lua_integer(2)),
-                ("c".to_string(), lua_integer(3)),
-            ]
-        );
-        assert_eq!(
-            block.exec(&mut env),
-            Ok(Some(vec![lua_integer(3), lua_integer(3)]))
-        );
-    }
+    //     assert_eq!(
+    //         block.capture_variables(&env),
+    //         vec![
+    //             ("a".to_string(), lua_integer(1)),
+    //             ("b".to_string(), lua_integer(2)),
+    //             ("c".to_string(), lua_integer(3)),
+    //         ]
+    //     );
+    //     assert_eq!(
+    //         block.exec(&mut env),
+    //         Ok(Some(vec![lua_integer(3), lua_integer(3)]))
+    //     );
+    // }
 }

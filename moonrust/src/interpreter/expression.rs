@@ -28,17 +28,18 @@ impl Expression {
             // TODO: DotDotDot? maybe skip it for now
             Expression::DotDotDot => unimplemented!(),
             Expression::FunctionDef((par_list, block)) => {
-                let captured_variables = block.capture_variables(env);
+                let captured_env = env.get_local_env().capture_env();
+                env.extend_local_without_scope();
                 vec![LuaValue::new(LuaVal::Function(LuaFunction {
                     par_list,
                     block,
-                    captured_variables,
+                    captured_env,
                 }))]
             }
             Expression::PrefixExp(prefixexp) => prefixexp.eval(env)?,
             Expression::TableConstructor(fields) => {
                 // TODO
-                let table = LuaTable::new(fields.len());
+                let table = LuaTable::new();
                 for field in fields.into_iter() {
                     match field {
                         Field::BracketedAssign((exp1, exp2)) => {
@@ -62,20 +63,20 @@ impl Expression {
         Ok(val)
     }
 
-    pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
-        match self {
-            Expression::FunctionDef((_, block)) => block.capture_variables(env),
-            Expression::PrefixExp(prefixexp) => prefixexp.capture_variables(env),
-            Expression::TableConstructor(_) => unimplemented!(),
-            Expression::BinaryOp((left, _, right)) => {
-                let mut vars = left.capture_variables(env);
-                vars.append(&mut right.capture_variables(env));
-                vars
-            }
-            Expression::UnaryOp((_, exp)) => exp.capture_variables(env),
-            _ => vec![],
-        }
-    }
+    // pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
+    //     match self {
+    //         Expression::FunctionDef((_, block)) => block.capture_variables(env),
+    //         Expression::PrefixExp(prefixexp) => prefixexp.capture_variables(env),
+    //         Expression::TableConstructor(_) => unimplemented!(),
+    //         Expression::BinaryOp((left, _, right)) => {
+    //             let mut vars = left.capture_variables(env);
+    //             vars.append(&mut right.capture_variables(env));
+    //             vars
+    //         }
+    //         Expression::UnaryOp((_, exp)) => exp.capture_variables(env),
+    //         _ => vec![],
+    //     }
+    // }
 
     pub fn eval_unary_exp<'a>(
         op: &UnOp,
@@ -445,13 +446,13 @@ impl PrefixExp {
         }
     }
 
-    pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
-        match self {
-            PrefixExp::Var(var) => var.capture_variables(env),
-            PrefixExp::FunctionCall(funcall) => funcall.capture_variables(env),
-            PrefixExp::Exp(exp) => exp.capture_variables(env),
-        }
-    }
+    // pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
+    //     match self {
+    //         PrefixExp::Var(var) => var.capture_variables(env),
+    //         PrefixExp::FunctionCall(funcall) => funcall.capture_variables(env),
+    //         PrefixExp::Exp(exp) => exp.capture_variables(env),
+    //     }
+    // }
 }
 
 impl Var {
@@ -487,14 +488,13 @@ impl FunctionCall {
                     LuaVal::Function(LuaFunction {
                         par_list,
                         block,
-                        captured_variables,
+                        captured_env,
                     }) => {
                         // Evaluate arguments first
                         let args = args.eval(env)?;
 
                         // Create environment for function
-                        let mut func_env =
-                            Env::vec_to_env(captured_variables, env.get_global_env().clone());
+                        let mut func_env = env.create_with_captured_env(captured_env);
 
                         // Extend function environment with function arguments
                         func_env.extend_local_env();
@@ -575,30 +575,30 @@ impl FunctionCall {
         Ok(vec![])
     }
 
-    pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
-        match self {
-            FunctionCall::Standard((func, args)) => {
-                let mut captured_vars = func.capture_variables(env);
-                match args {
-                    Args::ExpList(exps_list) => {
-                        for exp in exps_list.iter() {
-                            captured_vars.append(&mut exp.capture_variables(env));
-                        }
-                    }
-                    // TODO: implement after table
-                    Args::TableConstructor(table) => unimplemented!(),
-                    Args::LiteralString(_) => {
-                        // Do nothing
-                    }
-                }
-                captured_vars
-            }
-            FunctionCall::Method((object, method_name, args)) => {
-                // TODO: implement after table
-                unimplemented!()
-            }
-        }
-    }
+    // pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
+    //     match self {
+    //         FunctionCall::Standard((func, args)) => {
+    //             let mut captured_vars = func.capture_variables(env);
+    //             match args {
+    //                 Args::ExpList(exps_list) => {
+    //                     for exp in exps_list.iter() {
+    //                         captured_vars.append(&mut exp.capture_variables(env));
+    //                     }
+    //                 }
+    //                 // TODO: implement after table
+    //                 Args::TableConstructor(table) => unimplemented!(),
+    //                 Args::LiteralString(_) => {
+    //                     // Do nothing
+    //                 }
+    //             }
+    //             captured_vars
+    //         }
+    //         FunctionCall::Method((object, method_name, args)) => {
+    //             // TODO: implement after table
+    //             unimplemented!()
+    //         }
+    //     }
+    // }
 }
 
 impl Args {
@@ -667,11 +667,11 @@ mod tests {
         block: &'a Block,
         env: &Env<'a>,
     ) -> Vec<LuaValue<'a>> {
-        let captured_variables = block.capture_variables(env);
+        let captured_env = env.get_local_env().capture_env();
         vec![LuaValue::new(LuaVal::Function(LuaFunction {
             par_list,
             block,
-            captured_variables,
+            captured_env,
         }))]
     }
 
@@ -735,10 +735,11 @@ mod tests {
             statements: vec![],
             return_stat: None,
         };
+        let expected_function = lua_function(&par_list, &block, &env);
         let exp_func_def = Expression::FunctionDef((par_list.clone(), block.clone()));
         assert_eq!(
             exp_func_def.eval(&mut env),
-            Ok(lua_function(&par_list, &block, &env))
+            Ok(expected_function)
         );
     }
 
@@ -1768,8 +1769,49 @@ mod tests {
         );
     }
 
+    // #[test]
+    // fn test_capture_variables() {
+    //     let mut env = Env::new();
+    //     env.insert_local(
+    //         "a".to_string(),
+    //         LuaValue::extract_first_return_val(lua_integer(10)),
+    //     );
+    //     env.insert_local(
+    //         "b".to_string(),
+    //         LuaValue::extract_first_return_val(lua_integer(20)),
+    //     );
+    //     env.insert_local(
+    //         "c".to_string(),
+    //         LuaValue::extract_first_return_val(lua_integer(30)),
+    //     );
+
+    //     let block = Block {
+    //         statements: vec![],
+    //         return_stat: Some(vec![var_exp("a"), var_exp("b"), var_exp("c"), var_exp("d")]),
+    //     };
+
+    //     let captured_varaibles = block.capture_variables(&env);
+    //     env.pop_local_env();
+    //     // TODO: delete
+    //     // let func_env = Env::vec_to_env(&captured_varaibles, env.get_global_env().clone());
+    //     let func_env = env.get_local_env().capture_env();
+    //     assert_eq!(
+    //         func_env.get("a"),
+    //         Some(&LuaValue::extract_first_return_val(lua_integer(10)))
+    //     );
+    //     assert_eq!(
+    //         func_env.get("b"),
+    //         Some(&LuaValue::extract_first_return_val(lua_integer(20)))
+    //     );
+    //     assert_eq!(
+    //         func_env.get("c"),
+    //         Some(&LuaValue::extract_first_return_val(lua_integer(30)))
+    //     );
+    //     assert_eq!(func_env.get("d"), None);
+    // }
+
     #[test]
-    fn test_capture_variables() {
+    fn test_capture_env() {
         let mut env = Env::new();
         env.insert_local(
             "a".to_string(),
@@ -1784,14 +1826,10 @@ mod tests {
             LuaValue::extract_first_return_val(lua_integer(30)),
         );
 
-        let block = Block {
-            statements: vec![],
-            return_stat: Some(vec![var_exp("a"), var_exp("b"), var_exp("c"), var_exp("d")]),
-        };
-
-        let captured_varaibles = block.capture_variables(&env);
+        let captured_env = env.get_local_env().capture_env();
         env.pop_local_env();
-        let func_env = Env::vec_to_env(&captured_varaibles, env.get_global_env().clone());
+        let func_env = env.create_with_captured_env(&captured_env);
+
         assert_eq!(
             func_env.get("a"),
             Some(&LuaValue::extract_first_return_val(lua_integer(10)))

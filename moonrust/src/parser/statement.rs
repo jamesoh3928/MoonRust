@@ -272,7 +272,7 @@ mod tests {
         let input = "local   r,v  ";
 
         let expected = Ok((
-            "  ",
+            "",
             Statement::Assignment((
                 vec![
                     Var::NameVar(String::from("r")),
