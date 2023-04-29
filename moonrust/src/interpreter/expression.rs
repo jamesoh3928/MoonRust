@@ -5,6 +5,7 @@ use crate::interpreter::LuaFunction;
 use crate::interpreter::LuaTable;
 use crate::interpreter::LuaVal;
 use crate::interpreter::LuaValue;
+use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
 
@@ -527,7 +528,12 @@ impl FunctionCall {
                         let args = args.eval(env)?;
                         let mut stdout = io::stdout().lock();
                         FunctionCall::print_fn(args, &mut stdout)
-                    }
+                    },
+                    LuaVal::TestPrint(buffer) => {
+                        let args = args.eval(env)?;
+                        let mut i = 0;
+                        FunctionCall::test_print_fn(args, buffer)
+                    },
                     LuaVal::Read => {
                         // TODO: use io::stdin().read_line(&mut input)
                         unimplemented!()
@@ -546,6 +552,18 @@ impl FunctionCall {
                 unimplemented!()
             }
         }
+    }
+
+    fn test_print_fn<'a>(
+        args: Vec<LuaValue>,
+        buffer: &Rc<RefCell<Vec<String>>>,
+    ) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
+        let mut temp_buf = Vec::with_capacity(args.len());
+        for arg in args.iter() {
+            temp_buf.push(format!("{}", arg));
+        }
+        buffer.borrow_mut().push(temp_buf.join(" "));
+        Ok(vec![])
     }
 
     fn print_fn<'a, W>(
@@ -737,10 +755,7 @@ mod tests {
         };
         let expected_function = lua_function(&par_list, &block, &env);
         let exp_func_def = Expression::FunctionDef((par_list.clone(), block.clone()));
-        assert_eq!(
-            exp_func_def.eval(&mut env),
-            Ok(expected_function)
-        );
+        assert_eq!(exp_func_def.eval(&mut env), Ok(expected_function));
     }
 
     #[test]

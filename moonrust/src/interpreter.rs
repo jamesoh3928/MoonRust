@@ -12,7 +12,8 @@ pub mod expression;
 pub mod statement;
 
 #[derive(Debug, PartialEq)]
-pub enum LuaVal<'a> {
+pub enum LuaVal<'a>{
+    // May not need RefCell
     LuaTable(RefCell<LuaTable<'a>>),
     LuaNil,
     LuaBool(bool),
@@ -20,6 +21,7 @@ pub enum LuaVal<'a> {
     LuaString(String),
     Function(LuaFunction<'a>),
     Print,
+    TestPrint(Rc<RefCell<Vec<String>>>),
     Read,
 }
 
@@ -236,6 +238,7 @@ impl<'a> Display for LuaValue<'a> {
             // Display function as reference
             LuaVal::Function(func) => write!(f, "{:p}", func),
             LuaVal::Print => write!(f, "print"),
+            LuaVal::TestPrint(_) => write!(f, "print"),
             LuaVal::Read => write!(f, "read"),
         }
     }
@@ -366,6 +369,11 @@ impl Block {
 
 #[derive(Debug, PartialEq)]
 pub struct ASTExecError(String);
+impl ASTExecError {
+    pub fn new(msg: &str) -> Self {
+        ASTExecError(msg.to_string())
+    }
+}
 impl Display for ASTExecError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.0.fmt(f)

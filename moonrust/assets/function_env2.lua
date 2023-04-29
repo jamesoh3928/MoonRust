@@ -5,7 +5,6 @@ do
     end
   end
 end
-
 local x = 2
 print(f())
 print(x)

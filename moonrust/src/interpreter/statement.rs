@@ -15,20 +15,27 @@ impl Statement {
                 // Do nothing
             }
             Statement::Assignment((varlist, explist, is_local)) => {
-                // If there are more values than needed, the excess values are thrown away.
-                let mut results = Vec::with_capacity(varlist.len());
-                for i in 0..varlist.len() {
-                    let var = &varlist[i];
-                    // If there are fewer values than needed, the list is extended with nil's
-                    let val = if i < explist.len() {
-                        LuaValue::extract_first_return_val(explist[i].eval(env).unwrap())
-                    } else {
-                        LuaValue::new(LuaVal::LuaNil)
-                    };
-
+                fn insert_to_env<'a>(
+                    var: &Var,
+                    val: &LuaValue<'a>,
+                    env: &mut Env<'a>,
+                    is_local: &bool,
+                ) {
                     match var {
                         Var::NameVar(name) => {
-                            results.push((name, val));
+                            // Insert into environment
+                            if *is_local {
+                                // With local keyword, always insert new local variable or overwrite existing
+                                env.insert_local(name.clone(), val.clone());
+                            } else {
+                                if env.get_local(name).is_some() {
+                                    // Update local variable
+                                    env.update_local(name.clone(), val.clone());
+                                } else {
+                                    // Update or insert global variable
+                                    env.insert_global(name.clone(), val.clone());
+                                }
+                            }
                         }
                         // TODO: implement after table (make sure you don't overwrite table, you have to mutate the table)
                         Var::BracketVar((name, exp)) => {
@@ -40,20 +47,32 @@ impl Statement {
                     }
                 }
 
-                // Insert into the environment
-                for (name, val) in results {
-                    if *is_local {
-                        // With local keyword, always insert new local variable or overwrite existing
-                        env.insert_local(name.clone(), val);
+                // If there are more values than needed, the excess values are thrown away.
+                let mut vallist = Vec::with_capacity(varlist.len());
+                let mut i = 0; // index for the current variable
+                while i < varlist.len() {
+                    let return_vals = explist[i].eval(env)?;
+                    let num = if i == explist.len() - 1 {
+                        // Extract return values to match number of variables to be matched or all return values
+                        // We are doing this because we can assignm multipe value if last expression is function call
+                        varlist.len() - i
                     } else {
-                        if env.get_local(name).is_some() {
-                            // Update local variable
-                            env.update_local(name.clone(), val);
+                        // extract first return value
+                        1
+                    };
+                    for j in 0..num {
+                        if j > return_vals.len() - 1 {
+                            // More variables than total return values: insert nil
+                            vallist.push(LuaValue::new(LuaVal::LuaNil));
                         } else {
-                            // Update or insert global variable
-                            env.insert_global(name.clone(), val);
-                        }
+                            vallist.push(return_vals[j].clone());
+                        };
+                        i += 1;
                     }
+                }
+                // Insert into the environment
+                for i in 0..varlist.len() {
+                    insert_to_env(&varlist[i], &vallist[i], env, is_local);
                 }
             }
             Statement::FunctionCall(funcall) => {
@@ -847,11 +866,7 @@ mod tests {
                 Box::new(var_exp("b")),
             ))]),
         };
-        let expected_func = lua_function(
-            &par_list,
-            &block,
-            &env
-        );
+        let expected_func = lua_function(&par_list, &block, &env);
         let func_decl = Statement::FunctionDecl((
             "f".to_string(),
             ParList(vec![String::from("a"), String::from("b")], false),
@@ -865,10 +880,7 @@ mod tests {
             },
         ));
         assert_eq!(func_decl.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(
-            env.get_global("f"),
-            Some(&expected_func)
-        );
+        assert_eq!(env.get_global("f"), Some(&expected_func));
     }
 
     #[test]
@@ -883,11 +895,7 @@ mod tests {
                 Box::new(var_exp("b")),
             ))]),
         };
-        let expected_func = lua_function(
-            &par_list,
-            &block,
-            &env
-        );
+        let expected_func = lua_function(&par_list, &block, &env);
         let func_decl = Statement::LocalFuncDecl((
             "f".to_string(),
             ParList(vec![String::from("a"), String::from("b")], false),
@@ -901,10 +909,7 @@ mod tests {
             },
         ));
         assert_eq!(func_decl.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(
-            env.get_local("f"),
-            Some(&expected_func)
-        );
+        assert_eq!(env.get_local("f"), Some(&expected_func));
     }
 
     #[test]

@@ -106,8 +106,8 @@ impl<'a> LocalEnv<'a> {
     pub fn pop_env(&mut self) {
         loop {
             match self.0.pop() {
-                Some(_) => {}
-                None => break,
+                Some(Some(_)) => {},
+                _ => break,
             };
         }
     }

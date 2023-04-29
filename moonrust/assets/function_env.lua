@@ -4,5 +4,5 @@ do
         return x
     end
 end
-
+local x = 2
 print(f())
