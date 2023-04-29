@@ -145,17 +145,13 @@ mod tests {
         test_interpreter(src, expected_output);
     }
 
-    // function_env2.lua
-    // TODO: fix this (not working correctly because of catched environment and inserting local var to that env)
-    // MAYBE: insert extra table everyting function is defined (have to keep track somehow though)
     #[test]
     fn test_function_env2_lua() {
-        let expected_output = "nil\n2";
+        let expected_output = "nil\n2\n1 nil\n1 3";
         let src = "assets/function_env2.lua";
         test_interpreter(src, expected_output);
     }
 
-    // function.lua
     #[test]
     fn test_function_lua() {
         let expected_output = "5";

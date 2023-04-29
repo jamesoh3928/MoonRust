@@ -302,6 +302,9 @@ impl Block {
         let return_vals = self.exec_without_pop(env)?;
         // Remove environment when exiting a scope
         env.pop_local_env();
+        // Add another table in caller's scope
+        // Avoiding local variable being inserted after closure is created
+        env.extend_local_without_scope();
 
         Ok(return_vals)
     }

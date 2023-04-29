@@ -30,7 +30,6 @@ impl Expression {
             Expression::DotDotDot => unimplemented!(),
             Expression::FunctionDef((par_list, block)) => {
                 let captured_env = env.get_local_env().capture_env();
-                env.extend_local_without_scope();
                 vec![LuaValue::new(LuaVal::Function(LuaFunction {
                     par_list,
                     block,
