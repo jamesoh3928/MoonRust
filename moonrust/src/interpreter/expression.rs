@@ -38,22 +38,49 @@ impl Expression {
             }
             Expression::PrefixExp(prefixexp) => prefixexp.eval(env)?,
             Expression::TableConstructor(fields) => {
-                // TODO
                 let table = LuaTable::new();
-                for field in fields.into_iter() {
+                let mut numeric_index = 1;
+                let field_count = fields.len();
+                for (i, field) in fields.into_iter().enumerate() {
                     match field {
                         Field::BracketedAssign((exp1, exp2)) => {
-                            unimplemented!()
+                            // Fully evaluate key and value
+                            let key = LuaValue::extract_first_return_val(exp1.eval(env)?);
+                            let val = LuaValue::extract_first_return_val(exp2.eval(env)?);
+
+                            // If there are multiple values, it's correct behavior to only use the first value
+                            if !key.is_numeral() && !key.is_string() {
+                                return Err(ASTExecError(format!(
+                                    "Field key '{exp1}' does not evaluate to a string or numeral"
+                                )));
+                            }
+                            table.insert(key, val);
                         }
                         Field::NameAssign((name, exp)) => {
-                            unimplemented!()
+                            let val = LuaValue::extract_first_return_val(exp.eval(env)?);
+                            table.insert_ident(name.clone(), val);
                         }
                         Field::UnnamedAssign(exp) => {
-                            unimplemented!()
+                            let vals = exp.eval(env)?;
+
+                            // If this is the last field in the table constructor,
+                            // and there are multiple values in the vector, spead
+                            // them out into their own fields each indexed by an
+                            // incrementing number
+                            if vals.len() > 1 && i == field_count - 1 {
+                                vals.into_iter().for_each(|val| {
+                                    table.insert_num(numeric_index, val);
+                                    numeric_index += 1;
+                                });
+                            } else {
+                                let val = LuaValue::extract_first_return_val(vals);
+                                table.insert_num(numeric_index, val);
+                                numeric_index += 1;
+                            }
                         }
                     }
                 }
-                unimplemented!()
+                vec![LuaValue::new(LuaVal::LuaTable(table))]
             }
             Expression::BinaryOp((left, op, right)) => {
                 vec![Expression::eval_binary_exp(op, left, right, env)?]
@@ -99,8 +126,8 @@ impl Expression {
                         }
                     }
                     _ => {
-                        return Err(ASTExecError(format!(
-                            "Cannot negate values that are not numbers"
+                        return Err(ASTExecError(String::from(
+                            "Cannot negate values that are not numbers",
                         )));
                     }
                 }
@@ -127,9 +154,8 @@ impl Expression {
                         )))
                     }
                     LuaVal::LuaTable(table) => {
-                        // TODO: implement after table
-                        // The length operator applied on a table returns a border in that table (check reference manual)
-                        unimplemented!()
+                        let border = table.calculate_border();
+                        Ok(LuaValue::new(LuaVal::LuaNum(border.to_be_bytes(), false)))
                     }
                     _ => {
                         return Err(ASTExecError(format!(
@@ -427,11 +453,22 @@ impl PrefixExp {
                         Some(val) => Ok(vec![val.clone()]),
                         None => Ok(vec![LuaValue::new(LuaVal::LuaNil)]),
                     },
-                    Var::BracketVar((name, exp)) => {
+                    Var::BracketVar((prefixexp, exp)) => {
                         // TODO: implement after table
-                        unimplemented!()
+                        let prefixexp = LuaValue::extract_first_return_val(prefixexp.eval(env)?);
+                        match prefixexp.0.as_ref() {
+                            LuaVal::LuaTable(table) => {
+                                let key = exp.eval(env)?;
+                                unimplemented!()
+                            }
+                            _ => {
+                                return Err(ASTExecError(format!(
+                                    "attempt to index a non-table value '{prefixexp}'"
+                                )))
+                            }
+                        }
                     }
-                    Var::DotVar((name, field)) => {
+                    Var::DotVar((prefixexp, field)) => {
                         // TODO: implement after table
                         unimplemented!()
                     }
@@ -456,26 +493,27 @@ impl PrefixExp {
 }
 
 impl Var {
-    pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
-        match self {
-            Var::NameVar(name) => match env.get(&name) {
-                // Value is cloned as Rc, which is not huge overhead
-                Some(val) => {
-                    vec![(name.clone(), val.clone())]
-                }
-                // If value is not found, not captured
-                None => vec![],
-            },
-            Var::BracketVar((name, exp)) => {
-                // TODO: implement after table
-                unimplemented!()
-            }
-            Var::DotVar((name, field)) => {
-                // TODO: implement after table
-                unimplemented!()
-            }
-        }
-    }
+    // TODO: Remove
+    // pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
+    //     match self {
+    //         Var::NameVar(name) => match env.get(&name) {
+    //             // Value is cloned as Rc, which is not huge overhead
+    //             Some(val) => {
+    //                 vec![(name.clone(), val.clone())]
+    //             }
+    //             // If value is not found, not captured
+    //             None => vec![],
+    //         },
+    //         Var::BracketVar((prefixexp, exp)) => {
+    //
+    //             unimplemented!()
+    //         }
+    //         Var::DotVar((prefixexp, field)) => {
+    //
+    //             unimplemented!()
+    //         }
+    //     }
+    // }
 }
 
 impl FunctionCall {

@@ -1,9 +1,9 @@
 use crate::ast::*;
 use crate::interpreter::environment::Env;
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::{cell::RefCell, rc::Rc};
-use std::collections::HashMap;
 
 use self::environment::LocalEnv;
 
@@ -12,9 +12,9 @@ pub mod expression;
 pub mod statement;
 
 #[derive(Debug, PartialEq)]
-pub enum LuaVal<'a>{
+pub enum LuaVal<'a> {
     // May not need RefCell
-    LuaTable(RefCell<LuaTable<'a>>),
+    LuaTable(LuaTable<'a>),
     LuaNil,
     LuaBool(bool),
     LuaNum([u8; 8], bool), // numerals as an array of 8 bytes, bool for is_float
@@ -56,6 +56,20 @@ impl<'a> LuaValue<'a> {
 
     pub fn is_true(&self) -> bool {
         !self.is_false()
+    }
+
+    pub fn is_numeral(&self) -> bool {
+        match &*self.0 {
+            LuaVal::LuaNum(_, _) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_string(&self) -> bool {
+        match &*self.0 {
+            LuaVal::LuaString(_) => true,
+            _ => false,
+        }
     }
 
     pub fn is_zero(&self) -> bool {
@@ -244,11 +258,11 @@ impl<'a> Display for LuaValue<'a> {
     }
 }
 
-// TODO: use hashmap representation since key can be only string or number
+// TODO: use hashmap representation since key can be only string literal, number, or identifier
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
-enum TableKey {
+pub enum TableKey {
     String(String),
-    Number(i64),
+    Number([u8; 8]),
 }
 
 // TODO: IMPORTANT - make sure to update hashmap inside the RefCell when the table is being mutated
@@ -261,9 +275,18 @@ impl<'a> LuaTable<'a> {
     }
 
     // TODO: implement table methods
-    // pub fn insert(&self, key: LuaValue<'a>, val: LuaValue<'a>) {
-    //     self.0.borrow_mut().push((key, val));
-    // }
+    pub fn insert(&self, key: LuaValue<'a>, val: LuaValue<'a>) {
+        // self.0.borrow_mut().push((key, val));
+        unimplemented!()
+    }
+
+    pub fn insert_ident(&self, key: String, val: LuaValue<'a>) {
+        unimplemented!()
+    }
+
+    pub fn insert_num(&self, key: i64, val: LuaValue<'a>) {
+        unimplemented!()
+    }
 
     // pub fn get(&self, key: &LuaValue<'a>) -> Option<LuaValue<'a>> {
     //     for (k, v) in self.0.borrow().iter() {
@@ -274,6 +297,7 @@ impl<'a> LuaTable<'a> {
     //     None
     // }
 
+    // TODO: If we have time
     // pub fn remove(&self, key: &LuaValue<'a>) {
     //     let mut table = self.0.borrow_mut();
     //     let mut i = 0;
@@ -285,6 +309,11 @@ impl<'a> LuaTable<'a> {
     //         i += 1;
     //     }
     // }
+
+    /// Returns the first integer index that comes before an absent index
+    pub fn calculate_border(&self) -> usize {
+        unimplemented!()
+    }
 }
 
 impl AST {
