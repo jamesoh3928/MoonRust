@@ -54,7 +54,7 @@ impl Expression {
                                     "Field key '{exp1}' does not evaluate to a string or numeral"
                                 )));
                             }
-                            table.insert(key, val);
+                            table.insert(key, val)?;
                         }
                         Field::NameAssign((name, exp)) => {
                             let val = LuaValue::extract_first_return_val(exp.eval(env)?);
@@ -69,12 +69,12 @@ impl Expression {
                             // incrementing number
                             if vals.len() > 1 && i == field_count - 1 {
                                 vals.into_iter().for_each(|val| {
-                                    table.insert_num(numeric_index, val);
+                                    table.insert_int(numeric_index, val);
                                     numeric_index += 1;
                                 });
                             } else {
                                 let val = LuaValue::extract_first_return_val(vals);
-                                table.insert_num(numeric_index, val);
+                                table.insert_int(numeric_index, val);
                                 numeric_index += 1;
                             }
                         }
