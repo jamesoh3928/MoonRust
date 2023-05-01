@@ -583,7 +583,7 @@ impl FunctionCall {
                     }
                 }
             }
-            FunctionCall::Method((object, method_name, args)) => {
+            FunctionCall::Method((prefixexp, method_name, args)) => {
                 // TODO: implement after table
                 // TODO: Lua object is basically a table
                 unimplemented!()

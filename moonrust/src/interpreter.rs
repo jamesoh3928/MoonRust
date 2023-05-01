@@ -313,7 +313,7 @@ impl<'a> LuaTable<'a> {
             .insert(TableKey::Number(key.to_be_bytes()), val);
     }
 
-    pub fn get(&self, key: &LuaValue<'a>) -> Option<LuaValue<'a>> {
+    pub fn get(&self, key: TableKey) -> Option<LuaValue<'a>> {
         unimplemented!()
         // for (k, v) in self.0.borrow().iter() {
         //     if k == key {

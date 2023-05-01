@@ -547,7 +547,7 @@ mod tests {
     }
 
     #[test]
-    fn test_exec_stat_table_assign() {
+    fn test_exec_stat_table_reassign() {
         let mut env = Env::new();
 
         let table = LuaValue::extract_first_return_val(lua_table(HashMap::from([(
@@ -565,6 +565,7 @@ mod tests {
             vec![Expression::LiteralString(String::from("new value!"))],
             false,
         ));
+
         assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
 
         let expected_table = LuaValue::extract_first_return_val(lua_table(HashMap::from([(
