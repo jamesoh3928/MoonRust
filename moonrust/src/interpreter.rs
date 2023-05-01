@@ -313,14 +313,15 @@ impl<'a> LuaTable<'a> {
             .insert(TableKey::Number(key.to_be_bytes()), val);
     }
 
-    // pub fn get(&self, key: &LuaValue<'a>) -> Option<LuaValue<'a>> {
-    //     for (k, v) in self.0.borrow().iter() {
-    //         if k == key {
-    //             return Some(v.clone());
-    //         }
-    //     }
-    //     None
-    // }
+    pub fn get(&self, key: &LuaValue<'a>) -> Option<LuaValue<'a>> {
+        unimplemented!()
+        // for (k, v) in self.0.borrow().iter() {
+        //     if k == key {
+        //         return Some(v.clone());
+        //     }
+        // }
+        // None
+    }
 
     // TODO: If we have time
     // pub fn remove(&self, key: &LuaValue<'a>) {

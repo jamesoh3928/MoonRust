@@ -685,8 +685,14 @@ impl Args {
 
 #[cfg(test)]
 mod tests {
+    use crate::interpreter::TableKey;
+
     use super::*;
-    use std::io::{self, Write};
+    use std::{
+        collections::HashMap,
+        io::{self, Write},
+        vec,
+    };
 
     // Helper functions
     fn var_exp(name: &str) -> Expression {
@@ -728,6 +734,11 @@ mod tests {
             block,
             captured_env,
         }))]
+    }
+    fn lua_table<'a>(hmap: HashMap<TableKey, LuaValue<'a>>) -> Vec<LuaValue<'a>> {
+        vec![LuaValue::new(LuaVal::LuaTable(LuaTable(Rc::new(
+            RefCell::new(hmap),
+        ))))]
     }
 
     #[test]
@@ -922,6 +933,145 @@ mod tests {
             String::from_utf8(output).unwrap(),
             format!("10 10.1 false Hello World! nil {:p}\n", func_reference)
         );
+    }
+
+    #[test]
+    fn test_eval_table_constructor() {
+        let mut env = Env::new();
+
+        let exp = Expression::TableConstructor(vec![
+            Field::NameAssign((
+                String::from("age"),
+                Expression::Numeral(Numeral::Integer(23)),
+            )),
+            Field::UnnamedAssign(Expression::BinaryOp((
+                Box::new(Expression::Numeral(Numeral::Integer(2))),
+                BinOp::Add,
+                Box::new(Expression::Numeral(Numeral::Integer(3))),
+            ))),
+            Field::BracketedAssign((
+                Expression::Numeral(Numeral::Float(3.14)),
+                Expression::Numeral(Numeral::Integer(999)),
+            )),
+        ]);
+
+        let expected = Ok(lua_table(HashMap::from([
+            (
+                TableKey::String(String::from("age")),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(23), false)),
+            ),
+            (
+                TableKey::Number(i64::to_be_bytes(1)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(5), false)),
+            ),
+            (
+                TableKey::Number(f64::to_be_bytes(3.14)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
+            ),
+        ])));
+        let actual = exp.eval(&mut env);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_eval_table_sequence() {
+        let mut env = Env::new();
+
+        let exp = Expression::TableConstructor(vec![
+            Field::UnnamedAssign(Expression::Numeral(Numeral::Integer(999))),
+            Field::UnnamedAssign(Expression::Numeral(Numeral::Integer(888))),
+            Field::UnnamedAssign(Expression::Numeral(Numeral::Integer(777))),
+        ]);
+
+        let expected = Ok(lua_table(HashMap::from([
+            (
+                TableKey::Number(i64::to_be_bytes(1)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
+            ),
+            (
+                TableKey::Number(i64::to_be_bytes(3)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(777), false)),
+            ),
+            (
+                TableKey::Number(i64::to_be_bytes(2)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(888), false)),
+            ),
+        ])));
+
+        let actual = exp.eval(&mut env);
+        assert_eq!(expected, actual)
+    }
+
+    #[test]
+    fn test_eval_table_spread() {
+        let mut env = Env::new();
+        let par_list = ParList(vec![], false);
+        let block = Block {
+            statements: vec![],
+            return_stat: Some(vec![
+                Expression::Numeral(Numeral::Integer(999)),
+                Expression::Numeral(Numeral::Integer(888)),
+                Expression::Numeral(Numeral::Integer(777)),
+            ]),
+        };
+
+        let f = LuaValue::extract_first_return_val(lua_function(&par_list, &block, &env));
+        env.insert_global(String::from("f"), f);
+
+        let exp = Expression::TableConstructor(vec![
+            Field::UnnamedAssign(Expression::Numeral(Numeral::Integer(111))),
+            Field::UnnamedAssign(Expression::PrefixExp(Box::new(PrefixExp::FunctionCall(
+                FunctionCall::Standard((
+                    Box::new(PrefixExp::Var(Var::NameVar(String::from("f")))),
+                    Args::ExpList(Vec::new()),
+                )),
+            )))),
+        ]);
+
+        let expected = Ok(lua_table(HashMap::from([
+            (
+                TableKey::Number(i64::to_be_bytes(1)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(111), false)),
+            ),
+            (
+                TableKey::Number(i64::to_be_bytes(2)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
+            ),
+            (
+                TableKey::Number(i64::to_be_bytes(3)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(888), false)),
+            ),
+            (
+                TableKey::Number(i64::to_be_bytes(4)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(777), false)),
+            ),
+        ])));
+
+        let actual = exp.eval(&mut env);
+        assert_eq!(expected, actual)
+    }
+
+    #[test]
+    fn test_eval_table_capture() {
+        let mut env = Env::new();
+
+        env.insert_global(
+            String::from("x"),
+            LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
+        );
+
+        let exp = Expression::TableConstructor(vec![Field::NameAssign((
+            String::from("thing"),
+            Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar(String::from("x"))))),
+        ))]);
+
+        let expected = Ok(lua_table(HashMap::from([(
+            TableKey::String(String::from("thing")),
+            LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
+        )])));
+
+        let actual = exp.eval(&mut env);
+        assert_eq!(expected, actual)
     }
 
     #[test]
