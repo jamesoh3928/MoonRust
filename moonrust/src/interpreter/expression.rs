@@ -913,7 +913,8 @@ mod tests {
             FunctionCall::print_fn(args.eval(&mut env).unwrap(), &mut output),
             Ok(vec![])
         );
-        let func_reference = if let LuaVal::Function(f) = env.get_global("f").unwrap().0.as_ref() {
+        let func_val = env.get_global("f").unwrap().0;
+        let func_reference = if let LuaVal::Function(f) = func_val.as_ref() {
             f
         } else {
             unreachable!("Expected function")
@@ -1884,15 +1885,15 @@ mod tests {
 
         assert_eq!(
             func_env.get("a"),
-            Some(&LuaValue::extract_first_return_val(lua_integer(10)))
+            Some(LuaValue::extract_first_return_val(lua_integer(10)))
         );
         assert_eq!(
             func_env.get("b"),
-            Some(&LuaValue::extract_first_return_val(lua_integer(20)))
+            Some(LuaValue::extract_first_return_val(lua_integer(20)))
         );
         assert_eq!(
             func_env.get("c"),
-            Some(&LuaValue::extract_first_return_val(lua_integer(30)))
+            Some(LuaValue::extract_first_return_val(lua_integer(30)))
         );
         assert_eq!(func_env.get("d"), None);
     }
