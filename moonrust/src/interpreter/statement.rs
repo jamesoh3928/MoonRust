@@ -370,7 +370,7 @@ impl Statement {
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::RefCell, collections::HashMap, rc::Rc};
+    use std::{cell::RefCell, collections::HashMap};
 
     use crate::interpreter::{LuaTable, TableKey};
 
@@ -398,8 +398,8 @@ mod tests {
         }))
     }
     fn lua_table<'a>(hmap: HashMap<TableKey, LuaValue<'a>>) -> Vec<LuaValue<'a>> {
-        vec![LuaValue::new(LuaVal::LuaTable(LuaTable(Rc::new(
-            RefCell::new(hmap),
+        vec![LuaValue::new(LuaVal::LuaTable(LuaTable(RefCell::new(
+            hmap,
         ))))]
     }
 

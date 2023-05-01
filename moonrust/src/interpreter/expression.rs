@@ -688,11 +688,7 @@ mod tests {
     use crate::interpreter::TableKey;
 
     use super::*;
-    use std::{
-        collections::HashMap,
-        io::{self, Write},
-        vec,
-    };
+    use std::{collections::HashMap, vec};
 
     // Helper functions
     fn var_exp(name: &str) -> Expression {
@@ -736,8 +732,8 @@ mod tests {
         }))]
     }
     fn lua_table<'a>(hmap: HashMap<TableKey, LuaValue<'a>>) -> Vec<LuaValue<'a>> {
-        vec![LuaValue::new(LuaVal::LuaTable(LuaTable(Rc::new(
-            RefCell::new(hmap),
+        vec![LuaValue::new(LuaVal::LuaTable(LuaTable(RefCell::new(
+            hmap,
         ))))]
     }
 

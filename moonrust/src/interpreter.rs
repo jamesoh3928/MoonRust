@@ -268,10 +268,10 @@ pub enum TableKey {
 // TODO: IMPORTANT - make sure to update hashmap inside the RefCell when the table is being mutated
 // Instead of overwriting the entire Rc
 #[derive(Debug, PartialEq, Clone)]
-pub struct LuaTable<'a>(Rc<RefCell<HashMap<TableKey, LuaValue<'a>>>>);
+pub struct LuaTable<'a>(RefCell<HashMap<TableKey, LuaValue<'a>>>);
 impl<'a> LuaTable<'a> {
     pub fn new() -> Self {
-        LuaTable(Rc::new(RefCell::new(HashMap::new())))
+        LuaTable(RefCell::new(HashMap::new()))
     }
 
     // TODO: implement table methods
