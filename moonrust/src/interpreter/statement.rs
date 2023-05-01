@@ -649,7 +649,7 @@ mod tests {
         // Returned values are thrown away for statement function call
         assert_eq!(func_call_stat.exec(&mut env), Ok(Some(vec![])));
         // After function call, return global "a" which is updated to float value
-        assert_eq!(env.get("a"), Some(&lua_float(10.04)));
+        assert_eq!(env.get("a"), Some(lua_float(10.04)));
     }
 
     #[test]
@@ -666,7 +666,7 @@ mod tests {
         };
         let if_stat = Statement::If((condition, block, vec![], None));
         assert_eq!(if_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_integer(10)));
+        assert_eq!(env.get("a"), Some(lua_integer(10)));
     }
 
     #[test]
@@ -691,7 +691,7 @@ mod tests {
         };
         let if_stat = Statement::If((condition, block, vec![], Some(else_block)));
         assert_eq!(if_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_integer(20)));
+        assert_eq!(env.get("a"), Some(lua_integer(20)));
     }
 
     #[test]
@@ -727,7 +727,7 @@ mod tests {
         };
         let if_stat = Statement::If((condition, block, else_ifs, Some(else_block)));
         assert_eq!(if_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_integer(20)));
+        assert_eq!(env.get("a"), Some(lua_integer(20)));
     }
 
     #[test]
@@ -745,7 +745,7 @@ mod tests {
         };
         let do_block = Statement::DoBlock(block);
         assert_eq!(do_block.exec(&mut env), Ok(Some(vec![lua_integer(10)])));
-        assert_eq!(env.get("a"), Some(&lua_integer(10)));
+        assert_eq!(env.get("a"), Some(lua_integer(10)));
     }
 
     #[test]
@@ -765,8 +765,8 @@ mod tests {
         };
         let while_stat = Statement::While((condition, block));
         assert_eq!(while_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_integer(10)));
-        assert_eq!(env.get("a"), Some(&lua_integer(10)));
+        assert_eq!(env.get("a"), Some(lua_integer(10)));
+        assert_eq!(env.get("a"), Some(lua_integer(10)));
     }
 
     #[test]
@@ -783,7 +783,7 @@ mod tests {
         };
         let while_stat = Statement::While((condition, block));
         assert_eq!(while_stat.exec(&mut env), Ok(Some(vec![lua_integer(10)])));
-        assert_eq!(env.get("a"), Some(&lua_integer(10)));
+        assert_eq!(env.get("a"), Some(lua_integer(10)));
     }
 
     #[test]
@@ -815,7 +815,7 @@ mod tests {
 
         let while_stat = Statement::While((condition, block));
         assert_eq!(while_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_integer(16)));
+        assert_eq!(env.get("a"), Some(lua_integer(16)));
     }
 
     #[test]
@@ -846,7 +846,7 @@ mod tests {
             },
         ));
         assert_eq!(for_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_integer(25)));
+        assert_eq!(env.get("a"), Some(lua_integer(25)));
     }
 
     #[test]
@@ -942,7 +942,7 @@ mod tests {
             },
         ));
         assert_eq!(func_decl.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get_global("f"), Some(&expected_func));
+        assert_eq!(env.get_global("f"), Some(expected_func));
     }
 
     #[test]
@@ -971,7 +971,7 @@ mod tests {
             },
         ));
         assert_eq!(func_decl.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get_local("f"), Some(&expected_func));
+        assert_eq!(env.get_local("f"), Some(expected_func));
     }
 
     #[test]
