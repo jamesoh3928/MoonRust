@@ -3,6 +3,7 @@ use crate::interpreter::environment::Env;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use std::ptr::null;
 use std::{cell::RefCell, rc::Rc};
 
 use self::environment::LocalEnv;
@@ -312,7 +313,23 @@ impl<'a> LuaTable<'a> {
 
     /// Returns the first integer index that comes before an absent index
     pub fn calculate_border(&self) -> usize {
-        unimplemented!()
+        
+        let mut idx:i64 = 1; // tables in Lua are 1 indexed
+        let table = self.0.borrow();
+        
+        // loop through table
+        while (idx as usize) < table.len() {
+            let number = idx.to_be_bytes();
+            let table_key = TableKey::Number(number);
+            // if current idx's associated value is nil
+            if table.get(&table_key) == None {
+                // return previous idx
+                return (idx as usize) - 1;
+            }
+            idx = idx+ 1;
+        }
+        
+        (idx as usize)
     }
 }
 
