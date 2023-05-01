@@ -675,7 +675,8 @@ impl Args {
                 Ok(args)
             }
             Args::TableConstructor(table) => {
-                // TODO: implement after table (single argument of table)
+                let table = Expression::TableConstructor(table.clone());
+                // Ok(table.eval(env)?)
                 unimplemented!()
             }
             Args::LiteralString(s) => Ok(vec![LuaValue::new(LuaVal::LuaString(s.clone()))]),

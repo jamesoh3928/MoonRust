@@ -37,7 +37,6 @@ impl Statement {
                                 }
                             }
                         }
-                        // TODO: implement after table (make sure you don't overwrite table, you have to mutate the table)
                         Var::BracketVar((prefixexp, exp)) => {
                             let prefixexp =
                                 LuaValue::extract_first_return_val(prefixexp.eval(env)?);
