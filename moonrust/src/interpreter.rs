@@ -314,13 +314,10 @@ impl<'a> LuaTable<'a> {
     }
 
     pub fn get(&self, key: TableKey) -> Option<LuaValue<'a>> {
-        unimplemented!()
-        // for (k, v) in self.0.borrow().iter() {
-        //     if k == key {
-        //         return Some(v.clone());
-        //     }
-        // }
-        // None
+        match self.0.borrow().get(&key) {
+            Some(res) => Some(res.clone()),
+            None => None,
+        }
     }
 
     // TODO: If we have time
