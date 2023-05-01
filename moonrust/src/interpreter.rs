@@ -269,34 +269,60 @@ pub enum TableKey {
 // TODO: IMPORTANT - make sure to update hashmap inside the RefCell when the table is being mutated
 // Instead of overwriting the entire Rc
 #[derive(Debug, PartialEq, Clone)]
-pub struct LuaTable<'a>(Rc<RefCell<HashMap<TableKey, LuaValue<'a>>>>);
+pub struct LuaTable<'a>(RefCell<HashMap<TableKey, LuaValue<'a>>>);
 impl<'a> LuaTable<'a> {
     pub fn new() -> Self {
-        LuaTable(Rc::new(RefCell::new(HashMap::new())))
+        LuaTable(RefCell::new(HashMap::new()))
     }
 
     // TODO: implement table methods
-    pub fn insert(&self, key: LuaValue<'a>, val: LuaValue<'a>) {
-        // self.0.borrow_mut().push((key, val));
-        unimplemented!()
+    pub fn insert(&self, key: LuaValue<'a>, val: LuaValue<'a>) -> Result<(), ASTExecError> {
+        let key = match key.0.as_ref() {
+            LuaVal::LuaNum(num_bytes, is_float) => {
+                let num_bytes = if *is_float {
+                    let num = f64::from_be_bytes(*num_bytes);
+                    // Check if float has no significant decimal places
+                    if num % 1.0 == 0.0 {
+                        (num as i64).to_be_bytes()
+                    } else {
+                        *num_bytes
+                    }
+                } else {
+                    *num_bytes
+                };
+
+                TableKey::Number(num_bytes)
+            }
+            LuaVal::LuaString(name) => TableKey::String(name.clone()),
+            _ => {
+                return Err(ASTExecError(format!(
+                    "Cannot add '{key}' as key into a table"
+                )))
+            }
+        };
+        self.0.borrow_mut().insert(key, val);
+        Ok(())
     }
 
     pub fn insert_ident(&self, key: String, val: LuaValue<'a>) {
-        unimplemented!()
+        self.0.borrow_mut().insert(TableKey::String(key), val);
     }
 
-    pub fn insert_num(&self, key: i64, val: LuaValue<'a>) {
-        unimplemented!()
+    pub fn insert_int(&self, key: i64, val: LuaValue<'a>) {
+        self.0
+            .borrow_mut()
+            .insert(TableKey::Number(key.to_be_bytes()), val);
     }
 
-    // pub fn get(&self, key: &LuaValue<'a>) -> Option<LuaValue<'a>> {
-    //     for (k, v) in self.0.borrow().iter() {
-    //         if k == key {
-    //             return Some(v.clone());
-    //         }
-    //     }
-    //     None
-    // }
+    pub fn get(&self, key: TableKey) -> Option<LuaValue<'a>> {
+        unimplemented!()
+        // for (k, v) in self.0.borrow().iter() {
+        //     if k == key {
+        //         return Some(v.clone());
+        //     }
+        // }
+        // None
+    }
 
     // TODO: If we have time
     // pub fn remove(&self, key: &LuaValue<'a>) {

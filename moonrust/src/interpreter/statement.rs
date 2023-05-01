@@ -16,11 +16,11 @@ impl Statement {
             }
             Statement::Assignment((varlist, explist, is_local)) => {
                 fn insert_to_env<'a>(
-                    var: &Var,
+                    var: &'a Var,
                     val: &LuaValue<'a>,
                     env: &mut Env<'a>,
                     is_local: &bool,
-                ) {
+                ) -> Result<(), ASTExecError> {
                     match var {
                         Var::NameVar(name) => {
                             // Insert into environment
@@ -37,14 +37,38 @@ impl Statement {
                                 }
                             }
                         }
-                        // TODO: implement after table (make sure you don't overwrite table, you have to mutate the table)
-                        Var::BracketVar((name, exp)) => {
-                            unimplemented!()
+                        Var::BracketVar((prefixexp, exp)) => {
+                            let prefixexp =
+                                LuaValue::extract_first_return_val(prefixexp.eval(env)?);
+                            match prefixexp.0.as_ref() {
+                                LuaVal::LuaTable(table) => {
+                                    let key = LuaValue::extract_first_return_val(exp.eval(env)?);
+                                    table.insert(key, val.clone())?;
+                                }
+                                _ => {
+                                    return Err(ASTExecError(format!(
+                                        "attempt to index a non-table value '{prefixexp}'"
+                                    )))
+                                }
+                            }
                         }
-                        Var::DotVar((name, field)) => {
-                            unimplemented!()
+                        Var::DotVar((prefixexp, field)) => {
+                            // TODO: Factor this out into its own function
+                            let prefixexp =
+                                LuaValue::extract_first_return_val(prefixexp.eval(env)?);
+                            match prefixexp.0.as_ref() {
+                                LuaVal::LuaTable(table) => {
+                                    table.insert_ident(field.clone(), val.clone());
+                                }
+                                _ => {
+                                    return Err(ASTExecError(format!(
+                                        "attempt to index a non-table value '{prefixexp}'"
+                                    )))
+                                }
+                            }
                         }
                     }
+                    Ok(())
                 }
 
                 // If there are more values than needed, the excess values are thrown away.
@@ -72,7 +96,7 @@ impl Statement {
                 }
                 // Insert into the environment
                 for i in 0..varlist.len() {
-                    insert_to_env(&varlist[i], &vallist[i], env, is_local);
+                    insert_to_env(&varlist[i], &vallist[i], env, is_local)?;
                 }
             }
             Statement::FunctionCall(funcall) => {
@@ -345,6 +369,10 @@ impl Statement {
 
 #[cfg(test)]
 mod tests {
+    use std::{cell::RefCell, collections::HashMap};
+
+    use crate::interpreter::{LuaTable, TableKey};
+
     use super::*;
 
     // Helper functions
@@ -367,6 +395,11 @@ mod tests {
             block,
             captured_env,
         }))
+    }
+    fn lua_table<'a>(hmap: HashMap<TableKey, LuaValue<'a>>) -> Vec<LuaValue<'a>> {
+        vec![LuaValue::new(LuaVal::LuaTable(LuaTable(RefCell::new(
+            hmap,
+        ))))]
     }
 
     #[test]
@@ -514,6 +547,36 @@ mod tests {
     }
 
     #[test]
+    fn test_exec_stat_table_reassign() {
+        let mut env = Env::new();
+
+        let table = LuaValue::extract_first_return_val(lua_table(HashMap::from([(
+            TableKey::String(String::from("x")),
+            LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
+        )])));
+
+        env.insert_global(String::from("my_table"), table);
+
+        let stat = Statement::Assignment((
+            vec![Var::DotVar((
+                Box::new(PrefixExp::Var(Var::NameVar(String::from("my_table")))),
+                String::from("x"),
+            ))],
+            vec![Expression::LiteralString(String::from("new value!"))],
+            false,
+        ));
+
+        assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
+
+        let expected_table = LuaValue::extract_first_return_val(lua_table(HashMap::from([(
+            TableKey::String(String::from("x")),
+            LuaValue::new(LuaVal::LuaString(String::from("new value!"))),
+        )])));
+        let actual_table = &*env.get("my_table").unwrap().0;
+        assert_eq!(actual_table, &*expected_table.0)
+    }
+
+    #[test]
     fn test_exec_stat_visibility() {
         // Test Statement exec method
         let mut env = Env::new();
@@ -587,7 +650,7 @@ mod tests {
         // Returned values are thrown away for statement function call
         assert_eq!(func_call_stat.exec(&mut env), Ok(Some(vec![])));
         // After function call, return global "a" which is updated to float value
-        assert_eq!(env.get("a"), Some(&lua_float(10.04)));
+        assert_eq!(env.get("a"), Some(lua_float(10.04)));
     }
 
     #[test]
@@ -604,7 +667,7 @@ mod tests {
         };
         let if_stat = Statement::If((condition, block, vec![], None));
         assert_eq!(if_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_integer(10)));
+        assert_eq!(env.get("a"), Some(lua_integer(10)));
     }
 
     #[test]
@@ -629,7 +692,7 @@ mod tests {
         };
         let if_stat = Statement::If((condition, block, vec![], Some(else_block)));
         assert_eq!(if_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_integer(20)));
+        assert_eq!(env.get("a"), Some(lua_integer(20)));
     }
 
     #[test]
@@ -665,7 +728,7 @@ mod tests {
         };
         let if_stat = Statement::If((condition, block, else_ifs, Some(else_block)));
         assert_eq!(if_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_integer(20)));
+        assert_eq!(env.get("a"), Some(lua_integer(20)));
     }
 
     #[test]
@@ -683,7 +746,7 @@ mod tests {
         };
         let do_block = Statement::DoBlock(block);
         assert_eq!(do_block.exec(&mut env), Ok(Some(vec![lua_integer(10)])));
-        assert_eq!(env.get("a"), Some(&lua_integer(10)));
+        assert_eq!(env.get("a"), Some(lua_integer(10)));
     }
 
     #[test]
@@ -703,8 +766,8 @@ mod tests {
         };
         let while_stat = Statement::While((condition, block));
         assert_eq!(while_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_integer(10)));
-        assert_eq!(env.get("a"), Some(&lua_integer(10)));
+        assert_eq!(env.get("a"), Some(lua_integer(10)));
+        assert_eq!(env.get("a"), Some(lua_integer(10)));
     }
 
     #[test]
@@ -721,7 +784,7 @@ mod tests {
         };
         let while_stat = Statement::While((condition, block));
         assert_eq!(while_stat.exec(&mut env), Ok(Some(vec![lua_integer(10)])));
-        assert_eq!(env.get("a"), Some(&lua_integer(10)));
+        assert_eq!(env.get("a"), Some(lua_integer(10)));
     }
 
     #[test]
@@ -753,7 +816,7 @@ mod tests {
 
         let while_stat = Statement::While((condition, block));
         assert_eq!(while_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_integer(16)));
+        assert_eq!(env.get("a"), Some(lua_integer(16)));
     }
 
     #[test]
@@ -784,7 +847,7 @@ mod tests {
             },
         ));
         assert_eq!(for_stat.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get("a"), Some(&lua_integer(25)));
+        assert_eq!(env.get("a"), Some(lua_integer(25)));
     }
 
     #[test]
@@ -880,7 +943,7 @@ mod tests {
             },
         ));
         assert_eq!(func_decl.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get_global("f"), Some(&expected_func));
+        assert_eq!(env.get_global("f"), Some(expected_func));
     }
 
     #[test]
@@ -909,7 +972,7 @@ mod tests {
             },
         ));
         assert_eq!(func_decl.exec(&mut env), Ok(Some(vec![])));
-        assert_eq!(env.get_local("f"), Some(&expected_func));
+        assert_eq!(env.get_local("f"), Some(expected_func));
     }
 
     #[test]

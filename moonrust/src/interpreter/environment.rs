@@ -1,6 +1,4 @@
 // TODO
-// 4. Test everything
-// 5. Add testPrint function to wrap around with the writer, and in tests, call print with diff writer (updating print function in the global environment)
 // 6. Clean up code (delete unused lines)
 use crate::interpreter::{LuaVal, LuaValue};
 use std::cell::RefCell;
@@ -15,29 +13,20 @@ impl<'a> EnvTable<'a> {
         EnvTable(Rc::new(RefCell::new(HashMap::new())))
     }
 
-    pub fn get(&self, name: &str) -> Option<&LuaValue<'a>> {
-        // QUESTION: unsafe
+    pub fn get(&self, name: &str) -> Option<LuaValue<'a>> {
         let hm = self.0.borrow();
         let res = hm.get(name);
         match res {
-            Some(res) => {
-                let res = res as *const LuaValue;
-                let res: &'a LuaValue = unsafe { &*res };
-                Some(res)
-            }
+            Some(res) => Some(res.clone()),
             None => None,
         }
     }
 
-    pub fn get_mut(&mut self, name: &str) -> Option<&mut LuaValue<'a>> {
+    pub fn get_mut(&mut self, name: &str) -> Option<LuaValue<'a>> {
         let mut hm = self.0.borrow_mut();
         let res = hm.get_mut(name);
         match res {
-            Some(res) => {
-                let res = res as *mut LuaValue;
-                let res: &'a mut LuaValue = unsafe { &mut *res };
-                Some(res)
-            }
+            Some(res) => Some(res.clone()),
             None => None,
         }
     }
@@ -58,7 +47,7 @@ impl<'a> LocalEnv<'a> {
         env
     }
 
-    pub fn get(&self, name: &str) -> Option<&LuaValue<'a>> {
+    pub fn get(&self, name: &str) -> Option<LuaValue<'a>> {
         // Start from top of the stack
         for table in self.0.iter().rev() {
             if let Some(table) = table {
@@ -106,7 +95,7 @@ impl<'a> LocalEnv<'a> {
     pub fn pop_env(&mut self) {
         loop {
             match self.0.pop() {
-                Some(Some(_)) => {},
+                Some(Some(_)) => {}
                 _ => break,
             };
         }
@@ -168,18 +157,16 @@ impl<'a> Env<'a> {
         self.global = EnvTable(Rc::clone(env));
     }
 
-    pub fn get_local(&self, name: &str) -> Option<&LuaValue<'a>> {
+    pub fn get_local(&self, name: &str) -> Option<LuaValue<'a>> {
         self.local.get(name)
     }
 
-    pub fn get_global(&self, name: &str) -> Option<&LuaValue<'a>> {
+    pub fn get_global(&self, name: &str) -> Option<LuaValue<'a>> {
         self.global.get(name)
     }
 
-    pub fn get(&self, name: &str) -> Option<&LuaValue<'a>> {
-        self.local
-            .get(name)
-            .or_else(|| self.global.get(name))
+    pub fn get(&self, name: &str) -> Option<LuaValue<'a>> {
+        self.local.get(name).or_else(|| self.global.get(name))
     }
 
     pub fn insert_local(&mut self, name: String, var: LuaValue<'a>) {
