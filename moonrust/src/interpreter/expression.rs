@@ -5,6 +5,7 @@ use crate::interpreter::LuaFunction;
 use crate::interpreter::LuaTable;
 use crate::interpreter::LuaVal;
 use crate::interpreter::LuaValue;
+use crate::interpreter::TableKey;
 use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
@@ -38,48 +39,7 @@ impl Expression {
             }
             Expression::PrefixExp(prefixexp) => prefixexp.eval(env)?,
             Expression::TableConstructor(fields) => {
-                let table = LuaTable::new();
-                let mut numeric_index = 1;
-                let field_count = fields.len();
-                for (i, field) in fields.into_iter().enumerate() {
-                    match field {
-                        Field::BracketedAssign((exp1, exp2)) => {
-                            // Fully evaluate key and value
-                            let key = LuaValue::extract_first_return_val(exp1.eval(env)?);
-                            let val = LuaValue::extract_first_return_val(exp2.eval(env)?);
-
-                            // If there are multiple values, it's correct behavior to only use the first value
-                            if !key.is_numeral() && !key.is_string() {
-                                return Err(ASTExecError(format!(
-                                    "Field key '{exp1}' does not evaluate to a string or numeral"
-                                )));
-                            }
-                            table.insert(key, val)?;
-                        }
-                        Field::NameAssign((name, exp)) => {
-                            let val = LuaValue::extract_first_return_val(exp.eval(env)?);
-                            table.insert_ident(name.clone(), val);
-                        }
-                        Field::UnnamedAssign(exp) => {
-                            let vals = exp.eval(env)?;
-
-                            // If this is the last field in the table constructor,
-                            // and there are multiple values in the vector, spead
-                            // them out into their own fields each indexed by an
-                            // incrementing number
-                            if vals.len() > 1 && i == field_count - 1 {
-                                vals.into_iter().for_each(|val| {
-                                    table.insert_int(numeric_index, val);
-                                    numeric_index += 1;
-                                });
-                            } else {
-                                let val = LuaValue::extract_first_return_val(vals);
-                                table.insert_int(numeric_index, val);
-                                numeric_index += 1;
-                            }
-                        }
-                    }
-                }
+                let table = build_table(fields, env)?;
                 vec![LuaValue::new(LuaVal::LuaTable(table))]
             }
             Expression::BinaryOp((left, op, right)) => {
@@ -454,12 +414,33 @@ impl PrefixExp {
                         None => Ok(vec![LuaValue::new(LuaVal::LuaNil)]),
                     },
                     Var::BracketVar((prefixexp, exp)) => {
-                        // TODO: implement after table
                         let prefixexp = LuaValue::extract_first_return_val(prefixexp.eval(env)?);
                         match prefixexp.0.as_ref() {
                             LuaVal::LuaTable(table) => {
-                                let key = exp.eval(env)?;
-                                unimplemented!()
+                                let key = LuaValue::extract_first_return_val(exp.eval(env)?);
+                                let key = match key.0.as_ref() {
+                                    LuaVal::LuaNum(num_bytes, is_float) => {
+                                        let num_bytes = if *is_float {
+                                            let num = f64::from_be_bytes(*num_bytes);
+                                            // Check if float has no significant decimal places
+                                            if num % 1.0 == 0.0 {
+                                                (num as i64).to_be_bytes()
+                                            } else {
+                                                *num_bytes
+                                            }
+                                        } else {
+                                            *num_bytes
+                                        };
+
+                                        TableKey::Number(num_bytes)
+                                    },
+                                    LuaVal::LuaString(name) => TableKey::String(name.clone()),
+                                    _ => return Err(ASTExecError(format!("Field key '{key}' does not evaluate to a string or numeral")))
+                                };
+                                match table.get(key) {
+                                    Some(val) => Ok(vec![val]),
+                                    None => Ok(vec![LuaValue::new(LuaVal::LuaNil)]),
+                                }
                             }
                             _ => {
                                 return Err(ASTExecError(format!(
@@ -469,7 +450,18 @@ impl PrefixExp {
                         }
                     }
                     Var::DotVar((prefixexp, field)) => {
-                        // TODO: implement after table
+                        // TODO: Do this
+                        // let prefixexp = LuaValue::extract_first_return_val(prefixexp.eval(env)?);
+                        // match prefixexp.0.as_ref() {
+                        //     LuaVal::LuaTable(table) => {
+                        //         table.insert_ident(field.clone(), val.clone());
+                        //     }
+                        //     _ => {
+                        //         return Err(ASTExecError(format!(
+                        //             "attempt to index a non-table value '{prefixexp}'"
+                        //         )))
+                        //     }
+                        // }
                         unimplemented!()
                     }
                 }
@@ -674,14 +666,64 @@ impl Args {
                 }
                 Ok(args)
             }
-            Args::TableConstructor(table) => {
-                let table = Expression::TableConstructor(table.clone());
-                // Ok(table.eval(env)?)
-                unimplemented!()
+            Args::TableConstructor(fields) => {
+                let table = build_table(fields, env)?;
+
+                Ok(vec![LuaValue::new(LuaVal::LuaTable(table))])
             }
             Args::LiteralString(s) => Ok(vec![LuaValue::new(LuaVal::LuaString(s.clone()))]),
         }
     }
+}
+
+fn build_table<'a>(
+    fields: &'a Vec<Field>,
+    env: &mut Env<'a>,
+) -> Result<LuaTable<'a>, ASTExecError> {
+    let table = LuaTable::new();
+    let mut numeric_index = 1;
+    let field_count = fields.len();
+    for (i, field) in fields.into_iter().enumerate() {
+        match field {
+            Field::BracketedAssign((exp1, exp2)) => {
+                // Fully evaluate key and value
+                let key = LuaValue::extract_first_return_val(exp1.eval(env)?);
+                let val = LuaValue::extract_first_return_val(exp2.eval(env)?);
+
+                // If there are multiple values, it's correct behavior to only use the first value
+                if !key.is_numeral() && !key.is_string() {
+                    return Err(ASTExecError(format!(
+                        "Field key '{exp1}' does not evaluate to a string or numeral"
+                    )));
+                }
+                table.insert(key, val)?;
+            }
+            Field::NameAssign((name, exp)) => {
+                let val = LuaValue::extract_first_return_val(exp.eval(env)?);
+                table.insert_ident(name.clone(), val);
+            }
+            Field::UnnamedAssign(exp) => {
+                let vals = exp.eval(env)?;
+
+                // If this is the last field in the table constructor,
+                // and there are multiple values in the vector, spead
+                // them out into their own fields each indexed by an
+                // incrementing number
+                if vals.len() > 1 && i == field_count - 1 {
+                    vals.into_iter().for_each(|val| {
+                        table.insert_int(numeric_index, val);
+                        numeric_index += 1;
+                    });
+                } else {
+                    let val = LuaValue::extract_first_return_val(vals);
+                    table.insert_int(numeric_index, val);
+                    numeric_index += 1;
+                }
+            }
+        }
+    }
+
+    Ok(table)
 }
 
 #[cfg(test)]
@@ -1070,6 +1112,23 @@ mod tests {
 
         let actual = exp.eval(&mut env);
         assert_eq!(expected, actual)
+    }
+
+    #[test]
+    fn test_eval_table_bad_key() {
+        let mut env = Env::new();
+
+        let exp = Expression::TableConstructor(vec![Field::BracketedAssign((
+            Expression::True,
+            Expression::Numeral(Numeral::Integer(23)),
+        ))]);
+
+        assert_eq!(
+            exp.eval(&mut env),
+            Err(ASTExecError(String::from(
+                "Field key 'true' does not evaluate to a string or numeral"
+            )))
+        )
     }
 
     #[test]
@@ -1594,7 +1653,63 @@ mod tests {
             Expression::BinaryOp((Box::new(var_exp("f")), BinOp::Equal, Box::new(var_exp("f"))));
         assert_eq!(exp.eval(&mut env), Ok(lua_true()));
 
-        // TODO: add test for table after implementing table
+        // Test table equality when two variables reference the same table (should be true)
+        let table = LuaValue::extract_first_return_val(lua_table(HashMap::from([
+            (
+                TableKey::String(String::from("age")),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(23), false)),
+            ),
+            (
+                TableKey::Number(i64::to_be_bytes(1)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(5), false)),
+            ),
+            (
+                TableKey::Number(f64::to_be_bytes(3.14)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
+            ),
+        ])));
+        env.insert_global(String::from("my_table"), table.clone());
+        env.insert_global(String::from("your_table"), table);
+
+        let exp = Expression::BinaryOp((
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
+                Var::NameVar(String::from("my_table")),
+            )))),
+            BinOp::Equal,
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
+                Var::NameVar(String::from("your_table")),
+            )))),
+        ));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
+
+        // Test table equality when two variables hold two separate tables that have the same
+        // contents (should be false)
+        let other_table = LuaValue::extract_first_return_val(lua_table(HashMap::from([
+            (
+                TableKey::String(String::from("age")),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(23), false)),
+            ),
+            (
+                TableKey::Number(i64::to_be_bytes(1)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(5), false)),
+            ),
+            (
+                TableKey::Number(f64::to_be_bytes(3.14)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
+            ),
+        ])));
+        env.insert_global(String::from("other_table"), other_table);
+
+        let exp = Expression::BinaryOp((
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
+                Var::NameVar(String::from("my_table")),
+            )))),
+            BinOp::Equal,
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
+                Var::NameVar(String::from("other_table")),
+            )))),
+        ));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
 
         let left = Expression::LiteralString("Different types".to_string());
         let right = Expression::Numeral(Numeral::Float(2.1));
@@ -1666,7 +1781,63 @@ mod tests {
         ));
         assert_eq!(exp.eval(&mut env), Ok(lua_false()));
 
-        // TODO: add test for table after implementing table
+        // Test table inequality when two variables reference the same table (should be false)
+        let table = LuaValue::extract_first_return_val(lua_table(HashMap::from([
+            (
+                TableKey::String(String::from("age")),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(23), false)),
+            ),
+            (
+                TableKey::Number(i64::to_be_bytes(1)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(5), false)),
+            ),
+            (
+                TableKey::Number(f64::to_be_bytes(3.14)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
+            ),
+        ])));
+        env.insert_global(String::from("my_table"), table.clone());
+        env.insert_global(String::from("your_table"), table);
+
+        let exp = Expression::BinaryOp((
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
+                Var::NameVar(String::from("my_table")),
+            )))),
+            BinOp::NotEqual,
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
+                Var::NameVar(String::from("your_table")),
+            )))),
+        ));
+        assert_eq!(exp.eval(&mut env), Ok(lua_false()));
+
+        // Test table equality when two variables hold two separate tables that have the same
+        // contents (should be false)
+        let other_table = LuaValue::extract_first_return_val(lua_table(HashMap::from([
+            (
+                TableKey::String(String::from("age")),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(23), false)),
+            ),
+            (
+                TableKey::Number(i64::to_be_bytes(1)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(5), false)),
+            ),
+            (
+                TableKey::Number(f64::to_be_bytes(3.14)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
+            ),
+        ])));
+        env.insert_global(String::from("other_table"), other_table);
+
+        let exp = Expression::BinaryOp((
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
+                Var::NameVar(String::from("my_table")),
+            )))),
+            BinOp::NotEqual,
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
+                Var::NameVar(String::from("other_table")),
+            )))),
+        ));
+        assert_eq!(exp.eval(&mut env), Ok(lua_true()));
 
         let left = Expression::LiteralString("Different types".to_string());
         let right = Expression::Numeral(Numeral::Float(2.1));

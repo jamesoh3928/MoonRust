@@ -53,7 +53,6 @@ impl Statement {
                             }
                         }
                         Var::DotVar((prefixexp, field)) => {
-                            // TODO: Factor this out into its own function
                             let prefixexp =
                                 LuaValue::extract_first_return_val(prefixexp.eval(env)?);
                             match prefixexp.0.as_ref() {
