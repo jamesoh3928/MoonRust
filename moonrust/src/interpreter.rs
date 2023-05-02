@@ -352,7 +352,7 @@ impl<'a> LuaTable<'a> {
             idx = idx+ 1;
         }
         
-        (idx as usize)
+        idx as usize
     }
 }
 

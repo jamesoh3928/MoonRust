@@ -293,5 +293,12 @@ mod tests {
         test_interpreter(src, expected_output);
     }
 
+    #[test]
+    fn test_print_rows() {
+        let expected_output = "*\n**\n***\n****\n*****";
+        let src = "assets/print_rows.lua";
+        test_interpreter(src, expected_output);
+    }
+
     // TODO: add more test cases
 }

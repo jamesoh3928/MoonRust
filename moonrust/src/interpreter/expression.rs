@@ -560,7 +560,6 @@ impl FunctionCall {
                     },
                     LuaVal::TestPrint(buffer) => {
                         let args = args.eval(env)?;
-                        let mut i = 0;
                         FunctionCall::test_print_fn(args, buffer)
                     },
                     LuaVal::Read => {
