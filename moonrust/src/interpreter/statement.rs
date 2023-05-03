@@ -546,6 +546,33 @@ mod tests {
     }
 
     #[test]
+    fn test_exec_stat_table_assign() {
+        let mut env = Env::new();
+
+        let table = LuaValue::extract_first_return_val(lua_table(HashMap::new()));
+
+        env.insert_global(String::from("my_table"), table);
+
+        let stat = Statement::Assignment((
+            vec![Var::DotVar((
+                Box::new(PrefixExp::Var(Var::NameVar(String::from("my_table")))),
+                String::from("x"),
+            ))],
+            vec![Expression::LiteralString(String::from("just added!"))],
+            false,
+        ));
+
+        assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
+
+        let expected_table = LuaValue::extract_first_return_val(lua_table(HashMap::from([(
+            TableKey::String(String::from("x")),
+            LuaValue::new(LuaVal::LuaString(String::from("just added!"))),
+        )])));
+        let actual_table = &*env.get("my_table").unwrap().0;
+        assert_eq!(actual_table, &*expected_table.0)
+    }
+
+    #[test]
     fn test_exec_stat_table_reassign() {
         let mut env = Env::new();
 

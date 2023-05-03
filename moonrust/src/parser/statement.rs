@@ -72,7 +72,7 @@ fn parse_do_block(input: &str) -> ParseResult<Statement> {
     // DoBlock(Block)
     map(
         delimited(ws(tag("do")), parse_block, ws(tag("end"))),
-        |block| Statement::DoBlock(block),
+        Statement::DoBlock,
     )(input)
 }
 
@@ -202,10 +202,7 @@ fn parse_stmt_prefixexp(input: &str) -> ParseResult<Statement> {
                     separated_list1(
                         ws(char(',')),
                         map(
-                            verify(parse_prefixexp, |pexp| match pexp {
-                                PrefixExp::Var(_) => true,
-                                _ => false,
-                            }),
+                            verify(parse_prefixexp, |pexp| matches!(pexp, PrefixExp::Var(_))),
                             |result| match result {
                                 PrefixExp::Var(var) => var,
                                 _ => unreachable!(),
@@ -217,10 +214,7 @@ fn parse_stmt_prefixexp(input: &str) -> ParseResult<Statement> {
                         separated_list1(ws(char(',')), expression::parse_exp),
                     )),
                 ),
-                |result| {
-                    let success = !(result.1.is_none() && !is_local);
-                    success
-                },
+                |result| result.1.is_some() || is_local,
             ),
             |result| match result.1 {
                 Some(exps) => Statement::Assignment((result.0, exps, is_local)),

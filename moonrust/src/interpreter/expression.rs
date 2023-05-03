@@ -212,12 +212,9 @@ impl Expression {
                     Ok(LuaValue::new(LuaVal::LuaBool(b1 == b2)))
                 }
                 // If table, check if they are equal based on reference
-                (LuaVal::LuaTable(_), LuaVal::LuaTable(_)) => {
-                    // TODO: check after table is implemented
-                    Ok(LuaValue::new(LuaVal::LuaBool(Rc::ptr_eq(
-                        &left.0, &right.0,
-                    ))))
-                }
+                (LuaVal::LuaTable(_), LuaVal::LuaTable(_)) => Ok(LuaValue::new(LuaVal::LuaBool(
+                    Rc::ptr_eq(&left.0, &right.0),
+                ))),
                 // If function, check if they are equal based on reference
                 (LuaVal::Function(_), LuaVal::Function(_)) => Ok(LuaValue::new(LuaVal::LuaBool(
                     Rc::ptr_eq(&left.0, &right.0),
@@ -450,19 +447,21 @@ impl PrefixExp {
                         }
                     }
                     Var::DotVar((prefixexp, field)) => {
-                        // TODO: Do this
-                        // let prefixexp = LuaValue::extract_first_return_val(prefixexp.eval(env)?);
-                        // match prefixexp.0.as_ref() {
-                        //     LuaVal::LuaTable(table) => {
-                        //         table.insert_ident(field.clone(), val.clone());
-                        //     }
-                        //     _ => {
-                        //         return Err(ASTExecError(format!(
-                        //             "attempt to index a non-table value '{prefixexp}'"
-                        //         )))
-                        //     }
-                        // }
-                        unimplemented!()
+                        let prefixexp = LuaValue::extract_first_return_val(prefixexp.eval(env)?);
+                        match prefixexp.0.as_ref() {
+                            LuaVal::LuaTable(table) => {
+                                let key = TableKey::String(field.clone());
+                                match table.get(key) {
+                                    Some(val) => Ok(vec![val]),
+                                    None => Ok(vec![LuaValue::new(LuaVal::LuaNil)]),
+                                }
+                            }
+                            _ => {
+                                return Err(ASTExecError(format!(
+                                    "attempt to index a non-table value '{prefixexp}'"
+                                )))
+                            }
+                        }
                     }
                 }
             }
@@ -1128,6 +1127,82 @@ mod tests {
             Err(ASTExecError(String::from(
                 "Field key 'true' does not evaluate to a string or numeral"
             )))
+        )
+    }
+
+    #[test]
+    fn test_table_field_lookup() {
+        let mut env = Env::new();
+
+        let table = LuaValue::extract_first_return_val(lua_table(HashMap::from([
+            (
+                TableKey::Number(i64::to_be_bytes(86)),
+                LuaValue::new(LuaVal::LuaString(String::from("The first thing!"))),
+            ),
+            (
+                TableKey::String(String::from("launch_codes")),
+                LuaValue::new(LuaVal::LuaNum(f64::to_be_bytes(34.12456), false)),
+            ),
+        ])));
+
+        env.insert_global(String::from("my_table"), table);
+
+        let prefixexp = PrefixExp::Var(Var::BracketVar((
+            Box::new(PrefixExp::Var(Var::NameVar(String::from("my_table")))),
+            Expression::Numeral(Numeral::Integer(86)),
+        )));
+        assert_eq!(
+            prefixexp.eval(&mut env),
+            Ok(vec![LuaValue::new(LuaVal::LuaString(String::from(
+                "The first thing!"
+            )))])
+        );
+
+        let prefixexp = PrefixExp::Var(Var::BracketVar((
+            Box::new(PrefixExp::Var(Var::NameVar(String::from("my_table")))),
+            Expression::LiteralString(String::from("launch_codes")),
+        )));
+        assert_eq!(
+            prefixexp.eval(&mut env),
+            Ok(vec![LuaValue::new(LuaVal::LuaNum(
+                f64::to_be_bytes(34.12456),
+                false
+            ))])
+        );
+    }
+
+    #[test]
+    fn test_eval_func_call_with_table() {
+        let mut env = Env::new();
+        let par_list = ParList(vec![String::from("that_table")], false);
+        let block = Block {
+            statements: vec![],
+            return_stat: Some(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(
+                Var::BracketVar((
+                    Box::new(PrefixExp::Var(Var::NameVar(String::from("that_table")))),
+                    Expression::LiteralString(String::from("a")),
+                )),
+            )))]),
+        };
+
+        let f = LuaValue::extract_first_return_val(lua_function(&par_list, &block, &env));
+        env.insert_global(String::from("f"), f);
+
+        let exp =
+            Expression::PrefixExp(Box::new(PrefixExp::FunctionCall(FunctionCall::Standard((
+                Box::new(PrefixExp::Var(Var::NameVar(String::from("f")))),
+                Args::TableConstructor(vec![Field::NameAssign((
+                    String::from("a"),
+                    Expression::Numeral(Numeral::Integer(86)),
+                ))]),
+            )))));
+
+        assert_eq!(
+            exp.eval(&mut env),
+            Ok(vec![LuaValue::new(LuaVal::LuaNum(
+                i64::to_be_bytes(86),
+                false
+            ))])
         )
     }
 

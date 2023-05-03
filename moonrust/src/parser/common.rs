@@ -87,13 +87,13 @@ fn parse_field(input: &str) -> ParseResult<Field> {
                 ws(char('=')),
                 parse_exp,
             ),
-            |result| Field::BracketedAssign(result),
+            Field::BracketedAssign,
         ),
         map(
             separated_pair(identifier, ws(char('=')), parse_exp),
             |result| Field::NameAssign((String::from(result.0), result.1)),
         ),
-        map(parse_exp, |result| Field::UnnamedAssign(result)),
+        map(parse_exp, Field::UnnamedAssign),
     ))(input)
 }
 
@@ -117,7 +117,7 @@ fn parse_tail(input: &str) -> ParseResult<Tail> {
     alt((
         map(
             delimited(ws(char('[')), parse_exp, ws(char(']'))),
-            |result| Tail::Bracket(result),
+            Tail::Bracket,
         ),
         map(preceded(char('.'), identifier), |result| {
             Tail::Dot(String::from(result))
@@ -214,12 +214,12 @@ pub fn parse_args(input: &str) -> ParseResult<Args> {
                 separated_list0(ws(char(',')), parse_exp),
                 ws(char(')')),
             ),
-            |result| Args::ExpList(result),
+            Args::ExpList,
         ),
         map(parse_table_constructor, |result| {
             Args::TableConstructor(result)
         }),
-        map(parse_string, |result| Args::LiteralString(result)),
+        map(parse_string, Args::LiteralString),
     ))(input)
 }
 
@@ -247,5 +247,5 @@ pub fn parse_dot_dot_dot(input: &str) -> ParseResult<Expression> {
 
 pub fn parse_literal_string(input: &str) -> ParseResult<Expression> {
     // TODO(?): I'm ignoring string literals that aren't in double quotes for now
-    map(ws(parse_string), |s| Expression::LiteralString(s))(input)
+    map(ws(parse_string), Expression::LiteralString)(input)
 }
