@@ -27,14 +27,12 @@ impl Statement {
                             if *is_local {
                                 // With local keyword, always insert new local variable or overwrite existing
                                 env.insert_local(name.clone(), val.clone());
+                            } else if env.get_local(name).is_some() {
+                                // Update local variable
+                                env.update_local(name.clone(), val.clone());
                             } else {
-                                if env.get_local(name).is_some() {
-                                    // Update local variable
-                                    env.update_local(name.clone(), val.clone());
-                                } else {
-                                    // Update or insert global variable
-                                    env.insert_global(name.clone(), val.clone());
-                                }
+                                // Update or insert global variable
+                                env.insert_global(name.clone(), val.clone());
                             }
                         }
                         Var::BracketVar((prefixexp, exp)) => {
@@ -106,21 +104,21 @@ impl Statement {
                 // Terminates the execution of a while, repeat, or for loop
                 return Ok(None);
             }
-            Statement::DoBlock(block) => match block.exec(env) {
-                Ok(val) => match val {
-                    Some(val) => {
-                        return Ok(Some(val));
+            Statement::DoBlock(block) => {
+                match block.exec(env) {
+                    Ok(val) => match val {
+                        Some(val) => {
+                            return Ok(Some(val));
+                        }
+                        None => return Err(ASTExecError(String::from(
+                            "Break statement can only be used inside a while, repeat, or for loop",
+                        ))),
+                    },
+                    Err(err) => {
+                        return Err(err);
                     }
-                    None => {
-                        return Err(ASTExecError(format!(
-                            "Break statement can only be used inside a while, repeat, or for loop"
-                        )))
-                    }
-                },
-                Err(err) => {
-                    return Err(err);
                 }
-            },
+            }
             Statement::While((exp, block)) => {
                 // Execute block until exp returns false
                 // Local variables are lost in each iteration
@@ -184,15 +182,15 @@ impl Statement {
                     LuaValue(rc) => match rc.as_ref() {
                         LuaVal::LuaNum(bytes, is_float) => {
                             if *is_float {
-                                return Err(ASTExecError(format!(
-                                    "Initial value in for loop must be an integer"
+                                return Err(ASTExecError(String::from(
+                                    "Initial value in for loop must be an integer",
                                 )));
                             }
                             i64::from_be_bytes(*bytes)
                         }
                         _ => {
-                            return Err(ASTExecError(format!(
-                                "Initial value in for loop must be an integer"
+                            return Err(ASTExecError(String::from(
+                                "Initial value in for loop must be an integer",
                             )));
                         }
                     },
@@ -203,25 +201,27 @@ impl Statement {
                         LuaValue(rc) => match rc.as_ref() {
                             LuaVal::LuaNum(bytes, is_float) => {
                                 if *is_float {
-                                    return Err(ASTExecError(format!(
-                                        "Step value in for loop must be an integer"
+                                    return Err(ASTExecError(String::from(
+                                        "Step value in for loop must be an integer",
                                     )));
                                 }
                                 i64::from_be_bytes(*bytes)
                             }
                             _ => {
-                                return Err(ASTExecError(format!(
-                                    "Step value in for loop must be an integer"
+                                return Err(ASTExecError(String::from(
+                                    "Step value in for loop must be an integer",
                                 )));
                             }
-                        }
+                        },
                     },
                     None => 1,
                 };
 
                 // Step 0 is not allowed
                 if step == 0 {
-                    return Err(ASTExecError(format!("Step value in for loop cannot be 0")));
+                    return Err(ASTExecError(String::from(
+                        "Step value in for loop cannot be 0",
+                    )));
                 }
 
                 // continues while the value is less than or equal to the limit
@@ -259,12 +259,12 @@ impl Statement {
                     i += step;
                 }
             }
-            Statement::ForGeneric((names, exp_list, block)) => {
+            Statement::ForGeneric((_names, exp_list, _block)) => {
                 // Generic for statement must be used with iterator
                 // TODO: finish implementing this if there is extra time
                 if exp_list.len() != 1 {
-                    return Err(ASTExecError(format!(
-                        "Generic for loop must use iterator function"
+                    return Err(ASTExecError(String::from(
+                        "Generic for loop must use iterator function",
                     )));
                 }
 

@@ -67,7 +67,7 @@ impl Expression {
 
     pub fn eval_unary_exp<'a>(
         op: &UnOp,
-        exp: &'a Box<Expression>,
+        exp: &'a Expression,
         env: &mut Env<'a>,
     ) -> Result<LuaValue<'a>, ASTExecError> {
         match op {
@@ -85,11 +85,9 @@ impl Expression {
                             Ok(LuaValue::new(LuaVal::LuaNum((-f).to_be_bytes(), true)))
                         }
                     }
-                    _ => {
-                        return Err(ASTExecError(String::from(
-                            "Cannot negate values that are not numbers",
-                        )));
-                    }
+                    _ => Err(ASTExecError(String::from(
+                        "Cannot negate values that are not numbers",
+                    ))),
                 }
             }
             UnOp::LogicalNot => {
@@ -117,11 +115,9 @@ impl Expression {
                         let border = table.calculate_border();
                         Ok(LuaValue::new(LuaVal::LuaNum(border.to_be_bytes(), false)))
                     }
-                    _ => {
-                        return Err(ASTExecError(format!(
-                            "Cannot get length of value that is not a string or table"
-                        )));
-                    }
+                    _ => Err(ASTExecError(String::from(
+                        "Cannot get length of value that is not a string or table",
+                    ))),
                 }
             }
             UnOp::BitNot => {
@@ -135,8 +131,8 @@ impl Expression {
 
     pub fn eval_binary_exp<'a>(
         op: &BinOp,
-        left: &'a Box<Expression>,
-        right: &'a Box<Expression>,
+        left: &'a Expression,
+        right: &'a Expression,
         env: &mut Env<'a>,
     ) -> Result<LuaValue<'a>, ASTExecError> {
         fn execute_arithmetic<'a, F1, F2>(
@@ -177,8 +173,8 @@ impl Expression {
                 }
                 // TODO: string coercion to numbers (maybe skip for now)
                 _ => {
-                    return Err(ASTExecError(format!(
-                        "Cannot execute opration on values that are not numbers"
+                    return Err(ASTExecError(String::from(
+                        "Cannot execute opration on values that are not numbers",
                     )));
                 }
             };
@@ -406,7 +402,7 @@ impl PrefixExp {
         match self {
             PrefixExp::Var(var) => {
                 match var {
-                    Var::NameVar(name) => match env.get(&name) {
+                    Var::NameVar(name) => match env.get(name) {
                         Some(val) => Ok(vec![val.clone()]),
                         None => Ok(vec![LuaValue::new(LuaVal::LuaNil)]),
                     },
@@ -547,7 +543,7 @@ impl FunctionCall {
                         func_env.pop_local_env();
                         match result {
                             Some(vals) => Ok(vals),
-                            None => Err(ASTExecError(format!(
+                            None => Err(ASTExecError(String::from(
                                 "Break statement can be only used in while, repeat, or for loop"
                             ))),
                         }
@@ -600,8 +596,7 @@ impl FunctionCall {
     where
         W: std::io::Write,
     {
-        let mut i = 0;
-        for arg in args.iter() {
+        for (i, arg) in args.iter().enumerate() {
             match if i == args.len() - 1 {
                 writeln!(stdout, "{}", arg)
             } else {
@@ -615,7 +610,6 @@ impl FunctionCall {
                     )))
                 }
             }
-            i += 1;
         }
         Ok(vec![])
     }
@@ -651,8 +645,7 @@ impl Args {
         match self {
             Args::ExpList(exps_list) => {
                 let mut args = Vec::with_capacity(exps_list.len());
-                let mut i = 0;
-                for exp in exps_list.iter() {
+                for (i, exp) in exps_list.iter().enumerate() {
                     // For each argument, only the first return value is used,
                     // but last argument can use multiple return values
                     if i == exps_list.len() - 1 {
@@ -660,7 +653,6 @@ impl Args {
                     } else {
                         args.push(LuaValue::extract_first_return_val(exp.eval(env)?));
                     }
-                    i += 1;
                 }
                 Ok(args)
             }
@@ -681,7 +673,7 @@ fn build_table<'a>(
     let table = LuaTable::new();
     let mut numeric_index = 1;
     let field_count = fields.len();
-    for (i, field) in fields.into_iter().enumerate() {
+    for (i, field) in fields.iter().enumerate() {
         match field {
             Field::BracketedAssign((exp1, exp2)) => {
                 // Fully evaluate key and value
