@@ -50,7 +50,10 @@ mod tests {
 
         let ast = parse_file(src).unwrap();
         // Assert error
-        assert_eq!(run_ast(ast, Rc::clone(&buffer)), Err(ASTExecError::new(error_message)));
+        assert_eq!(
+            run_ast(ast, Rc::clone(&buffer)),
+            Err(ASTExecError::new(error_message))
+        );
     }
 
     #[test]
@@ -203,7 +206,8 @@ mod tests {
 
     #[test]
     fn test_nested_for_lua() {
-        let expected_output = "1 1\n1 2\n1 3\n1 4\n1 5\n1 6\n2 1\n2 2\n2 3\n2 4\n3 1\n3 2\nLoop ended";
+        let expected_output =
+            "1 1\n1 2\n1 3\n1 4\n1 5\n1 6\n2 1\n2 2\n2 3\n2 4\n3 1\n3 2\nLoop ended";
         let src = "assets/nested_for.lua";
         test_interpreter(src, expected_output);
     }
@@ -223,53 +227,51 @@ mod tests {
         let src = "assets/prob1.lua";
         test_interpreter(src, expected_output);
     }
-    
+
     #[test]
     fn test_prob2_lua() {
         let expected_output = "3\n2";
         let src = "assets/prob2.lua";
         test_interpreter(src, expected_output);
     }
-    
+
     #[test]
     fn test_prob3_lua() {
         let expected_output = "1\nnil";
         let src = "assets/prob3.lua";
         test_interpreter(src, expected_output);
     }
-    
-    // prob4.lua
-    // TODO: do after table is implemented
-    // #[test]
-    // fn test_prob4_lua() {
-    //     let expected_output = "1 1\n1 2\n1 3\n1 4\n1 5\n1 6\n2 1\n2 2\n2 3\n2 4\n3 1\n3 2\nLoop ended";
-    //     let src = "assets/prob4.lua";
-    //     test_interpreter(src, expected_output);
-    // }
-    
+
+    #[test]
+    fn test_prob4_lua() {
+        let expected_output = "5\n5";
+        let src = "assets/prob4.lua";
+        test_interpreter(src, expected_output);
+    }
+
     #[test]
     fn test_repeat_break_lua() {
         let expected_output = "1\n2\n3\n4\nLoop ended";
         let src = "assets/repeat_break.lua";
         test_interpreter(src, expected_output);
     }
-    
+
     #[test]
     fn test_repeat_return_lua() {
         let expected_output = "3";
         let src = "assets/repeat_return.lua";
         test_interpreter(src, expected_output);
     }
-    
+
     // table1.lua
     // TODO: modify after table is implemented
-    // #[test]
-    // fn test_table1_lua() {
-    //     let expected_output = "";
-    //     let src = "assets/table1.lua";
-    //     test_interpreter(src, expected_output);
-    // }
-    
+    #[test]
+    fn test_table1_lua() {
+        let expected_output = "x y 23 45\nx y 23 45\nz y 23 45\nz y 23 45";
+        let src = "assets/table1.lua";
+        test_interpreter(src, expected_output);
+    }
+
     // table2.lua
     // TODO: modify after table is implemented
     // #[test]
@@ -278,18 +280,25 @@ mod tests {
     //     let src = "assets/table2.lua";
     //     test_interpreter(src, expected_output);
     // }
-    
+
     #[test]
     fn test_while_break_lua() {
         let expected_output = "1\n2\n2\n3\n3\n4\n4\n5\nLoop ended";
         let src = "assets/while_break.lua";
         test_interpreter(src, expected_output);
     }
-    
+
     #[test]
     fn test_while_return_lua() {
         let expected_output = "3";
         let src = "assets/while_return.lua";
+        test_interpreter(src, expected_output);
+    }
+
+    #[test]
+    fn test_print_rows() {
+        let expected_output = "*\n**\n***\n****\n*****";
+        let src = "assets/print_rows.lua";
         test_interpreter(src, expected_output);
     }
 

@@ -214,11 +214,6 @@ impl Statement {
                                     "Step value in for loop must be an integer"
                                 )));
                             }
-                        },
-                        _ => {
-                            return Err(ASTExecError(format!(
-                                "Step value in for loop must be an integer"
-                            )));
                         }
                     },
                     None => 1,
