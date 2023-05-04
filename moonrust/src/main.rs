@@ -9,6 +9,9 @@ struct Args {
     /// Path of the file to run
     #[clap(value_name = "FILE.lua")]
     file: String,
+    /// AST print flag
+    #[arg(short, long)]
+    ast: bool,
 }
 
 fn main() {
@@ -33,7 +36,9 @@ fn main() {
     };
 
     // TODO: add flag for printing AST
-    println!("AST: {:#?}", ast);
+    if args.ast {
+        println!("AST: {:#?}", ast);
+    }
 
     // Execute the program
     // Initialize environment
