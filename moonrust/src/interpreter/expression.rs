@@ -7,7 +7,7 @@ use crate::interpreter::LuaVal;
 use crate::interpreter::LuaValue;
 use crate::interpreter::TableKey;
 use std::cell::RefCell;
-use std::io;
+use std::io::{self, BufRead};
 use std::rc::Rc;
 
 enum IntFloatBool {
@@ -558,9 +558,12 @@ impl FunctionCall {
                         FunctionCall::test_print_fn(args, buffer)
                     },
                     LuaVal::Read => {
-                        // TODO: use io::stdin().read_line(&mut input)
-                        unimplemented!()
-                    }
+                        let mut args = args.eval(env)?;
+                        if args.is_empty() {
+                            args.push(LuaValue::new(LuaVal::LuaString(String::from("*line"))));
+                        }
+                        FunctionCall::read_fn(args, io::stdin().lock())
+                    },
                     _ => {
                         return Err(ASTExecError(format!(
                             "Cannot call non-function value with arguments. Environment: {:?}, RC: {:?}",
@@ -612,6 +615,72 @@ impl FunctionCall {
             }
         }
         Ok(vec![])
+    }
+
+    fn read_fn<'a, R>(args: Vec<LuaValue>, mut reader: R) -> Result<Vec<LuaValue<'a>>, ASTExecError>
+    where
+        R: BufRead,
+    {
+        // This function does not completely follow io.read from Lua
+        // Lua also have option of "*all" (for reading the whole file) and "num" (for reading num),
+        // but skipping them for now
+        let mut result = Vec::with_capacity(args.len());
+        for arg in args {
+            match arg.0.as_ref() {
+                LuaVal::LuaString(s) => {
+                    if s == "*line" {
+                        // "*line" reads the next line (default)
+                        let mut input = String::new();
+                        match reader.read_line(&mut input) {
+                            Ok(_) => result.push(LuaValue::new(LuaVal::LuaString(input.trim().to_string()))),
+                            Err(_) => {
+                                return Err(ASTExecError(String::from(
+                                    "Cannot read line from stdin",
+                                )))
+                            }
+                        }
+                    } else if s == "*number" {
+                        // "*number" reads a number
+                        let mut input = String::new();
+                        match reader.read_line(&mut input) {
+                            Ok(_) => {
+                                let number: f64 = input.trim().parse().expect("Invalid number");
+                                let is_float = number % 1.0 != 0.0;
+                                if !is_float {
+                                    let number = number as i64;
+                                    result.push(LuaValue::new(LuaVal::LuaNum(
+                                        number.to_be_bytes(),
+                                        false,
+                                    )));
+                                } else {
+                                    result.push(LuaValue::new(LuaVal::LuaNum(
+                                        number.to_be_bytes(),
+                                        true,
+                                    )));
+                                }
+                            }
+                            Err(_) => {
+                                return Err(ASTExecError(String::from(
+                                    "Cannot read line from stdin",
+                                )))
+                            }
+                        }
+                    } else {
+                        return Err(ASTExecError(format!(
+                            "Cannot read from stdin with argument '{}'",
+                            s
+                        )));
+                    }
+                }
+                _ => {
+                    return Err(ASTExecError(format!(
+                        "Cannot read with argument of {:?}",
+                        arg.0.as_ref()
+                    )))
+                }
+            }
+        }
+        Ok(result)
     }
 
     // pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
@@ -962,6 +1031,34 @@ mod tests {
         assert_eq!(
             String::from_utf8(output).unwrap(),
             format!("10 10.1 false Hello World! nil {:p}\n", func_reference)
+        );
+    }
+
+    #[test]
+    fn test_eval_read() {
+        let mut env = Env::new();
+
+        let input = b"I'm James\n100";
+        let args = Args::ExpList(vec![
+            Expression::LiteralString("*line".to_string()),
+            Expression::LiteralString("*number".to_string()),
+        ]);
+        let read_input = FunctionCall::read_fn(args.eval(&mut env).unwrap(), &input[..]);
+
+        assert_eq!(
+            read_input,
+            Ok(vec![
+                LuaValue::new(LuaVal::LuaString("I'm James".to_string())),
+                LuaValue::new(LuaVal::LuaNum(100i64.to_be_bytes(), false)),
+            ])
+        );
+
+        let args = Args::ExpList(vec![Expression::Numeral(Numeral::Float(100.01))]);
+        assert_eq!(
+            FunctionCall::read_fn(args.eval(&mut env).unwrap(), &input[..]),
+            Err(ASTExecError(String::from(
+                "Cannot read with argument of LuaNum([64, 89, 0, 163, 215, 10, 61, 113], true)"
+            )))
         );
     }
 

@@ -1,6 +1,6 @@
 // TODO
-// 6. Clean up code (delete unused lines)
-// 7. Read function
+// 6. Clean up code (delete unused lines, clippy code)
+// 7. Final docs with demo prep (measure time)
 use crate::interpreter::{LuaVal, LuaValue};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -132,6 +132,7 @@ impl<'a> Env<'a> {
         };
         // Insert built-in functions
         env.insert_global("print".to_string(), LuaValue::new(LuaVal::Print));
+        env.insert_global("read".to_string(), LuaValue::new(LuaVal::Read));
         env
     }
 
