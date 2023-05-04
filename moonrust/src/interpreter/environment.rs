@@ -1,6 +1,7 @@
 // TODO
 // 6. Clean up code (delete unused lines, clippy code)
 // 7. Final docs with demo prep (measure time)
+// Prime check demo: https://oeis.org/wiki/Higher-order_prime_numbers#:~:text=%7B3%2C%205%2C%2011%2C,%2C%20859%2C%20...%7D&text=.,-(Dressler%20%26%20Parker%201975 - 9737333
 use crate::interpreter::{LuaVal, LuaValue};
 use std::cell::RefCell;
 use std::collections::HashMap;
