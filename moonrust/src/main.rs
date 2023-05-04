@@ -1,5 +1,4 @@
 use clap::Parser;
-use moonrust;
 use moonrust::interpreter::environment;
 use std::fs;
 use std::process;

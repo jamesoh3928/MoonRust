@@ -67,7 +67,7 @@ impl Expression {
 
     pub fn eval_unary_exp<'a>(
         op: &UnOp,
-        exp: &'a Box<Expression>,
+        exp: &'a Expression,
         env: &mut Env<'a>,
     ) -> Result<LuaValue<'a>, ASTExecError> {
         match op {
@@ -85,11 +85,9 @@ impl Expression {
                             Ok(LuaValue::new(LuaVal::LuaNum((-f).to_be_bytes(), true)))
                         }
                     }
-                    _ => {
-                        return Err(ASTExecError(String::from(
-                            "Cannot negate values that are not numbers",
-                        )));
-                    }
+                    _ => Err(ASTExecError(String::from(
+                        "Cannot negate values that are not numbers",
+                    ))),
                 }
             }
             UnOp::LogicalNot => {
@@ -117,11 +115,9 @@ impl Expression {
                         let border = table.calculate_border();
                         Ok(LuaValue::new(LuaVal::LuaNum(border.to_be_bytes(), false)))
                     }
-                    _ => {
-                        return Err(ASTExecError(format!(
-                            "Cannot get length of value that is not a string or table"
-                        )));
-                    }
+                    _ => Err(ASTExecError(String::from(
+                        "Cannot get length of value that is not a string or table",
+                    ))),
                 }
             }
             UnOp::BitNot => {
@@ -135,8 +131,8 @@ impl Expression {
 
     pub fn eval_binary_exp<'a>(
         op: &BinOp,
-        left: &'a Box<Expression>,
-        right: &'a Box<Expression>,
+        left: &'a Expression,
+        right: &'a Expression,
         env: &mut Env<'a>,
     ) -> Result<LuaValue<'a>, ASTExecError> {
         fn execute_arithmetic<'a, F1, F2>(
@@ -177,8 +173,8 @@ impl Expression {
                 }
                 // TODO: string coercion to numbers (maybe skip for now)
                 _ => {
-                    return Err(ASTExecError(format!(
-                        "Cannot execute opration on values that are not numbers"
+                    return Err(ASTExecError(String::from(
+                        "Cannot execute opration on values that are not numbers",
                     )));
                 }
             };
@@ -212,12 +208,9 @@ impl Expression {
                     Ok(LuaValue::new(LuaVal::LuaBool(b1 == b2)))
                 }
                 // If table, check if they are equal based on reference
-                (LuaVal::LuaTable(_), LuaVal::LuaTable(_)) => {
-                    // TODO: check after table is implemented
-                    Ok(LuaValue::new(LuaVal::LuaBool(Rc::ptr_eq(
-                        &left.0, &right.0,
-                    ))))
-                }
+                (LuaVal::LuaTable(_), LuaVal::LuaTable(_)) => Ok(LuaValue::new(LuaVal::LuaBool(
+                    Rc::ptr_eq(&left.0, &right.0),
+                ))),
                 // If function, check if they are equal based on reference
                 (LuaVal::Function(_), LuaVal::Function(_)) => Ok(LuaValue::new(LuaVal::LuaBool(
                     Rc::ptr_eq(&left.0, &right.0),
@@ -409,7 +402,7 @@ impl PrefixExp {
         match self {
             PrefixExp::Var(var) => {
                 match var {
-                    Var::NameVar(name) => match env.get(&name) {
+                    Var::NameVar(name) => match env.get(name) {
                         Some(val) => Ok(vec![val.clone()]),
                         None => Ok(vec![LuaValue::new(LuaVal::LuaNil)]),
                     },
@@ -450,19 +443,21 @@ impl PrefixExp {
                         }
                     }
                     Var::DotVar((prefixexp, field)) => {
-                        // TODO: Do this
-                        // let prefixexp = LuaValue::extract_first_return_val(prefixexp.eval(env)?);
-                        // match prefixexp.0.as_ref() {
-                        //     LuaVal::LuaTable(table) => {
-                        //         table.insert_ident(field.clone(), val.clone());
-                        //     }
-                        //     _ => {
-                        //         return Err(ASTExecError(format!(
-                        //             "attempt to index a non-table value '{prefixexp}'"
-                        //         )))
-                        //     }
-                        // }
-                        unimplemented!()
+                        let prefixexp = LuaValue::extract_first_return_val(prefixexp.eval(env)?);
+                        match prefixexp.0.as_ref() {
+                            LuaVal::LuaTable(table) => {
+                                let key = TableKey::String(field.clone());
+                                match table.get(key) {
+                                    Some(val) => Ok(vec![val]),
+                                    None => Ok(vec![LuaValue::new(LuaVal::LuaNil)]),
+                                }
+                            }
+                            _ => {
+                                return Err(ASTExecError(format!(
+                                    "attempt to index a non-table value '{prefixexp}'"
+                                )))
+                            }
+                        }
                     }
                 }
             }
@@ -548,7 +543,7 @@ impl FunctionCall {
                         func_env.pop_local_env();
                         match result {
                             Some(vals) => Ok(vals),
-                            None => Err(ASTExecError(format!(
+                            None => Err(ASTExecError(String::from(
                                 "Break statement can be only used in while, repeat, or for loop"
                             ))),
                         }
@@ -601,8 +596,7 @@ impl FunctionCall {
     where
         W: std::io::Write,
     {
-        let mut i = 0;
-        for arg in args.iter() {
+        for (i, arg) in args.iter().enumerate() {
             match if i == args.len() - 1 {
                 writeln!(stdout, "{}", arg)
             } else {
@@ -616,7 +610,6 @@ impl FunctionCall {
                     )))
                 }
             }
-            i += 1;
         }
         Ok(vec![])
     }
@@ -652,8 +645,7 @@ impl Args {
         match self {
             Args::ExpList(exps_list) => {
                 let mut args = Vec::with_capacity(exps_list.len());
-                let mut i = 0;
-                for exp in exps_list.iter() {
+                for (i, exp) in exps_list.iter().enumerate() {
                     // For each argument, only the first return value is used,
                     // but last argument can use multiple return values
                     if i == exps_list.len() - 1 {
@@ -661,7 +653,6 @@ impl Args {
                     } else {
                         args.push(LuaValue::extract_first_return_val(exp.eval(env)?));
                     }
-                    i += 1;
                 }
                 Ok(args)
             }
@@ -682,7 +673,7 @@ fn build_table<'a>(
     let table = LuaTable::new();
     let mut numeric_index = 1;
     let field_count = fields.len();
-    for (i, field) in fields.into_iter().enumerate() {
+    for (i, field) in fields.iter().enumerate() {
         match field {
             Field::BracketedAssign((exp1, exp2)) => {
                 // Fully evaluate key and value
@@ -1127,6 +1118,82 @@ mod tests {
             Err(ASTExecError(String::from(
                 "Field key 'true' does not evaluate to a string or numeral"
             )))
+        )
+    }
+
+    #[test]
+    fn test_table_field_lookup() {
+        let mut env = Env::new();
+
+        let table = LuaValue::extract_first_return_val(lua_table(HashMap::from([
+            (
+                TableKey::Number(i64::to_be_bytes(86)),
+                LuaValue::new(LuaVal::LuaString(String::from("The first thing!"))),
+            ),
+            (
+                TableKey::String(String::from("launch_codes")),
+                LuaValue::new(LuaVal::LuaNum(f64::to_be_bytes(34.12456), false)),
+            ),
+        ])));
+
+        env.insert_global(String::from("my_table"), table);
+
+        let prefixexp = PrefixExp::Var(Var::BracketVar((
+            Box::new(PrefixExp::Var(Var::NameVar(String::from("my_table")))),
+            Expression::Numeral(Numeral::Integer(86)),
+        )));
+        assert_eq!(
+            prefixexp.eval(&mut env),
+            Ok(vec![LuaValue::new(LuaVal::LuaString(String::from(
+                "The first thing!"
+            )))])
+        );
+
+        let prefixexp = PrefixExp::Var(Var::BracketVar((
+            Box::new(PrefixExp::Var(Var::NameVar(String::from("my_table")))),
+            Expression::LiteralString(String::from("launch_codes")),
+        )));
+        assert_eq!(
+            prefixexp.eval(&mut env),
+            Ok(vec![LuaValue::new(LuaVal::LuaNum(
+                f64::to_be_bytes(34.12456),
+                false
+            ))])
+        );
+    }
+
+    #[test]
+    fn test_eval_func_call_with_table() {
+        let mut env = Env::new();
+        let par_list = ParList(vec![String::from("that_table")], false);
+        let block = Block {
+            statements: vec![],
+            return_stat: Some(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(
+                Var::BracketVar((
+                    Box::new(PrefixExp::Var(Var::NameVar(String::from("that_table")))),
+                    Expression::LiteralString(String::from("a")),
+                )),
+            )))]),
+        };
+
+        let f = LuaValue::extract_first_return_val(lua_function(&par_list, &block, &env));
+        env.insert_global(String::from("f"), f);
+
+        let exp =
+            Expression::PrefixExp(Box::new(PrefixExp::FunctionCall(FunctionCall::Standard((
+                Box::new(PrefixExp::Var(Var::NameVar(String::from("f")))),
+                Args::TableConstructor(vec![Field::NameAssign((
+                    String::from("a"),
+                    Expression::Numeral(Numeral::Integer(86)),
+                ))]),
+            )))));
+
+        assert_eq!(
+            exp.eval(&mut env),
+            Ok(vec![LuaValue::new(LuaVal::LuaNum(
+                i64::to_be_bytes(86),
+                false
+            ))])
         )
     }
 

@@ -151,7 +151,7 @@ impl Display for Expression {
             Expression::PrefixExp(pexp) => pexp.fmt(f),
             Expression::TableConstructor(fields) => {
                 writeln!(f, "{{")?;
-                format_list(&fields, f, true)?;
+                format_list(fields, f, true)?;
                 writeln!(f, "}}")
             }
             Expression::BinaryOp((exp1, binop, exp2)) => {
@@ -307,12 +307,12 @@ impl Display for Args {
         match self {
             Self::ExpList(exps) => {
                 write!(f, "(")?;
-                format_list(&exps, f, false)?;
+                format_list(exps, f, false)?;
                 write!(f, ")")
             }
             Self::TableConstructor(fields) => {
                 writeln!(f, "{{")?;
-                format_list(&fields, f, true)?;
+                format_list(fields, f, true)?;
                 writeln!(f, "}}")
             }
             Self::LiteralString(string) => {
@@ -439,7 +439,7 @@ impl Display for AST {
 }
 
 fn format_list(
-    elements: &Vec<impl Display>,
+    elements: &[impl Display],
     f: &mut std::fmt::Formatter<'_>,
     lines: bool,
 ) -> std::fmt::Result {

@@ -32,7 +32,7 @@ impl FromStr for AST {
 
 /// Parse the input program file into an AST.
 pub fn parse(input: &str) -> ParseResult<AST> {
-    map(ws(parse_block), |block| AST(block))(input)
+    map(ws(parse_block), AST)(input)
 }
 
 #[derive(Debug, PartialEq)]

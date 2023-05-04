@@ -17,19 +17,13 @@ impl<'a> EnvTable<'a> {
     pub fn get(&self, name: &str) -> Option<LuaValue<'a>> {
         let hm = self.0.borrow();
         let res = hm.get(name);
-        match res {
-            Some(res) => Some(res.clone()),
-            None => None,
-        }
+        res.map(|res| res.clone())
     }
 
     pub fn get_mut(&mut self, name: &str) -> Option<LuaValue<'a>> {
         let mut hm = self.0.borrow_mut();
         let res = hm.get_mut(name);
-        match res {
-            Some(res) => Some(res.clone()),
-            None => None,
-        }
+        res.map(|res| res.clone())
     }
 
     // Insert a new variable or update an existing one
@@ -50,11 +44,9 @@ impl<'a> LocalEnv<'a> {
 
     pub fn get(&self, name: &str) -> Option<LuaValue<'a>> {
         // Start from top of the stack
-        for table in self.0.iter().rev() {
-            if let Some(table) = table {
-                if let Some(var) = table.get(name) {
-                    return Some(var);
-                }
+        for table in self.0.iter().rev().flatten() {
+            if let Some(var) = table.get(name) {
+                return Some(var);
             }
         }
         None
@@ -94,12 +86,7 @@ impl<'a> LocalEnv<'a> {
 
     // Pop all tables in current scope
     pub fn pop_env(&mut self) {
-        loop {
-            match self.0.pop() {
-                Some(Some(_)) => {}
-                _ => break,
-            };
-        }
+        while let Some(Some(_)) = self.0.pop() {}
     }
 
     // Always inserting into the current scope
@@ -114,11 +101,9 @@ impl<'a> LocalEnv<'a> {
     }
 
     pub fn update(&mut self, name: String, var: LuaValue<'a>) -> Option<LuaValue<'a>> {
-        for table in self.0.iter_mut().rev() {
-            if let Some(table) = table {
-                if let Some(_) = table.get(&name) {
-                    return table.insert(name, var);
-                }
+        for table in self.0.iter_mut().rev().flatten() {
+            if table.get(&name).is_some() {
+                return table.insert(name, var);
             }
         }
         None
