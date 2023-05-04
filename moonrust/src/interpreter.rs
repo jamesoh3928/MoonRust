@@ -41,7 +41,7 @@ impl<'a> LuaValue<'a> {
         LuaValue(Rc::new(val))
     }
 
-    pub fn clone(&self) -> LuaValue<'a> {
+    pub fn clone_rc(&self) -> LuaValue<'a> {
         LuaValue(Rc::clone(&self.0))
     }
 
@@ -211,7 +211,7 @@ impl<'a> LuaValue<'a> {
             // If no return values, return nil
             LuaValue::new(LuaVal::LuaNil)
         } else {
-            return_vals[0].clone()
+            return_vals[0].clone_rc()
         }
     }
 }
@@ -301,7 +301,7 @@ impl<'a> LuaTable<'a> {
     }
 
     pub fn get(&self, key: TableKey) -> Option<LuaValue<'a>> {
-        self.0.borrow().get(&key).map(|res| res.clone())
+        self.0.borrow().get(&key).map(|res| res.clone_rc())
     }
 
     // TODO: If we have time
@@ -335,6 +335,12 @@ impl<'a> LuaTable<'a> {
         }
 
         idx as usize
+    }
+}
+
+impl<'a> Default for LuaTable<'a> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

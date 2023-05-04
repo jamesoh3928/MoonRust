@@ -402,11 +402,11 @@ impl PrefixExp {
         match self {
             PrefixExp::Var(var) => {
                 match var {
-                    Var::NameVar(name) => match env.get(name) {
-                        Some(val) => Ok(vec![val.clone()]),
+                    Var::Name(name) => match env.get(name) {
+                        Some(val) => Ok(vec![val.clone_rc()]),
                         None => Ok(vec![LuaValue::new(LuaVal::LuaNil)]),
                     },
-                    Var::BracketVar((prefixexp, exp)) => {
+                    Var::Bracket((prefixexp, exp)) => {
                         let prefixexp = LuaValue::extract_first_return_val(prefixexp.eval(env)?);
                         match prefixexp.0.as_ref() {
                             LuaVal::LuaTable(table) => {
@@ -442,7 +442,7 @@ impl PrefixExp {
                             }
                         }
                     }
-                    Var::DotVar((prefixexp, field)) => {
+                    Var::Dot((prefixexp, field)) => {
                         let prefixexp = LuaValue::extract_first_return_val(prefixexp.eval(env)?);
                         match prefixexp.0.as_ref() {
                             LuaVal::LuaTable(table) => {
@@ -525,7 +525,8 @@ impl FunctionCall {
                         func_env.extend_local_env();
                         let par_length = par_list.0.len();
                         let arg_length = args.len();
-                        for i in 0..par_length {
+                        let mut i = 0;
+                        while i < par_length {
                             // Arguments are locally scoped
                             if i >= arg_length {
                                 func_env.insert_local(
@@ -533,8 +534,9 @@ impl FunctionCall {
                                     LuaValue::new(LuaVal::LuaNil),
                                 );
                             } else {
-                                func_env.insert_local(par_list.0[i].clone(), args[i].clone());
+                                func_env.insert_local(par_list.0[i].clone(), args[i].clone_rc());
                             }
+                            i += 1;
                         }
 
                         let result = block.exec(&mut func_env)?;
@@ -744,7 +746,7 @@ fn build_table<'a>(
     let field_count = fields.len();
     for (i, field) in fields.iter().enumerate() {
         match field {
-            Field::BracketedAssign((exp1, exp2)) => {
+            Field::Bracketed((exp1, exp2)) => {
                 // Fully evaluate key and value
                 let key = LuaValue::extract_first_return_val(exp1.eval(env)?);
                 let val = LuaValue::extract_first_return_val(exp2.eval(env)?);
@@ -757,11 +759,11 @@ fn build_table<'a>(
                 }
                 table.insert(key, val)?;
             }
-            Field::NameAssign((name, exp)) => {
+            Field::Name((name, exp)) => {
                 let val = LuaValue::extract_first_return_val(exp.eval(env)?);
                 table.insert_ident(name.clone(), val);
             }
-            Field::UnnamedAssign(exp) => {
+            Field::Unnamed(exp) => {
                 let vals = exp.eval(env)?;
 
                 // If this is the last field in the table constructor,
@@ -794,7 +796,7 @@ mod tests {
 
     // Helper functions
     fn var_exp(name: &str) -> Expression {
-        Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar(name.to_string()))))
+        Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name(name.to_string()))))
     }
     fn lua_integer<'a>(n: i64) -> Vec<LuaValue<'a>> {
         vec![LuaValue::new(LuaVal::LuaNum(n.to_be_bytes(), false))]
@@ -909,7 +911,7 @@ mod tests {
         let mut env = Env::new();
 
         // Set statements
-        let varlist = vec![Var::NameVar("a".to_string()), Var::NameVar("b".to_string())];
+        let varlist = vec![Var::Name("a".to_string()), Var::Name("b".to_string())];
         let explist = vec![
             Expression::Numeral(Numeral::Integer(30)),
             Expression::Numeral(Numeral::Integer(20)),
@@ -929,7 +931,7 @@ mod tests {
         );
         let args = Args::ExpList(vec![Expression::Numeral(Numeral::Integer(100))]);
         let func_call = FunctionCall::Standard((
-            Box::new(PrefixExp::Var(Var::NameVar("f".to_string()))),
+            Box::new(PrefixExp::Var(Var::Name("f".to_string()))),
             args,
         ));
         let exp = PrefixExp::FunctionCall(func_call.clone());
@@ -953,7 +955,7 @@ mod tests {
             LuaValue::extract_first_return_val(lua_function(&par_list, &block, &env)),
         );
         let func_call2 = PrefixExp::FunctionCall(FunctionCall::Standard((
-            Box::new(PrefixExp::Var(Var::NameVar("f2".to_string()))),
+            Box::new(PrefixExp::Var(Var::Name("f2".to_string()))),
             Args::ExpList(vec![]),
         )));
         // Each return value return one of the values, but last one return all
@@ -977,7 +979,7 @@ mod tests {
         );
         let args = Args::ExpList(vec![func_call_exp.clone(), func_call_exp.clone()]);
         let func_call3 = PrefixExp::FunctionCall(FunctionCall::Standard((
-            Box::new(PrefixExp::Var(Var::NameVar("f3".to_string()))),
+            Box::new(PrefixExp::Var(Var::Name("f3".to_string()))),
             args,
         )));
         // Each argument take one return value of each expression except last one
@@ -1009,7 +1011,7 @@ mod tests {
             var_exp("f"),
         ]);
         let print_call = FunctionCall::Standard((
-            Box::new(PrefixExp::Var(Var::NameVar("print".to_string()))),
+            Box::new(PrefixExp::Var(Var::Name("print".to_string()))),
             args.clone(),
         ));
         let print_exp = PrefixExp::FunctionCall(print_call);
@@ -1067,16 +1069,16 @@ mod tests {
         let mut env = Env::new();
 
         let exp = Expression::TableConstructor(vec![
-            Field::NameAssign((
+            Field::Name((
                 String::from("age"),
                 Expression::Numeral(Numeral::Integer(23)),
             )),
-            Field::UnnamedAssign(Expression::BinaryOp((
+            Field::Unnamed(Expression::BinaryOp((
                 Box::new(Expression::Numeral(Numeral::Integer(2))),
                 BinOp::Add,
                 Box::new(Expression::Numeral(Numeral::Integer(3))),
             ))),
-            Field::BracketedAssign((
+            Field::Bracketed((
                 Expression::Numeral(Numeral::Float(3.14)),
                 Expression::Numeral(Numeral::Integer(999)),
             )),
@@ -1105,9 +1107,9 @@ mod tests {
         let mut env = Env::new();
 
         let exp = Expression::TableConstructor(vec![
-            Field::UnnamedAssign(Expression::Numeral(Numeral::Integer(999))),
-            Field::UnnamedAssign(Expression::Numeral(Numeral::Integer(888))),
-            Field::UnnamedAssign(Expression::Numeral(Numeral::Integer(777))),
+            Field::Unnamed(Expression::Numeral(Numeral::Integer(999))),
+            Field::Unnamed(Expression::Numeral(Numeral::Integer(888))),
+            Field::Unnamed(Expression::Numeral(Numeral::Integer(777))),
         ]);
 
         let expected = Ok(lua_table(HashMap::from([
@@ -1146,10 +1148,10 @@ mod tests {
         env.insert_global(String::from("f"), f);
 
         let exp = Expression::TableConstructor(vec![
-            Field::UnnamedAssign(Expression::Numeral(Numeral::Integer(111))),
-            Field::UnnamedAssign(Expression::PrefixExp(Box::new(PrefixExp::FunctionCall(
+            Field::Unnamed(Expression::Numeral(Numeral::Integer(111))),
+            Field::Unnamed(Expression::PrefixExp(Box::new(PrefixExp::FunctionCall(
                 FunctionCall::Standard((
-                    Box::new(PrefixExp::Var(Var::NameVar(String::from("f")))),
+                    Box::new(PrefixExp::Var(Var::Name(String::from("f")))),
                     Args::ExpList(Vec::new()),
                 )),
             )))),
@@ -1187,9 +1189,9 @@ mod tests {
             LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
         );
 
-        let exp = Expression::TableConstructor(vec![Field::NameAssign((
+        let exp = Expression::TableConstructor(vec![Field::Name((
             String::from("thing"),
-            Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar(String::from("x"))))),
+            Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name(String::from("x"))))),
         ))]);
 
         let expected = Ok(lua_table(HashMap::from([(
@@ -1205,7 +1207,7 @@ mod tests {
     fn test_eval_table_bad_key() {
         let mut env = Env::new();
 
-        let exp = Expression::TableConstructor(vec![Field::BracketedAssign((
+        let exp = Expression::TableConstructor(vec![Field::Bracketed((
             Expression::True,
             Expression::Numeral(Numeral::Integer(23)),
         ))]);
@@ -1235,8 +1237,8 @@ mod tests {
 
         env.insert_global(String::from("my_table"), table);
 
-        let prefixexp = PrefixExp::Var(Var::BracketVar((
-            Box::new(PrefixExp::Var(Var::NameVar(String::from("my_table")))),
+        let prefixexp = PrefixExp::Var(Var::Bracket((
+            Box::new(PrefixExp::Var(Var::Name(String::from("my_table")))),
             Expression::Numeral(Numeral::Integer(86)),
         )));
         assert_eq!(
@@ -1246,8 +1248,8 @@ mod tests {
             )))])
         );
 
-        let prefixexp = PrefixExp::Var(Var::BracketVar((
-            Box::new(PrefixExp::Var(Var::NameVar(String::from("my_table")))),
+        let prefixexp = PrefixExp::Var(Var::Bracket((
+            Box::new(PrefixExp::Var(Var::Name(String::from("my_table")))),
             Expression::LiteralString(String::from("launch_codes")),
         )));
         assert_eq!(
@@ -1266,8 +1268,8 @@ mod tests {
         let block = Block {
             statements: vec![],
             return_stat: Some(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::BracketVar((
-                    Box::new(PrefixExp::Var(Var::NameVar(String::from("that_table")))),
+                Var::Bracket((
+                    Box::new(PrefixExp::Var(Var::Name(String::from("that_table")))),
                     Expression::LiteralString(String::from("a")),
                 )),
             )))]),
@@ -1278,8 +1280,8 @@ mod tests {
 
         let exp =
             Expression::PrefixExp(Box::new(PrefixExp::FunctionCall(FunctionCall::Standard((
-                Box::new(PrefixExp::Var(Var::NameVar(String::from("f")))),
-                Args::TableConstructor(vec![Field::NameAssign((
+                Box::new(PrefixExp::Var(Var::Name(String::from("f")))),
+                Args::TableConstructor(vec![Field::Name((
                     String::from("a"),
                     Expression::Numeral(Numeral::Integer(86)),
                 ))]),
@@ -1831,16 +1833,16 @@ mod tests {
                 LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
             ),
         ])));
-        env.insert_global(String::from("my_table"), table.clone());
+        env.insert_global(String::from("my_table"), table.clone_rc());
         env.insert_global(String::from("your_table"), table);
 
         let exp = Expression::BinaryOp((
             Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::NameVar(String::from("my_table")),
+                Var::Name(String::from("my_table")),
             )))),
             BinOp::Equal,
             Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::NameVar(String::from("your_table")),
+                Var::Name(String::from("your_table")),
             )))),
         ));
         assert_eq!(exp.eval(&mut env), Ok(lua_true()));
@@ -1865,11 +1867,11 @@ mod tests {
 
         let exp = Expression::BinaryOp((
             Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::NameVar(String::from("my_table")),
+                Var::Name(String::from("my_table")),
             )))),
             BinOp::Equal,
             Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::NameVar(String::from("other_table")),
+                Var::Name(String::from("other_table")),
             )))),
         ));
         assert_eq!(exp.eval(&mut env), Ok(lua_false()));
@@ -1959,16 +1961,16 @@ mod tests {
                 LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
             ),
         ])));
-        env.insert_global(String::from("my_table"), table.clone());
+        env.insert_global(String::from("my_table"), table.clone_rc());
         env.insert_global(String::from("your_table"), table);
 
         let exp = Expression::BinaryOp((
             Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::NameVar(String::from("my_table")),
+                Var::Name(String::from("my_table")),
             )))),
             BinOp::NotEqual,
             Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::NameVar(String::from("your_table")),
+                Var::Name(String::from("your_table")),
             )))),
         ));
         assert_eq!(exp.eval(&mut env), Ok(lua_false()));
@@ -1993,11 +1995,11 @@ mod tests {
 
         let exp = Expression::BinaryOp((
             Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::NameVar(String::from("my_table")),
+                Var::Name(String::from("my_table")),
             )))),
             BinOp::NotEqual,
             Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::NameVar(String::from("other_table")),
+                Var::Name(String::from("other_table")),
             )))),
         ));
         assert_eq!(exp.eval(&mut env), Ok(lua_true()));
@@ -2327,7 +2329,7 @@ mod tests {
     //     let captured_varaibles = block.capture_variables(&env);
     //     env.pop_local_env();
     //     // TODO: delete
-    //     // let func_env = Env::vec_to_env(&captured_varaibles, env.get_global_env().clone());
+    //     // let func_env = Env::vec_to_env(&captured_varaibles, env.get_global_env().clone_rc());
     //     let func_env = env.get_local_env().capture_env();
     //     assert_eq!(
     //         func_env.get("a"),

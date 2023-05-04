@@ -17,18 +17,24 @@ impl<'a> EnvTable<'a> {
     pub fn get(&self, name: &str) -> Option<LuaValue<'a>> {
         let hm = self.0.borrow();
         let res = hm.get(name);
-        res.map(|res| res.clone())
+        res.map(|res| res.clone_rc())
     }
 
     pub fn get_mut(&mut self, name: &str) -> Option<LuaValue<'a>> {
         let mut hm = self.0.borrow_mut();
         let res = hm.get_mut(name);
-        res.map(|res| res.clone())
+        res.map(|res| res.clone_rc())
     }
 
     // Insert a new variable or update an existing one
     pub fn insert(&mut self, name: String, var: LuaValue<'a>) -> Option<LuaValue<'a>> {
         self.0.borrow_mut().insert(name, var)
+    }
+}
+
+impl<'a> Default for EnvTable<'a> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -118,6 +124,12 @@ impl<'a> LocalEnv<'a> {
     }
 }
 
+impl<'a> Default for LocalEnv<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Env<'a> {
     global: EnvTable<'a>,
@@ -191,7 +203,7 @@ impl<'a> Env<'a> {
     //     let mut new_env = Env::new();
     //     new_env.set_global_env(global_env);
     //     for (name, var) in captured_vars {
-    //         new_env.insert_local(name.clone(), var.clone());
+    //         new_env.insert_local(name.clone(), var.clone_rc());
     //     }
     //     new_env
     // }
@@ -207,5 +219,11 @@ impl<'a> Env<'a> {
         // TODO: double check this
         new_env.local = local_env.capture_env();
         new_env
+    }
+}
+
+impl<'a> Default for Env<'a> {
+    fn default() -> Self {
+        Self::new()
     }
 }

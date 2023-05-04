@@ -66,7 +66,7 @@ mod tests {
                 AST(Block {
                     statements: vec![
                         Statement::Assignment((
-                            vec![Var::NameVar(String::from("a"))],
+                            vec![Var::Name(String::from("a"))],
                             vec![Expression::BinaryOp((
                                 Box::new(Expression::BinaryOp((
                                     Box::new(Expression::Numeral(Numeral::Integer(3))),
@@ -79,7 +79,7 @@ mod tests {
                             false
                         )),
                         Statement::Assignment((
-                            vec![Var::NameVar(String::from("a"))],
+                            vec![Var::Name(String::from("a"))],
                             vec![Expression::BinaryOp((
                                 Box::new(Expression::BinaryOp((
                                     Box::new(Expression::Numeral(Numeral::Integer(3))),
@@ -92,7 +92,7 @@ mod tests {
                             false
                         )),
                         Statement::Assignment((
-                            vec![Var::NameVar(String::from("a"))],
+                            vec![Var::Name(String::from("a"))],
                             vec![Expression::BinaryOp((
                                 Box::new(Expression::BinaryOp((
                                     Box::new(Expression::Numeral(Numeral::Integer(3))),
