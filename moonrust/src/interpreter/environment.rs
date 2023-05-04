@@ -1,5 +1,6 @@
 // TODO
 // 6. Clean up code (delete unused lines)
+// 7. Read function
 use crate::interpreter::{LuaVal, LuaValue};
 use std::cell::RefCell;
 use std::collections::HashMap;
