@@ -23,6 +23,7 @@ pub enum LuaVal<'a> {
     Print,
     TestPrint(Rc<RefCell<Vec<String>>>),
     Read,
+    Random,
 }
 
 // Lua function captures environment in function call
@@ -241,6 +242,7 @@ impl<'a> Display for LuaValue<'a> {
             LuaVal::Print => write!(f, "print"),
             LuaVal::TestPrint(_) => write!(f, "print"),
             LuaVal::Read => write!(f, "read"),
+            LuaVal::Random => write!(f, "random"),
         }
     }
 }

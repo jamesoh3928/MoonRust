@@ -7,10 +7,7 @@ function fibonacci(n)
     return fibonacci(n - 1) + fibonacci(n - 2)
   end
 end
-  
-print("Enter a number: ")
-local n = read("*number")
-  
-for i = 0, n do
+
+for i = 0, 10 do
   print(fibonacci(i))
 end

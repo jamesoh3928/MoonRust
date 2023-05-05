@@ -146,6 +146,7 @@ impl<'a> Env<'a> {
         // Insert built-in functions
         env.insert_global("print".to_string(), LuaValue::new(LuaVal::Print));
         env.insert_global("read".to_string(), LuaValue::new(LuaVal::Read));
+        env.insert_global("random".to_string(), LuaValue::new(LuaVal::Random));
         env
     }
 

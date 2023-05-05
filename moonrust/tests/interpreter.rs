@@ -302,5 +302,12 @@ mod tests {
         test_interpreter(src, expected_output);
     }
 
+    #[test]
+    fn test_fibonacci() {
+        let expected_output = "0\n1\n1\n2\n3\n5\n8\n13\n21\n34\n55";
+        let src = "assets/fibonacci_fixed.lua";
+        test_interpreter(src, expected_output);
+    }
+
     // TODO: add more test cases
 }

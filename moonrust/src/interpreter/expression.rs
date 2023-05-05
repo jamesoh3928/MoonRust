@@ -6,6 +6,7 @@ use crate::interpreter::LuaTable;
 use crate::interpreter::LuaVal;
 use crate::interpreter::LuaValue;
 use crate::interpreter::TableKey;
+use rand::Rng;
 use std::cell::RefCell;
 use std::io::{self, BufRead};
 use std::rc::Rc;
@@ -546,7 +547,7 @@ impl FunctionCall {
                         match result {
                             Some(vals) => Ok(vals),
                             None => Err(ASTExecError(String::from(
-                                "Break statement can be only used in while, repeat, or for loop"
+                                "Break statement can be only used in while, repeat, or for loop",
                             ))),
                         }
                     }
@@ -554,22 +555,31 @@ impl FunctionCall {
                         let args = args.eval(env)?;
                         let mut stdout = io::stdout().lock();
                         FunctionCall::print_fn(args, &mut stdout)
-                    },
+                    }
                     LuaVal::TestPrint(buffer) => {
                         let args = args.eval(env)?;
                         FunctionCall::test_print_fn(args, buffer)
-                    },
+                    }
                     LuaVal::Read => {
                         let mut args = args.eval(env)?;
                         if args.is_empty() {
                             args.push(LuaValue::new(LuaVal::LuaString(String::from("*line"))));
                         }
                         FunctionCall::read_fn(args, io::stdin().lock())
-                    },
+                    }
+                    LuaVal::Random => {
+                        let args = args.eval(env)?;
+                        if args.is_empty() {
+                            return Err(ASTExecError(String::from(
+                                "random() requires at least one argument",
+                            )));
+                        }
+                        FunctionCall::random_fn(args.get(0).unwrap())
+                    }
                     _ => {
                         return Err(ASTExecError(format!(
-                            "Cannot call non-function value with arguments. Environment: {:?}, RC: {:?}",
-                            env, rc
+                            "Cannot call non-function value with arguments. RC: {:?}",
+                            rc
                         )))
                     }
                 }
@@ -634,7 +644,8 @@ impl FunctionCall {
                         // "*line" reads the next line (default)
                         let mut input = String::new();
                         match reader.read_line(&mut input) {
-                            Ok(_) => result.push(LuaValue::new(LuaVal::LuaString(input.trim().to_string()))),
+                            Ok(_) => result
+                                .push(LuaValue::new(LuaVal::LuaString(input.trim().to_string()))),
                             Err(_) => {
                                 return Err(ASTExecError(String::from(
                                     "Cannot read line from stdin",
@@ -683,6 +694,26 @@ impl FunctionCall {
             }
         }
         Ok(result)
+    }
+
+    fn random_fn<'a>(arg: &LuaValue<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
+        match *arg.0 {
+            LuaVal::LuaNum(bytes, is_float) => {
+                if is_float {
+                    Err(ASTExecError(
+                        "Cannot generate random number with float".to_string(),
+                    ))
+                } else {
+                    let n = i64::from_be_bytes(bytes);
+                    let rng = rand::thread_rng().gen_range(0..=n);
+                    Ok(vec![LuaValue::new(LuaVal::LuaNum(rng.to_be_bytes(), true))])
+                }
+            }
+            _ => Err(ASTExecError(format!(
+                "Cannot generate random number with argument of {:?}",
+                arg.0
+            ))),
+        }
     }
 
     // pub fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
@@ -930,10 +961,8 @@ mod tests {
             LuaValue::extract_first_return_val(lua_function(&par_list, &block, &env)),
         );
         let args = Args::ExpList(vec![Expression::Numeral(Numeral::Integer(100))]);
-        let func_call = FunctionCall::Standard((
-            Box::new(PrefixExp::Var(Var::Name("f".to_string()))),
-            args,
-        ));
+        let func_call =
+            FunctionCall::Standard((Box::new(PrefixExp::Var(Var::Name("f".to_string()))), args));
         let exp = PrefixExp::FunctionCall(func_call.clone());
 
         // f(100) executes a = 30, b = 20, return test
@@ -1837,13 +1866,13 @@ mod tests {
         env.insert_global(String::from("your_table"), table);
 
         let exp = Expression::BinaryOp((
-            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::Name(String::from("my_table")),
-            )))),
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name(
+                String::from("my_table"),
+            ))))),
             BinOp::Equal,
-            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::Name(String::from("your_table")),
-            )))),
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name(
+                String::from("your_table"),
+            ))))),
         ));
         assert_eq!(exp.eval(&mut env), Ok(lua_true()));
 
@@ -1866,13 +1895,13 @@ mod tests {
         env.insert_global(String::from("other_table"), other_table);
 
         let exp = Expression::BinaryOp((
-            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::Name(String::from("my_table")),
-            )))),
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name(
+                String::from("my_table"),
+            ))))),
             BinOp::Equal,
-            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::Name(String::from("other_table")),
-            )))),
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name(
+                String::from("other_table"),
+            ))))),
         ));
         assert_eq!(exp.eval(&mut env), Ok(lua_false()));
 
@@ -1965,13 +1994,13 @@ mod tests {
         env.insert_global(String::from("your_table"), table);
 
         let exp = Expression::BinaryOp((
-            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::Name(String::from("my_table")),
-            )))),
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name(
+                String::from("my_table"),
+            ))))),
             BinOp::NotEqual,
-            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::Name(String::from("your_table")),
-            )))),
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name(
+                String::from("your_table"),
+            ))))),
         ));
         assert_eq!(exp.eval(&mut env), Ok(lua_false()));
 
@@ -1994,13 +2023,13 @@ mod tests {
         env.insert_global(String::from("other_table"), other_table);
 
         let exp = Expression::BinaryOp((
-            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::Name(String::from("my_table")),
-            )))),
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name(
+                String::from("my_table"),
+            ))))),
             BinOp::NotEqual,
-            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::Name(String::from("other_table")),
-            )))),
+            Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name(
+                String::from("other_table"),
+            ))))),
         ));
         assert_eq!(exp.eval(&mut env), Ok(lua_true()));
 
