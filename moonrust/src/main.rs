@@ -39,7 +39,6 @@ fn main() {
         }
     };
 
-    // TODO: add flag for printing AST
     if args.ast {
         println!("AST: {:#?}", ast);
     }
@@ -54,6 +53,8 @@ fn main() {
             process::exit(1);
         }
     }
+
+    // Exec time: referenced our second assignment (Birch program)
     let exec_time = {
         let exec_time = exec_start.elapsed();
         exec_time.as_secs_f64() + exec_time.subsec_nanos() as f64 / 1.0e9
