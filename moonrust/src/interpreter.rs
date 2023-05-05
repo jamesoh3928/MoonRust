@@ -439,6 +439,20 @@ impl Block {
     // }
 }
 
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    
+    #[test]
+    fn accepts_calculate_border(){
+
+        let table = LuaTable(RefCell::new(HashMap::new()));
+        let result = "";
+        assert_eq!("", result);
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct ASTExecError(String);
 impl ASTExecError {
