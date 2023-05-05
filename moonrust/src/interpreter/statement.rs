@@ -22,28 +22,26 @@ impl Statement {
                     is_local: &bool,
                 ) -> Result<(), ASTExecError> {
                     match var {
-                        Var::NameVar(name) => {
+                        Var::Name(name) => {
                             // Insert into environment
                             if *is_local {
                                 // With local keyword, always insert new local variable or overwrite existing
-                                env.insert_local(name.clone(), val.clone());
+                                env.insert_local(name.clone(), val.clone_rc());
+                            } else if env.get_local(name).is_some() {
+                                // Update local variable
+                                env.update_local(name.clone(), val.clone_rc());
                             } else {
-                                if env.get_local(name).is_some() {
-                                    // Update local variable
-                                    env.update_local(name.clone(), val.clone());
-                                } else {
-                                    // Update or insert global variable
-                                    env.insert_global(name.clone(), val.clone());
-                                }
+                                // Update or insert global variable
+                                env.insert_global(name.clone(), val.clone_rc());
                             }
                         }
-                        Var::BracketVar((prefixexp, exp)) => {
+                        Var::Bracket((prefixexp, exp)) => {
                             let prefixexp =
                                 LuaValue::extract_first_return_val(prefixexp.eval(env)?);
                             match prefixexp.0.as_ref() {
                                 LuaVal::LuaTable(table) => {
                                     let key = LuaValue::extract_first_return_val(exp.eval(env)?);
-                                    table.insert(key, val.clone())?;
+                                    table.insert(key, val.clone_rc())?;
                                 }
                                 _ => {
                                     return Err(ASTExecError(format!(
@@ -52,12 +50,12 @@ impl Statement {
                                 }
                             }
                         }
-                        Var::DotVar((prefixexp, field)) => {
+                        Var::Dot((prefixexp, field)) => {
                             let prefixexp =
                                 LuaValue::extract_first_return_val(prefixexp.eval(env)?);
                             match prefixexp.0.as_ref() {
                                 LuaVal::LuaTable(table) => {
-                                    table.insert_ident(field.clone(), val.clone());
+                                    table.insert_ident(field.clone(), val.clone_rc());
                                 }
                                 _ => {
                                     return Err(ASTExecError(format!(
@@ -88,7 +86,7 @@ impl Statement {
                             // More variables than total return values: insert nil
                             vallist.push(LuaValue::new(LuaVal::LuaNil));
                         } else {
-                            vallist.push(return_vals[j].clone());
+                            vallist.push(return_vals[j].clone_rc());
                         };
                         i += 1;
                     }
@@ -106,21 +104,21 @@ impl Statement {
                 // Terminates the execution of a while, repeat, or for loop
                 return Ok(None);
             }
-            Statement::DoBlock(block) => match block.exec(env) {
-                Ok(val) => match val {
-                    Some(val) => {
-                        return Ok(Some(val));
+            Statement::DoBlock(block) => {
+                match block.exec(env) {
+                    Ok(val) => match val {
+                        Some(val) => {
+                            return Ok(Some(val));
+                        }
+                        None => return Err(ASTExecError(String::from(
+                            "Break statement can only be used inside a while, repeat, or for loop",
+                        ))),
+                    },
+                    Err(err) => {
+                        return Err(err);
                     }
-                    None => {
-                        return Err(ASTExecError(format!(
-                            "Break statement can only be used inside a while, repeat, or for loop"
-                        )))
-                    }
-                },
-                Err(err) => {
-                    return Err(err);
                 }
-            },
+            }
             Statement::While((exp, block)) => {
                 // Execute block until exp returns false
                 // Local variables are lost in each iteration
@@ -184,15 +182,15 @@ impl Statement {
                     LuaValue(rc) => match rc.as_ref() {
                         LuaVal::LuaNum(bytes, is_float) => {
                             if *is_float {
-                                return Err(ASTExecError(format!(
-                                    "Initial value in for loop must be an integer"
+                                return Err(ASTExecError(String::from(
+                                    "Initial value in for loop must be an integer",
                                 )));
                             }
                             i64::from_be_bytes(*bytes)
                         }
                         _ => {
-                            return Err(ASTExecError(format!(
-                                "Initial value in for loop must be an integer"
+                            return Err(ASTExecError(String::from(
+                                "Initial value in for loop must be an integer",
                             )));
                         }
                     },
@@ -203,25 +201,27 @@ impl Statement {
                         LuaValue(rc) => match rc.as_ref() {
                             LuaVal::LuaNum(bytes, is_float) => {
                                 if *is_float {
-                                    return Err(ASTExecError(format!(
-                                        "Step value in for loop must be an integer"
+                                    return Err(ASTExecError(String::from(
+                                        "Step value in for loop must be an integer",
                                     )));
                                 }
                                 i64::from_be_bytes(*bytes)
                             }
                             _ => {
-                                return Err(ASTExecError(format!(
-                                    "Step value in for loop must be an integer"
+                                return Err(ASTExecError(String::from(
+                                    "Step value in for loop must be an integer",
                                 )));
                             }
-                        }
+                        },
                     },
                     None => 1,
                 };
 
                 // Step 0 is not allowed
                 if step == 0 {
-                    return Err(ASTExecError(format!("Step value in for loop cannot be 0")));
+                    return Err(ASTExecError(String::from(
+                        "Step value in for loop cannot be 0",
+                    )));
                 }
 
                 // continues while the value is less than or equal to the limit
@@ -259,12 +259,12 @@ impl Statement {
                     i += step;
                 }
             }
-            Statement::ForGeneric((names, exp_list, block)) => {
+            Statement::ForGeneric((_names, exp_list, _block)) => {
                 // Generic for statement must be used with iterator
                 // TODO: finish implementing this if there is extra time
                 if exp_list.len() != 1 {
-                    return Err(ASTExecError(format!(
-                        "Generic for loop must use iterator function"
+                    return Err(ASTExecError(String::from(
+                        "Generic for loop must use iterator function",
                     )));
                 }
 
@@ -371,7 +371,7 @@ mod tests {
 
     // Helper functions
     fn var_exp(name: &str) -> Expression {
-        Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar(name.to_string()))))
+        Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name(name.to_string()))))
     }
     fn integer_exp(n: i64) -> Expression {
         Expression::Numeral(Numeral::Integer(n))
@@ -405,9 +405,9 @@ mod tests {
         let a: i64 = 10;
         let b: i64 = 20;
         let varlist = vec![
-            Var::NameVar("a".to_string()),
-            Var::NameVar("b".to_string()),
-            Var::NameVar("a".to_string()),
+            Var::Name("a".to_string()),
+            Var::Name("b".to_string()),
+            Var::Name("a".to_string()),
         ];
         let explist = vec![
             Expression::Numeral(Numeral::Integer(30)),
@@ -429,9 +429,9 @@ mod tests {
         let a: i64 = 30;
         let b: i64 = 20;
         let varlist = vec![
-            Var::NameVar("a".to_string()),
-            Var::NameVar("b".to_string()),
-            Var::NameVar("c".to_string()),
+            Var::Name("a".to_string()),
+            Var::Name("b".to_string()),
+            Var::Name("c".to_string()),
         ];
         let explist = vec![
             Expression::Numeral(Numeral::Integer(30)),
@@ -452,7 +452,7 @@ mod tests {
         // varlist.len < explist.len
         let a: i64 = 30;
         let b: i64 = 20;
-        let varlist = vec![Var::NameVar("a".to_string()), Var::NameVar("b".to_string())];
+        let varlist = vec![Var::Name("a".to_string()), Var::Name("b".to_string())];
         let explist = vec![
             Expression::Numeral(Numeral::Integer(30)),
             Expression::Numeral(Numeral::Integer(20)),
@@ -473,7 +473,7 @@ mod tests {
         env = Env::new();
         let a: i64 = 10;
         let b: i64 = 20;
-        let varlist = vec![Var::NameVar("a".to_string()), Var::NameVar("b".to_string())];
+        let varlist = vec![Var::Name("a".to_string()), Var::Name("b".to_string())];
         let explist = vec![
             Expression::Numeral(Numeral::Integer(10)),
             Expression::Numeral(Numeral::Integer(20)),
@@ -501,13 +501,13 @@ mod tests {
         // reassignment in one line (should not know value of "a" in same line)
         let a: i64 = 10;
         let varlist = vec![
-            Var::NameVar("a".to_string()),
-            Var::NameVar("b".to_string()),
-            Var::NameVar("a".to_string()),
+            Var::Name("a".to_string()),
+            Var::Name("b".to_string()),
+            Var::Name("a".to_string()),
         ];
         let explist = vec![
             Expression::Numeral(Numeral::Integer(30)),
-            Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar("a".to_string())))),
+            Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name("a".to_string())))),
             Expression::Numeral(Numeral::Integer(10)),
         ];
         let stat = Statement::Assignment((varlist, explist, false));
@@ -522,13 +522,13 @@ mod tests {
         let a = "testA";
         let b = "testB";
         let varlist = vec![
-            Var::NameVar("a".to_string()),
-            Var::NameVar("b".to_string()),
-            Var::NameVar("a".to_string()),
+            Var::Name("a".to_string()),
+            Var::Name("b".to_string()),
+            Var::Name("a".to_string()),
         ];
         let explist = vec![
             Expression::LiteralString(b.to_string()),
-            Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar("a".to_string())))),
+            Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name("a".to_string())))),
             Expression::LiteralString(a.to_string()),
         ];
         let stat = Statement::Assignment((varlist, explist, false));
@@ -538,6 +538,33 @@ mod tests {
             *env.get("b").unwrap().0,
             LuaVal::LuaNum(10_i64.to_be_bytes(), false)
         );
+    }
+
+    #[test]
+    fn test_exec_stat_table_assign() {
+        let mut env = Env::new();
+
+        let table = LuaValue::extract_first_return_val(lua_table(HashMap::new()));
+
+        env.insert_global(String::from("my_table"), table);
+
+        let stat = Statement::Assignment((
+            vec![Var::Dot((
+                Box::new(PrefixExp::Var(Var::Name(String::from("my_table")))),
+                String::from("x"),
+            ))],
+            vec![Expression::LiteralString(String::from("just added!"))],
+            false,
+        ));
+
+        assert_eq!(stat.exec(&mut env), Ok(Some(vec![])));
+
+        let expected_table = LuaValue::extract_first_return_val(lua_table(HashMap::from([(
+            TableKey::String(String::from("x")),
+            LuaValue::new(LuaVal::LuaString(String::from("just added!"))),
+        )])));
+        let actual_table = &*env.get("my_table").unwrap().0;
+        assert_eq!(actual_table, &*expected_table.0)
     }
 
     #[test]
@@ -552,8 +579,8 @@ mod tests {
         env.insert_global(String::from("my_table"), table);
 
         let stat = Statement::Assignment((
-            vec![Var::DotVar((
-                Box::new(PrefixExp::Var(Var::NameVar(String::from("my_table")))),
+            vec![Var::Dot((
+                Box::new(PrefixExp::Var(Var::Name(String::from("my_table")))),
                 String::from("x"),
             ))],
             vec![Expression::LiteralString(String::from("new value!"))],
@@ -578,7 +605,7 @@ mod tests {
         // reassignment in one line (should not know value of "a" in same line)
         let a: i64 = 10;
         let stat = Statement::Assignment((
-            vec![Var::NameVar("a".to_string())],
+            vec![Var::Name("a".to_string())],
             vec![Expression::Numeral(Numeral::Integer(10))],
             false,
         ));
@@ -590,12 +617,12 @@ mod tests {
 
         let block = Block {
             statements: vec![Statement::Assignment((
-                vec![Var::NameVar("a".to_string())],
+                vec![Var::Name("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(20))],
                 true,
             ))],
             return_stat: Some(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::NameVar("a".to_string()),
+                Var::Name("a".to_string()),
             )))]),
         };
         let do_block = Statement::DoBlock(block);
@@ -620,7 +647,7 @@ mod tests {
         env.insert_global("a".to_string(), lua_integer(a));
 
         // Simple function with side effect (a = 10.04)
-        let varlist = vec![Var::NameVar("a".to_string())];
+        let varlist = vec![Var::Name("a".to_string())];
         let num: f64 = 10.04;
         let exp_float = Expression::Numeral(Numeral::Float(num));
         let explist = vec![exp_float];
@@ -635,7 +662,7 @@ mod tests {
         // Create function environment
         env.insert_global("f".to_string(), lua_function(&par_list, &block, &env));
         // Function call statement
-        let func_prefix = PrefixExp::Var(Var::NameVar("f".to_string()));
+        let func_prefix = PrefixExp::Var(Var::Name("f".to_string()));
         let args = Args::ExpList(vec![]);
         let func_call = FunctionCall::Standard((Box::new(func_prefix), args));
         let func_call_stat = Statement::FunctionCall(func_call);
@@ -653,7 +680,7 @@ mod tests {
         let condition = Expression::Numeral(Numeral::Integer(0));
         let block = Block {
             statements: vec![Statement::Assignment((
-                vec![Var::NameVar("a".to_string())],
+                vec![Var::Name("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(10))],
                 false,
             ))],
@@ -670,7 +697,7 @@ mod tests {
         let condition = Expression::False;
         let block = Block {
             statements: vec![Statement::Assignment((
-                vec![Var::NameVar("a".to_string())],
+                vec![Var::Name("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(10))],
                 false,
             ))],
@@ -678,7 +705,7 @@ mod tests {
         };
         let else_block = Block {
             statements: vec![Statement::Assignment((
-                vec![Var::NameVar("a".to_string())],
+                vec![Var::Name("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(20))],
                 false,
             ))],
@@ -695,7 +722,7 @@ mod tests {
         let condition = Expression::False;
         let block = Block {
             statements: vec![Statement::Assignment((
-                vec![Var::NameVar("a".to_string())],
+                vec![Var::Name("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(10))],
                 false,
             ))],
@@ -705,7 +732,7 @@ mod tests {
             Expression::True,
             Block {
                 statements: vec![Statement::Assignment((
-                    vec![Var::NameVar("a".to_string())],
+                    vec![Var::Name("a".to_string())],
                     vec![Expression::Numeral(Numeral::Integer(20))],
                     false,
                 ))],
@@ -714,7 +741,7 @@ mod tests {
         )];
         let else_block = Block {
             statements: vec![Statement::Assignment((
-                vec![Var::NameVar("a".to_string())],
+                vec![Var::Name("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(30))],
                 false,
             ))],
@@ -730,12 +757,12 @@ mod tests {
         let mut env = Env::new();
         let block = Block {
             statements: vec![Statement::Assignment((
-                vec![Var::NameVar("a".to_string())],
+                vec![Var::Name("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(10))],
                 false,
             ))],
             return_stat: Some(vec![Expression::PrefixExp(Box::new(PrefixExp::Var(
-                Var::NameVar("a".to_string()),
+                Var::Name("a".to_string()),
             )))]),
         };
         let do_block = Statement::DoBlock(block);
@@ -750,7 +777,7 @@ mod tests {
         let block = Block {
             statements: vec![
                 Statement::Assignment((
-                    vec![Var::NameVar("a".to_string())],
+                    vec![Var::Name("a".to_string())],
                     vec![Expression::Numeral(Numeral::Integer(10))],
                     false,
                 )),
@@ -770,7 +797,7 @@ mod tests {
         let condition = Expression::True;
         let block = Block {
             statements: vec![Statement::Assignment((
-                vec![Var::NameVar("a".to_string())],
+                vec![Var::Name("a".to_string())],
                 vec![Expression::Numeral(Numeral::Integer(10))],
                 false,
             ))],
@@ -785,7 +812,7 @@ mod tests {
     fn test_exec_stat_while() {
         let mut env = Env::new();
         let stat = Statement::Assignment((
-            vec![Var::NameVar("a".to_string())],
+            vec![Var::Name("a".to_string())],
             vec![Expression::Numeral(Numeral::Integer(10))],
             false,
         ));
@@ -797,7 +824,7 @@ mod tests {
         ));
         let block = Block {
             statements: vec![Statement::Assignment((
-                vec![Var::NameVar("a".to_string())],
+                vec![Var::Name("a".to_string())],
                 vec![Expression::BinaryOp((
                     Box::new(var_exp("a")),
                     BinOp::Add,
@@ -817,7 +844,7 @@ mod tests {
     fn test_exec_stat_for_num() {
         let mut env = Env::new();
         let stat = Statement::Assignment((
-            vec![Var::NameVar("a".to_string())],
+            vec![Var::Name("a".to_string())],
             vec![Expression::Numeral(Numeral::Integer(10))],
             false,
         ));
@@ -829,7 +856,7 @@ mod tests {
             None,
             Block {
                 statements: vec![Statement::Assignment((
-                    vec![Var::NameVar("a".to_string())],
+                    vec![Var::Name("a".to_string())],
                     vec![Expression::BinaryOp((
                         Box::new(var_exp("a")),
                         BinOp::Add,
@@ -856,7 +883,7 @@ mod tests {
                 statements: vec![
                     Statement::Break,
                     Statement::Assignment((
-                        vec![Var::NameVar("a".to_string())],
+                        vec![Var::Name("a".to_string())],
                         vec![Expression::Numeral(Numeral::Integer(20))],
                         false,
                     )),
@@ -878,7 +905,7 @@ mod tests {
             Some(Expression::Numeral(Numeral::Integer(-1))),
             Block {
                 statements: vec![Statement::Assignment((
-                    vec![Var::NameVar("a".to_string())],
+                    vec![Var::Name("a".to_string())],
                     vec![Expression::Numeral(Numeral::Integer(20))],
                     false,
                 ))],
@@ -898,7 +925,7 @@ mod tests {
             Some(Expression::Numeral(Numeral::Integer(0))),
             Block {
                 statements: vec![Statement::Assignment((
-                    vec![Var::NameVar("a".to_string())],
+                    vec![Var::Name("a".to_string())],
                     vec![Expression::Numeral(Numeral::Integer(20))],
                     false,
                 ))],
@@ -974,7 +1001,7 @@ mod tests {
         let mut env = Env::new();
 
         let stat = Statement::Assignment((
-            vec![Var::NameVar("c".to_string())],
+            vec![Var::Name("c".to_string())],
             vec![Expression::BinaryOp((
                 Box::new(var_exp("a")),
                 BinOp::Add,
@@ -991,7 +1018,7 @@ mod tests {
             },
         ));
         let assignments = Statement::Assignment((
-            vec![Var::NameVar("a".to_string()), Var::NameVar("b".to_string())],
+            vec![Var::Name("a".to_string()), Var::Name("b".to_string())],
             vec![integer_exp(10), integer_exp(20)],
             true,
         ));
@@ -1009,7 +1036,7 @@ mod tests {
         // But function (closure) can access them
         let args = Args::ExpList(vec![]);
         let func_call = FunctionCall::Standard((
-            Box::new(PrefixExp::Var(Var::NameVar("f".to_string()))),
+            Box::new(PrefixExp::Var(Var::Name("f".to_string()))),
             args,
         ));
         let exp = PrefixExp::FunctionCall(func_call);

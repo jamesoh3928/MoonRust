@@ -15,13 +15,13 @@ local function divide(a, b)
 end
 
 print("Enter the first number: ")
-local a = tonumber(io.read())
+local a = read("*number")
 
 print("Enter the operator (+, -, *, /): ")
-local op = io.read()
+local op = read("*line")
 
 print("Enter the second number: ")
-local b = tonumber(io.read())
+local b = read("*number")
 
 if op == "+" then
     print(a .. " + " .. b .. " = " .. add(a, b))

@@ -272,14 +272,14 @@ mod tests {
         test_interpreter(src, expected_output);
     }
 
-    // table2.lua
-    // TODO: modify after table is implemented
-    // #[test]
-    // fn test_table2_lua() {
-    //     let expected_output = "";
-    //     let src = "assets/table2.lua";
-    //     test_interpreter(src, expected_output);
-    // }
+    #[test]
+    fn test_table2_lua() {
+        let expected_output = "x y 23 10 45\nx y 23 10 45\nz y 23 10 45\nz y 23 10 45";
+        let src = "assets/table2.lua";
+        test_interpreter(src, expected_output);
+    }
+
+    // TODO: add after table method is implemented (more test cases)
 
     #[test]
     fn test_while_break_lua() {
@@ -299,6 +299,13 @@ mod tests {
     fn test_print_rows() {
         let expected_output = "*\n**\n***\n****\n*****";
         let src = "assets/print_rows.lua";
+        test_interpreter(src, expected_output);
+    }
+
+    #[test]
+    fn test_fibonacci() {
+        let expected_output = "0\n1\n1\n2\n3\n5\n8\n13\n21\n34\n55";
+        let src = "assets/fibonacci_fixed.lua";
         test_interpreter(src, expected_output);
     }
 

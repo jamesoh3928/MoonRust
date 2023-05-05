@@ -151,7 +151,7 @@ impl Display for Expression {
             Expression::PrefixExp(pexp) => pexp.fmt(f),
             Expression::TableConstructor(fields) => {
                 writeln!(f, "{{")?;
-                format_list(&fields, f, true)?;
+                format_list(fields, f, true)?;
                 writeln!(f, "}}")
             }
             Expression::BinaryOp((exp1, binop, exp2)) => {
@@ -307,12 +307,12 @@ impl Display for Args {
         match self {
             Self::ExpList(exps) => {
                 write!(f, "(")?;
-                format_list(&exps, f, false)?;
+                format_list(exps, f, false)?;
                 write!(f, ")")
             }
             Self::TableConstructor(fields) => {
                 writeln!(f, "{{")?;
-                format_list(&fields, f, true)?;
+                format_list(fields, f, true)?;
                 writeln!(f, "}}")
             }
             Self::LiteralString(string) => {
@@ -348,48 +348,48 @@ impl Display for ParList {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Field {
-    BracketedAssign((Expression, Expression)),
-    NameAssign((String, Expression)),
-    UnnamedAssign(Expression),
+    Bracketed((Expression, Expression)),
+    Name((String, Expression)),
+    Unnamed(Expression),
 }
 
 impl Display for Field {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BracketedAssign((exp1, exp2)) => {
+            Self::Bracketed((exp1, exp2)) => {
                 write!(f, "[")?;
                 exp1.fmt(f)?;
                 write!(f, "] = ")?;
                 exp2.fmt(f)
             }
-            Self::NameAssign((name, exp)) => {
+            Self::Name((name, exp)) => {
                 name.fmt(f)?;
                 write!(f, " = ")?;
                 exp.fmt(f)
             }
-            Self::UnnamedAssign(exp) => exp.fmt(f),
+            Self::Unnamed(exp) => exp.fmt(f),
         }
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Var {
-    NameVar(String),
-    BracketVar((Box<PrefixExp>, Expression)),
-    DotVar((Box<PrefixExp>, String)),
+    Name(String),
+    Bracket((Box<PrefixExp>, Expression)),
+    Dot((Box<PrefixExp>, String)),
 }
 
 impl Display for Var {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NameVar(name) => name.fmt(f),
-            Self::BracketVar((pexp, exp)) => {
+            Self::Name(name) => name.fmt(f),
+            Self::Bracket((pexp, exp)) => {
                 pexp.fmt(f)?;
                 write!(f, "[")?;
                 exp.fmt(f)?;
                 write!(f, "]")
             }
-            Self::DotVar((pexp, name)) => {
+            Self::Dot((pexp, name)) => {
                 pexp.fmt(f)?;
                 write!(f, ".")?;
                 name.fmt(f)
@@ -439,7 +439,7 @@ impl Display for AST {
 }
 
 fn format_list(
-    elements: &Vec<impl Display>,
+    elements: &[impl Display],
     f: &mut std::fmt::Formatter<'_>,
     lines: bool,
 ) -> std::fmt::Result {

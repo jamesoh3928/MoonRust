@@ -3,7 +3,6 @@ use crate::interpreter::environment::Env;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
-use std::ptr::null;
 use std::{cell::RefCell, rc::Rc};
 
 use self::environment::LocalEnv;
@@ -24,6 +23,7 @@ pub enum LuaVal<'a> {
     Print,
     TestPrint(Rc<RefCell<Vec<String>>>),
     Read,
+    Random,
 }
 
 // Lua function captures environment in function call
@@ -42,17 +42,13 @@ impl<'a> LuaValue<'a> {
         LuaValue(Rc::new(val))
     }
 
-    pub fn clone(&self) -> LuaValue<'a> {
+    pub fn clone_rc(&self) -> LuaValue<'a> {
         LuaValue(Rc::clone(&self.0))
     }
 
     pub fn is_false(&self) -> bool {
         // All values different from nil and false test true
-        match &*self.0 {
-            LuaVal::LuaNil => true,
-            LuaVal::LuaBool(false) => true,
-            _ => false,
-        }
+        matches!(&*self.0, LuaVal::LuaNil | LuaVal::LuaBool(false))
     }
 
     pub fn is_true(&self) -> bool {
@@ -60,17 +56,11 @@ impl<'a> LuaValue<'a> {
     }
 
     pub fn is_numeral(&self) -> bool {
-        match &*self.0 {
-            LuaVal::LuaNum(_, _) => true,
-            _ => false,
-        }
+        matches!(&*self.0, LuaVal::LuaNum(_, _))
     }
 
     pub fn is_string(&self) -> bool {
-        match &*self.0 {
-            LuaVal::LuaString(_) => true,
-            _ => false,
-        }
+        matches!(&*self.0, LuaVal::LuaString(_))
     }
 
     pub fn is_zero(&self) -> bool {
@@ -119,10 +109,7 @@ impl<'a> LuaValue<'a> {
     }
 
     pub fn is_nil(&self) -> bool {
-        match &*self.0 {
-            LuaVal::LuaNil => true,
-            _ => false,
-        }
+        matches!(&*self.0, LuaVal::LuaNil)
     }
 
     pub fn is_greater_or_equal(&self, num: i64) -> Result<bool, ASTExecError> {
@@ -140,8 +127,8 @@ impl<'a> LuaValue<'a> {
                     Ok(n >= num)
                 }
             }
-            _ => Err(ASTExecError(format!(
-                "Cannot compare values (types cannot be compared)"
+            _ => Err(ASTExecError(String::from(
+                "Cannot compare values (types cannot be compared)",
             ))),
         }
     }
@@ -161,8 +148,8 @@ impl<'a> LuaValue<'a> {
                     Ok(n <= num)
                 }
             }
-            _ => Err(ASTExecError(format!(
-                "Cannot compare values (types cannot be compared)"
+            _ => Err(ASTExecError(String::from(
+                "Cannot compare values (types cannot be compared)",
             ))),
         }
     }
@@ -170,8 +157,8 @@ impl<'a> LuaValue<'a> {
     pub fn negate_bool(self) -> Result<LuaValue<'a>, ASTExecError> {
         match self.0.as_ref() {
             LuaVal::LuaBool(b) => Ok(LuaValue::new(LuaVal::LuaBool(!b))),
-            _ => Err(ASTExecError(format!(
-                "Cannot negate value (only boolean can be negated)"
+            _ => Err(ASTExecError(String::from(
+                "Cannot negate value (only boolean can be negated)",
             ))),
         }
     }
@@ -184,7 +171,7 @@ impl<'a> LuaValue<'a> {
                     if n.floor() == n.ceil() {
                         Ok(n.floor() as i64)
                     } else {
-                        Err(ASTExecError(format!(
+                        Err(ASTExecError(String::from(
                             "Cannot convert float that does not have exact integer value to integer"
                         )))
                     }
@@ -192,8 +179,8 @@ impl<'a> LuaValue<'a> {
                     Ok(i64::from_be_bytes(*n))
                 }
             }
-            _ => Err(ASTExecError(format!(
-                "Cannot convert value to integer (types cannot be converted)"
+            _ => Err(ASTExecError(String::from(
+                "Cannot convert value to integer (types cannot be converted)",
             ))),
         }
     }
@@ -214,8 +201,8 @@ impl<'a> LuaValue<'a> {
                 }
             }
             LuaVal::LuaString(s) => Ok(s.clone()),
-            _ => Err(ASTExecError(format!(
-                "Cannot convert value to String (types cannot be converted)"
+            _ => Err(ASTExecError(String::from(
+                "Cannot convert value to String (types cannot be converted)",
             ))),
         }
     }
@@ -225,7 +212,7 @@ impl<'a> LuaValue<'a> {
             // If no return values, return nil
             LuaValue::new(LuaVal::LuaNil)
         } else {
-            return_vals[0].clone()
+            return_vals[0].clone_rc()
         }
     }
 }
@@ -255,6 +242,7 @@ impl<'a> Display for LuaValue<'a> {
             LuaVal::Print => write!(f, "print"),
             LuaVal::TestPrint(_) => write!(f, "print"),
             LuaVal::Read => write!(f, "read"),
+            LuaVal::Random => write!(f, "random"),
         }
     }
 }
@@ -315,10 +303,7 @@ impl<'a> LuaTable<'a> {
     }
 
     pub fn get(&self, key: TableKey) -> Option<LuaValue<'a>> {
-        match self.0.borrow().get(&key) {
-            Some(res) => Some(res.clone()),
-            None => None,
-        }
+        self.0.borrow().get(&key).map(|res| res.clone_rc())
     }
 
     // TODO: If we have time
@@ -336,23 +321,28 @@ impl<'a> LuaTable<'a> {
 
     /// Returns the first integer index that comes before an absent index
     pub fn calculate_border(&self) -> usize {
-        
-        let mut idx:i64 = 1; // tables in Lua are 1 indexed
+        let mut idx: i64 = 1; // tables in Lua are 1 indexed
         let table = self.0.borrow();
-        
+
         // loop through table
         while (idx as usize) < table.len() {
             let number = idx.to_be_bytes();
             let table_key = TableKey::Number(number);
             // if current idx's associated value is nil
-            if table.get(&table_key) == None {
+            if table.get(&table_key).is_none() {
                 // return previous idx
                 return (idx as usize) - 1;
             }
-            idx = idx+ 1;
+            idx += 1;
         }
-        
+
         idx as usize
+    }
+}
+
+impl<'a> Default for LuaTable<'a> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -408,8 +398,7 @@ impl Block {
         };
 
         let mut return_vals = Vec::with_capacity(explist.len());
-        let mut i = 0;
-        for exp in explist.iter() {
+        for (i, exp) in explist.iter().enumerate() {
             // For each expression, only the first return value is used,
             // but last expression can use multiple return values
             if i == explist.len() - 1 {
@@ -417,7 +406,6 @@ impl Block {
                 break;
             }
             return_vals.push(LuaValue::extract_first_return_val(exp.eval(env).unwrap()));
-            i += 1;
         }
         Ok(Some(return_vals))
     }

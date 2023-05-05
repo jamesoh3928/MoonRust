@@ -50,17 +50,17 @@ pub fn parse_parlist(input: &str) -> ParseResult<ParList> {
 
 pub fn parse_var(input: &str) -> ParseResult<Var> {
     alt((
-        map(identifier, |result| Var::NameVar(String::from(result))),
+        map(identifier, |result| Var::Name(String::from(result))),
         map(
             pair(
                 parse_prefixexp,
                 delimited(ws(char('[')), parse_exp, ws(char(']'))),
             ),
-            |result| Var::BracketVar((Box::new(result.0), result.1)),
+            |result| Var::Bracket((Box::new(result.0), result.1)),
         ),
         map(
             separated_pair(parse_prefixexp, char('.'), identifier),
-            |result| Var::DotVar((Box::new(result.0), String::from(result.1))),
+            |result| Var::Dot((Box::new(result.0), String::from(result.1))),
         ),
     ))(input)
 }
@@ -87,13 +87,13 @@ fn parse_field(input: &str) -> ParseResult<Field> {
                 ws(char('=')),
                 parse_exp,
             ),
-            |result| Field::BracketedAssign(result),
+            Field::Bracketed,
         ),
         map(
             separated_pair(identifier, ws(char('=')), parse_exp),
-            |result| Field::NameAssign((String::from(result.0), result.1)),
+            |result| Field::Name((String::from(result.0), result.1)),
         ),
-        map(parse_exp, |result| Field::UnnamedAssign(result)),
+        map(parse_exp, Field::Unnamed),
     ))(input)
 }
 
@@ -117,7 +117,7 @@ fn parse_tail(input: &str) -> ParseResult<Tail> {
     alt((
         map(
             delimited(ws(char('[')), parse_exp, ws(char(']'))),
-            |result| Tail::Bracket(result),
+            Tail::Bracket,
         ),
         map(preceded(char('.'), identifier), |result| {
             Tail::Dot(String::from(result))
@@ -155,20 +155,20 @@ fn convert_to_prefixexp(prefix_temp: PrefixTemp) -> PrefixExp {
         PrefixPart::ExpPart(exp) => PrefixExp::Exp(exp),
         PrefixPart::NamePart((name, tails)) => {
             if tails.is_empty() {
-                PrefixExp::Var(Var::NameVar(name))
+                PrefixExp::Var(Var::Name(name))
             } else {
                 let mut curr_prefix = None;
                 for tail in tails.into_iter() {
                     let inner_prefix = match curr_prefix {
                         Some(p) => Box::new(p),
-                        None => Box::new(PrefixExp::Var(Var::NameVar(name.clone()))),
+                        None => Box::new(PrefixExp::Var(Var::Name(name.clone()))),
                     };
                     curr_prefix = match tail {
                         Tail::Bracket(exp) => {
-                            Some(PrefixExp::Var(Var::BracketVar((inner_prefix, exp))))
+                            Some(PrefixExp::Var(Var::Bracket((inner_prefix, exp))))
                         }
                         Tail::Dot(dot_name) => {
-                            Some(PrefixExp::Var(Var::DotVar((inner_prefix, dot_name))))
+                            Some(PrefixExp::Var(Var::Dot((inner_prefix, dot_name))))
                         }
                         Tail::PossibleMethod((maybe_name, call_args)) => match maybe_name {
                             Some(method_name) => Some(PrefixExp::FunctionCall(
@@ -183,7 +183,7 @@ fn convert_to_prefixexp(prefix_temp: PrefixTemp) -> PrefixExp {
                 }
 
                 if curr_prefix.is_none() {
-                    curr_prefix = Some(PrefixExp::Var(Var::NameVar(name)))
+                    curr_prefix = Some(PrefixExp::Var(Var::Name(name)))
                 }
 
                 curr_prefix.unwrap()
@@ -214,12 +214,12 @@ pub fn parse_args(input: &str) -> ParseResult<Args> {
                 separated_list0(ws(char(',')), parse_exp),
                 ws(char(')')),
             ),
-            |result| Args::ExpList(result),
+            Args::ExpList,
         ),
         map(parse_table_constructor, |result| {
             Args::TableConstructor(result)
         }),
-        map(parse_string, |result| Args::LiteralString(result)),
+        map(parse_string, Args::LiteralString),
     ))(input)
 }
 
@@ -247,5 +247,5 @@ pub fn parse_dot_dot_dot(input: &str) -> ParseResult<Expression> {
 
 pub fn parse_literal_string(input: &str) -> ParseResult<Expression> {
     // TODO(?): I'm ignoring string literals that aren't in double quotes for now
-    map(ws(parse_string), |s| Expression::LiteralString(s))(input)
+    map(ws(parse_string), Expression::LiteralString)(input)
 }

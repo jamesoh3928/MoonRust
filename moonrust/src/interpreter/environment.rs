@@ -1,5 +1,7 @@
 // TODO
-// 6. Clean up code (delete unused lines)
+// 6. Clean up code (delete unused lines, clippy code)
+// 7. Final docs with demo prep (measure time)
+// Prime check demo: https://oeis.org/wiki/Higher-order_prime_numbers#:~:text=%7B3%2C%205%2C%2011%2C,%2C%20859%2C%20...%7D&text=.,-(Dressler%20%26%20Parker%201975 - 9737333
 use crate::interpreter::{LuaVal, LuaValue};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -16,24 +18,24 @@ impl<'a> EnvTable<'a> {
     pub fn get(&self, name: &str) -> Option<LuaValue<'a>> {
         let hm = self.0.borrow();
         let res = hm.get(name);
-        match res {
-            Some(res) => Some(res.clone()),
-            None => None,
-        }
+        res.map(|res| res.clone_rc())
     }
 
     pub fn get_mut(&mut self, name: &str) -> Option<LuaValue<'a>> {
         let mut hm = self.0.borrow_mut();
         let res = hm.get_mut(name);
-        match res {
-            Some(res) => Some(res.clone()),
-            None => None,
-        }
+        res.map(|res| res.clone_rc())
     }
 
     // Insert a new variable or update an existing one
     pub fn insert(&mut self, name: String, var: LuaValue<'a>) -> Option<LuaValue<'a>> {
         self.0.borrow_mut().insert(name, var)
+    }
+}
+
+impl<'a> Default for EnvTable<'a> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -49,11 +51,9 @@ impl<'a> LocalEnv<'a> {
 
     pub fn get(&self, name: &str) -> Option<LuaValue<'a>> {
         // Start from top of the stack
-        for table in self.0.iter().rev() {
-            if let Some(table) = table {
-                if let Some(var) = table.get(name) {
-                    return Some(var);
-                }
+        for table in self.0.iter().rev().flatten() {
+            if let Some(var) = table.get(name) {
+                return Some(var);
             }
         }
         None
@@ -93,12 +93,7 @@ impl<'a> LocalEnv<'a> {
 
     // Pop all tables in current scope
     pub fn pop_env(&mut self) {
-        loop {
-            match self.0.pop() {
-                Some(Some(_)) => {}
-                _ => break,
-            };
-        }
+        while let Some(Some(_)) = self.0.pop() {}
     }
 
     // Always inserting into the current scope
@@ -113,11 +108,9 @@ impl<'a> LocalEnv<'a> {
     }
 
     pub fn update(&mut self, name: String, var: LuaValue<'a>) -> Option<LuaValue<'a>> {
-        for table in self.0.iter_mut().rev() {
-            if let Some(table) = table {
-                if let Some(_) = table.get(&name) {
-                    return table.insert(name, var);
-                }
+        for table in self.0.iter_mut().rev().flatten() {
+            if table.get(&name).is_some() {
+                return table.insert(name, var);
             }
         }
         None
@@ -129,6 +122,12 @@ impl<'a> LocalEnv<'a> {
             env.extend_env_with_table(table);
         }
         env
+    }
+}
+
+impl<'a> Default for LocalEnv<'a> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -146,6 +145,8 @@ impl<'a> Env<'a> {
         };
         // Insert built-in functions
         env.insert_global("print".to_string(), LuaValue::new(LuaVal::Print));
+        env.insert_global("read".to_string(), LuaValue::new(LuaVal::Read));
+        env.insert_global("random".to_string(), LuaValue::new(LuaVal::Random));
         env
     }
 
@@ -204,7 +205,7 @@ impl<'a> Env<'a> {
     //     let mut new_env = Env::new();
     //     new_env.set_global_env(global_env);
     //     for (name, var) in captured_vars {
-    //         new_env.insert_local(name.clone(), var.clone());
+    //         new_env.insert_local(name.clone(), var.clone_rc());
     //     }
     //     new_env
     // }
@@ -220,5 +221,11 @@ impl<'a> Env<'a> {
         // TODO: double check this
         new_env.local = local_env.capture_env();
         new_env
+    }
+}
+
+impl<'a> Default for Env<'a> {
+    fn default() -> Self {
+        Self::new()
     }
 }

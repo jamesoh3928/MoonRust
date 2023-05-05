@@ -1,8 +1,8 @@
 use clap::Parser;
-use moonrust;
 use moonrust::interpreter::environment;
 use std::fs;
 use std::process;
+use std::time::Instant;
 
 #[derive(Parser, Debug)]
 #[command(about, long_about = None)]
@@ -10,6 +10,12 @@ struct Args {
     /// Path of the file to run
     #[clap(value_name = "FILE.lua")]
     file: String,
+    /// AST print flag
+    #[arg(short, long)]
+    ast: bool,
+    /// Report time statistics
+    #[clap(short, long)]
+    stats: bool,
 }
 
 fn main() {
@@ -33,11 +39,12 @@ fn main() {
         }
     };
 
-    // TODO: add flag for printing AST
-    println!("AST: {:#?}", ast);
+    if args.ast {
+        println!("AST: {:#?}", ast);
+    }
 
     // Execute the program
-    // Initialize environment
+    let exec_start = Instant::now();
     let mut env = environment::Env::new();
     match ast.exec(&mut env) {
         Ok(_) => (),
@@ -45,5 +52,15 @@ fn main() {
             eprintln!("Runtime error [{err}]");
             process::exit(1);
         }
+    }
+
+    // Exec time: referenced our second assignment (Birch program)
+    let exec_time = {
+        let exec_time = exec_start.elapsed();
+        exec_time.as_secs_f64() + exec_time.subsec_nanos() as f64 / 1.0e9
+    };
+    if args.stats {
+        println!();
+        println!("exec time   : {exec_time:>13.10} seconds");
     }
 }

@@ -279,15 +279,15 @@ mod tests {
         let expected = Ok((
             "",
             Expression::TableConstructor(vec![
-                Field::NameAssign((
+                Field::Name((
                     String::from("red"),
                     Expression::LiteralString(String::from("#ff0000")),
                 )),
-                Field::BracketedAssign((
+                Field::Bracketed((
                     Expression::Numeral(Numeral::Integer(1)),
                     Expression::Numeral(Numeral::Float(3.14159265)),
                 )),
-                Field::UnnamedAssign(Expression::True),
+                Field::Unnamed(Expression::True),
             ]),
         ));
 
@@ -377,11 +377,11 @@ mod tests {
                 "",
                 Expression::BinaryOp((
                     Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                        Var::NameVar(String::from("i"))
+                        Var::Name(String::from("i"))
                     )))),
                     BinOp::LessEq,
                     Box::new(Expression::PrefixExp(Box::new(PrefixExp::Var(
-                        Var::NameVar(String::from("j"))
+                        Var::Name(String::from("j"))
                     )))),
                 ))
             ))
@@ -432,7 +432,7 @@ mod tests {
             result,
             Ok((
                 ";",
-                Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar(String::from(
+                Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name(String::from(
                     "my_variable"
                 )))))
             ))
@@ -449,11 +449,11 @@ mod tests {
             Ok((
                 "",
                 Expression::PrefixExp(Box::new(PrefixExp::FunctionCall(FunctionCall::Standard((
-                    Box::new(PrefixExp::Var(Var::NameVar(String::from(
+                    Box::new(PrefixExp::Var(Var::Name(String::from(
                         "launch_missiles"
                     )))),
                     Args::ExpList(vec![
-                        Expression::PrefixExp(Box::new(PrefixExp::Var(Var::NameVar(
+                        Expression::PrefixExp(Box::new(PrefixExp::Var(Var::Name(
                             String::from("launch_code")
                         )))),
                         Expression::Numeral(Numeral::Integer(23))
@@ -473,7 +473,7 @@ mod tests {
             Ok((
                 "",
                 Expression::PrefixExp(Box::new(PrefixExp::FunctionCall(FunctionCall::Method((
-                    Box::new(PrefixExp::Var(Var::NameVar(String::from("government")))),
+                    Box::new(PrefixExp::Var(Var::Name(String::from("government")))),
                     String::from("launch_missiles"),
                     Args::ExpList(vec![Expression::Nil, Expression::DotDotDot])
                 )))))

@@ -32,7 +32,7 @@ impl FromStr for AST {
 
 /// Parse the input program file into an AST.
 pub fn parse(input: &str) -> ParseResult<AST> {
-    map(ws(parse_block), |block| AST(block))(input)
+    map(ws(parse_block), AST)(input)
 }
 
 #[derive(Debug, PartialEq)]
@@ -66,7 +66,7 @@ mod tests {
                 AST(Block {
                     statements: vec![
                         Statement::Assignment((
-                            vec![Var::NameVar(String::from("a"))],
+                            vec![Var::Name(String::from("a"))],
                             vec![Expression::BinaryOp((
                                 Box::new(Expression::BinaryOp((
                                     Box::new(Expression::Numeral(Numeral::Integer(3))),
@@ -79,7 +79,7 @@ mod tests {
                             false
                         )),
                         Statement::Assignment((
-                            vec![Var::NameVar(String::from("a"))],
+                            vec![Var::Name(String::from("a"))],
                             vec![Expression::BinaryOp((
                                 Box::new(Expression::BinaryOp((
                                     Box::new(Expression::Numeral(Numeral::Integer(3))),
@@ -92,7 +92,7 @@ mod tests {
                             false
                         )),
                         Statement::Assignment((
-                            vec![Var::NameVar(String::from("a"))],
+                            vec![Var::Name(String::from("a"))],
                             vec![Expression::BinaryOp((
                                 Box::new(Expression::BinaryOp((
                                     Box::new(Expression::Numeral(Numeral::Integer(3))),
