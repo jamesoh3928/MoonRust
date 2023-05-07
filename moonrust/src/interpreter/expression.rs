@@ -584,10 +584,79 @@ impl FunctionCall {
                     }
                 }
             }
+            // prefixexp is a table
             FunctionCall::Method((prefixexp, method_name, args)) => {
-                // TODO: implement after table
-                // TODO: Lua object is basically a table
-                unimplemented!()
+                // evaluate
+                let prefixexp = LuaValue::extract_first_return_val(prefixexp.eval(env)?);
+                // pattern match on table: if it doesn't match LuaTable, throw an error
+                match prefixexp.0.as_ref() {
+
+                    LuaVal::LuaTable(table) => {
+                        // check if function is in table
+                        match table.get(TableKey::String(method_name.clone())) {
+                            
+                            Some(lua_value) => {
+                                // check the type of the lua value
+                                match lua_value.0.as_ref() {
+                                    // break down lua funciton into component parts, block comes from AST
+                                    LuaVal::Function(LuaFunction{par_list, block, captured_env}) => {
+                                        // evaluate arguments
+                                        let args = args.eval(env)?;
+                                        // create environment
+                                        let mut func_env = env.create_with_captured_env(captured_env);
+                                        // Extend function environment with function arguments
+                                        func_env.extend_local_env();
+                                        let par_length = par_list.0.len();
+                                        let arg_length = args.len();
+                                        let mut i = 0;
+                                        // can pass more/less arguments than specified in function call
+                                        while i < par_length {
+                                            // Arguments are locally scoped
+                                            if i >= arg_length {
+                                                func_env.insert_local(
+                                                    par_list.0[i].clone(),
+                                                    LuaValue::new(LuaVal::LuaNil),
+                                                );
+                                            } else {
+                                                // update reference count, make arg part of function's local environment
+                                                func_env.insert_local(par_list.0[i].clone(), args[i].clone_rc());
+                                            }
+                                            i += 1;
+                                        }
+
+                                        // Option: if you break from loop then it's None, else it's Some
+                                        let result = block.exec(&mut func_env)?;
+
+                                        // Remove arguments from the environment
+                                        func_env.pop_local_env();
+                                        match result {
+                                            Some(vals) => Ok(vals),
+                                            None => Err(ASTExecError(String::from(
+                                                "Break statement can be only used in while, repeat, or for loop",
+                                            ))),
+                                        }
+                                    } 
+                                    // not a function, return an error
+                                    _ => {
+                                        return Err(ASTExecError(format!(
+                                            "the value '{method_name}' is not a function"
+                                        )))
+                                    }
+                                }
+                            } 
+                            None => {
+                                return Err(ASTExecError(format!(
+                                    "could not find value '{method_name}' in table"
+                                )))
+                            }
+                        }
+                    }
+                    _ => {
+                        return Err(ASTExecError(format!(
+                            "table '{prefixexp}' doesn't exist"
+                        )))
+                    }
+                }
             }
         }
     }
