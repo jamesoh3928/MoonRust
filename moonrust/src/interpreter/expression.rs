@@ -2478,4 +2478,52 @@ mod tests {
         );
         assert_eq!(func_env.get("d"), None);
     }
+
+    #[test]
+    fn accepts_method_call(){
+
+        // initialize new environment
+        let mut env = Env::new();
+        let par_list = ParList(
+            vec![String::from("a")], false
+        );
+        let block = Block { 
+            statements: vec![], return_stat: Some(vec![Expression::True]) 
+        };
+
+        // add table to environment
+        let other_table = LuaValue::extract_first_return_val(
+            lua_table(
+                HashMap::from(
+                    [
+                        (
+                            TableKey::String(String::from("example_func")),
+                            LuaValue::new(
+                                LuaVal::Function(
+                                    LuaFunction { 
+                                        par_list: &par_list, 
+                                        block: &block, 
+                                        captured_env: env.get_local_env().capture_env() 
+                                    }
+                                )
+                            )
+                        ),
+            
+                    ]
+                )
+            )
+        );
+        // insert table into environment
+        env.insert_global(String::from("other_table"), other_table);
+
+        // method call expression
+        let method_call = FunctionCall::Method(
+            (Box::new
+                (PrefixExp::Var
+                    (Var::Name
+                        (String::from("other_table")))), 
+                        String::from("example_func"), Args::ExpList(vec![]) ));
+        
+        assert_eq!(method_call.exec(&mut env), Ok(lua_true()));
+    }
 }
