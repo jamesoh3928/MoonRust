@@ -28,7 +28,6 @@ impl Expression {
                 Numeral::Float(f) => vec![LuaValue::new(LuaVal::LuaNum(f.to_be_bytes(), true))],
             },
             Expression::LiteralString(s) => vec![LuaValue::new(LuaVal::LuaString(s.clone()))],
-            // TODO: DotDotDot? maybe skip it for now
             Expression::DotDotDot => unimplemented!(),
             Expression::FunctionDef((par_list, block)) => {
                 let captured_env = env.get_local_env().capture_env();
@@ -795,7 +794,6 @@ impl FunctionCall {
     //                         captured_vars.append(&mut exp.capture_variables(env));
     //                     }
     //                 }
-    //                 // TODO: implement after table
     //                 Args::TableConstructor(table) => unimplemented!(),
     //                 Args::LiteralString(_) => {
     //                     // Do nothing
@@ -804,7 +802,6 @@ impl FunctionCall {
     //             captured_vars
     //         }
     //         FunctionCall::Method((object, method_name, args)) => {
-    //             // TODO: implement after table
     //             unimplemented!()
     //         }
     //     }
@@ -2362,8 +2359,6 @@ mod tests {
             exp.eval(&mut env),
             Ok(lua_integer("Let's get string length".len() as i64))
         );
-
-        // TODO: impelement after table (add test case for table)
 
         let exp = Expression::Numeral(Numeral::Integer(10));
         let exp = Expression::UnaryOp((UnOp::Length, Box::new(exp)));

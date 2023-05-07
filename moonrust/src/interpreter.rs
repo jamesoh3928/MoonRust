@@ -13,7 +13,6 @@ pub mod statement;
 
 #[derive(Debug, PartialEq)]
 pub enum LuaVal<'a> {
-    // May not need RefCell
     LuaTable(LuaTable<'a>),
     LuaNil,
     LuaBool(bool),
@@ -247,14 +246,12 @@ impl<'a> Display for LuaValue<'a> {
     }
 }
 
-// TODO: use hashmap representation since key can be only string literal, number, or identifier
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub enum TableKey {
     String(String),
     Number([u8; 8]),
 }
 
-// TODO: IMPORTANT - make sure to update hashmap inside the RefCell when the table is being mutated
 // Instead of overwriting the entire Rc
 #[derive(Debug, PartialEq, Clone)]
 pub struct LuaTable<'a>(RefCell<HashMap<TableKey, LuaValue<'a>>>);
@@ -263,7 +260,6 @@ impl<'a> LuaTable<'a> {
         LuaTable(RefCell::new(HashMap::new()))
     }
 
-    // TODO: implement table methods
     pub fn insert(&self, key: LuaValue<'a>, val: LuaValue<'a>) -> Result<(), ASTExecError> {
         let key = match key.0.as_ref() {
             LuaVal::LuaNum(num_bytes, is_float) => {

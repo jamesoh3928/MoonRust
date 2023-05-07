@@ -218,7 +218,6 @@ impl<'a> Env<'a> {
     pub fn create_with_captured_env(&self, local_env: &LocalEnv<'a>) -> Env<'a> {
         let mut new_env = Env::new();
         new_env.set_global_env(&self.global.0);
-        // TODO: double check this
         new_env.local = local_env.capture_env();
         new_env
     }

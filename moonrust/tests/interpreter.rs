@@ -70,27 +70,11 @@ mod tests {
         test_interpreter(src, expected_output);
     }
 
-    // TODO: Not working right now
-    // #[test]
-    // fn test_calculator_lua() {
-    // }
-
     #[test]
     fn test_closure1_lua() {
         let expected_output = "true\ntrue\ntrue";
         let src = "assets/closure1.lua";
         test_interpreter(src, expected_output);
-    }
-    // TODO: add more closure test cases
-    #[test]
-    fn test_closure2_lua() {
-        // let expected_output = "";
-        // let buffer: Vec<String> = vec![];
-        // let buffer = Rc::new(RefCell::new(buffer));
-
-        // let ast = parse_file("assets/closure2.lua").unwrap();
-        // run_ast(ast, Rc::clone(&buffer)).unwrap();
-        // assert_eq!(expected_output, buffer.borrow().join("\n"));
     }
 
     // TODO: Not working right now
@@ -213,13 +197,13 @@ mod tests {
     }
 
     // object.lua
-    // TODO: not implemented yet
-    // #[test]
-    // fn test_object_lua() {
-    //     let expected_output = "";
-    //     let src = "assets/object.lua";
-    //     test_interpreter(src, expected_output);
-    // }
+    // Self is not implemented
+    #[test]
+    fn test_object_lua() {
+        let expected_output = "Position: 10 20";
+        let src = "assets/object.lua";
+        test_interpreter(src, expected_output);
+    }
 
     #[test]
     fn test_prob1_lua() {
@@ -263,11 +247,9 @@ mod tests {
         test_interpreter(src, expected_output);
     }
 
-    // table1.lua
-    // TODO: modify after table is implemented
     #[test]
     fn test_table1_lua() {
-        let expected_output = "x y 23 45\nx y 23 45\nz y 23 45\nz y 23 45";
+        let expected_output = "x y 23 45 1\nx y 23 45 1\nz y 23 45 1\nz y 23 45 1";
         let src = "assets/table1.lua";
         test_interpreter(src, expected_output);
     }
@@ -278,8 +260,6 @@ mod tests {
         let src = "assets/table2.lua";
         test_interpreter(src, expected_output);
     }
-
-    // TODO: add after table method is implemented (more test cases)
 
     #[test]
     fn test_while_break_lua() {

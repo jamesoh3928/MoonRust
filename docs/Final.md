@@ -16,52 +16,59 @@ The goal of this project was to build an interpreter that will execute a subset 
 
 ## Project Breakdown
 
--- TODO: delete placeholder --
-Describe the work done for the project and lessons learned.
-
 ### Implementation
+We were able to finish our MVP by implementing following features:
 
-1. Parser (excluding syntactic sugar such as literal strings and table constructor)
-2. Binary expression evaluation
-3. Unary expressions evaluation
-4. Control statement evaluation (if, else, break)
-5. Loop statement evaluation (for, while, repeat)
-6. Function definition/call evaluation
-7. Visibility rules and scoping
-8. Table evaluation
+1. Parser (excluding syntactic sugar such as literal strings and some forms of table constructor)
+2. Variable assignments
+3. Binary expression evaluation
+4. Unary expressions evaluation
+5. Control statement evaluation (if, else, break)
+6. Loop statement evaluation (for, while, repeat - excluding for generics)
+7. Function definition/call evaluation
+8. Visibility rules and scoping
+9. Table evaluation
+10. Some standard library functions (print, read, random)
 
 ### Challenges/Lessons
 
-1. Left recursive parsing was very tricky
-2. First made eval/exec consume AST, but changed to take immutable reference in order to make function work
-3. Lifetime parameters were tricky (Function will have reference to block which lives in AST, so the lifetime parameters will basically represent the lifetime of AST tokens, had to expand the lifetime parameters to many structs since lot of them are related, however, it was crucial to not link the lifetime of environment with AST, the lifetime parameter is for LuaValue stored in env, but that doesn't mean env also needs to have equal lifetime as AST) - immutable ref was needed because of function call and loops (need to re-evaluate the expressions)
-4. Repeat until can refer to local variables in the loop for condition expression
-5. Capturing variables/environment for closure..... Environment cannot be shared, traverse through the block
-6. Lifetime errors....
+We had multiple challenges throughout the projects and we were able to find solutions for most of them by trying different approaches. The details of the different approaches we took can be found in the _Different Approaches_ section.
 
-```rust
-match &*LuaValue::extract_first_return_val((*func).eval(env)?).0.borrow() {}
-```
+1. Parsing left recursion
 
-below code had "`rc` does not live long enough error", so had to make it one line
+Detail: can be found in _Different Approaches_ section.
 
-```rust
-let func = LuaValue::extract_first_return_val((*func).eval(env)?);
-let rc = func.0;
-match &*rc.borrow() { ... }
-```
+Lesson: --TODO--
+
+2. Implementing Environment
+
+Detail: Unlike Rust, in Lua multiple variables can own the same value, we had to use a lot of `Rc` and `RefCell` to allow multiple ownership and some interior mutability. Also, a Lua function can act as a closure, meaning it can capture variables where it is defined. This means that we either have to identify variables that are being captured or capture the environment where the closure is defined. This was a tricky problem to solve but we found a solution by wrapping `EnvTable` with Rc so that the function can capture an environment where it is defined, and separating scopes in `Env` with `None`. More details of our solution can be found in the _Different Approaches_ section.
+
+Lesson: Although Rust has strong ownership and alias rule, we can use Rc and RefCell to enforce some behaviors that require multiple owners. However, this may increase some overhead since the ownership rules will be enforced during the runtime. Another lesson we learned was that there are various ways to establish invariants for `Rc` and `RefCell`, and we need to be careful which invariant we establish (eg. some invariant may require to use of `unsafe` while other does not).
+
+3. Lifetime parameters
+
+Detail: Since the function can be called multiple times, we need to store a reference to the function body when the function is defined (same for the loops). This means the Lua function needs to point to a `Block` inside AST. This also means that we need **lifetime parameters** because our types will be storing references. Because the Lua function is pointing to a block in AST, the Lua function is a variant of LuaValue, and Environment stores LuaValue, this means that we need to expand lifetime parameters across all of these types.
+
+Lesson: Enhanced understanding of the lifetime parameter, that they are used to link the lifetime of different references.
+
+
+4. Following some unique behaviors of Lua
+
+Detail: Lua has some unique behavior such as the condition in repeat until can refer to the local variable inside the loop, and all of the assignments are global by default. There are many behaviors we needed to consider and we needed to update our design constantly as we realized there are behaviors we are missing. 
+
+Lesson: Having a strong understanding of Lua semantics could have reduced our development time since we might have had a stronger design in the beginning. However, considering the limited time we had and the nature of software engineering (iterative development), I think our initial design was a good start. We still learned some of the things we might want to consider in the initial design process. Also, setting up test infrastructure in the early stage can be a huge advantage since it is easy to add edge cases and check if our program is misbehaving.
+
 
 ## Additional Details
 
--- TODO: delete placeholder --
+### List of Dependencies
 
-### List of dependencies
+-nom = "7" (parsing library)
+-clap = {version = "4.1", features = ["cargo", "derive"]} (command line argument parsing)
+-rand = "0.8.4" (random number generator)
 
--nom = "7"
--clap = {version = "4.1", features = ["cargo", "derive"]}
--rand = "0.8.4"
-
-### Structure of the code
+### Structure of the Code
 
 - Briefly describe the structure of the code (what are the main components, the
   module dependency structure). Why was the project modularized in this way?
@@ -139,15 +146,17 @@ The reason we decided to split up the structure of the parser this way is becaus
 
 #### Interpreter
 
-TODO
+Just like the parser, users interface with the interpreter through the `interpreter.rs` file. Users can call the `AST::exec` method to execute the AST with Lua semantics. The file defines `LuaValue` and `LuaVal` and all associated functions related to the values. 
+
+The sub-modules are stored in the `interpreter` folder which is `environment.rs`, `expression.rs`, and `statement.rs`. The environment module defines all types and functions that are related to the environment (eg. `EnvTable`, `LocalEnv`, etc). The expression module contains all `eval` methods for expressions and corresponding unit tests. The statement module contains all `exec` methods for statements and also contains all corresponding unit tests. We separated expression and statement into different submodules for the same reason as the parser.
 
 ### Rusty code
-
+-- TODO --
 - Choose (at least) one code excerpt that is a particularly good example of Rust
   features, idioms, and/or style and describe what makes it “Rusty”.
 
-### Difficult to express in Rust
-
+### Difficult to Express in Rust
+-- TODO --
 - Were any parts of the code particularly difficult to expres using Rust? What
   are the challenges in refining and/or refactoring this code to be a better
   example of idiomatic Rust?
@@ -157,9 +166,31 @@ TODO
 - Describe any approaches attempted and then abandoned and the reasons why. What
   did you learn by undertaking this project?
 
+1. Parser
+
 When implementing the parser, we initially tried to write the parsing functions directly from the syntax specified in the Lua manual. However, this didn't work. Nom is a top-down parsing library, meaning it suffers from the same issue that all top-down parsers have: left recursion. Thus, we had several issues where running the parser would overflow the stack, since the parser would just infinitely expand some mutually recursive syntax rules. We solved this issue by changing our parsing strategy to factor out left recursion. For expressions, this was a matter of parsing according the operator precedence hierarchy. For prefix expressions, we parsed according to a "flattened" representation of the syntax in order to remove any ambiguity that was there in the original specification. One challenge there was that, since we were already using the AST to implement the interpreter, we could not change it build in this flattened prefix expression. Our workaround was to parse into an intermediate data structure, and then convert it back to our actual AST representation after a successful parse.
 
-### Relevant aspects
+2. Defining eval/exec methods
 
+First made eval/exec consume AST, but changed to take immutable reference in order to make function work
+
+3. Different approaches to implement Environment
+
+Capturing variables/environment for closure..... Environment cannot be shared, traverse through the block
+
+```Rust
+struct LuaValue<'a>(Rc<LuaVal<'a>>);
+```
+
+4. Lifetime parameters for Environment
+
+Lifetime parameters were tricky (Function will have reference to block which lives in AST, so the lifetime parameters will basically represent the lifetime of AST tokens, had to expand the lifetime parameters to many structs since lot of them are related, however, it was crucial to not link the lifetime of environment with AST, the lifetime parameter is for LuaValue stored in env, but that doesn't mean env also needs to have equal lifetime as AST) - immutable ref was needed because of function call and loops (need to re-evaluate the expressions)
+
+5. Repeat until can refer to local variables in the loop for condition expression
+
+6. Lifetime errors....
+
+### Relevant aspects
+-- TODO --
 - Review the final project grading rubric and discuss any relevant aspects of
   the project.
