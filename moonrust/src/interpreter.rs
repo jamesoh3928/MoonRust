@@ -431,9 +431,22 @@ mod tests {
     #[test]
     fn accepts_calculate_border(){
 
-        let table = LuaTable(RefCell::new(HashMap::new()));
-        let result = "";
-        assert_eq!("", result);
+        let table = LuaTable(RefCell::new(HashMap::from([
+            (
+                TableKey::String(String::from("age")),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(23), false)),
+            ),
+            (
+                TableKey::Number(i64::to_be_bytes(1)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(5), false)),
+            ),
+            (
+                TableKey::Number(f64::to_be_bytes(3.14)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
+            ),
+        ])));
+        let result = 3;
+        assert_eq!(table.calculate_border(), result);
     }
 }
 
