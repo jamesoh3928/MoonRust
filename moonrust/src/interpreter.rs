@@ -302,19 +302,6 @@ impl<'a> LuaTable<'a> {
         self.0.borrow().get(&key).map(|res| res.clone_rc())
     }
 
-    // TODO: If we have time
-    // pub fn remove(&self, key: &LuaValue<'a>) {
-    //     let mut table = self.0.borrow_mut();
-    //     let mut i = 0;
-    //     while i < table.len() {
-    //         if table[i].0 == *key {
-    //             table.remove(i);
-    //             break;
-    //         }
-    //         i += 1;
-    //     }
-    // }
-
     /// Returns the first integer index that comes before an absent index
     pub fn calculate_border(&self) -> usize {
         let mut idx: i64 = 1; // tables in Lua are 1 indexed

@@ -246,6 +246,6 @@ pub fn parse_dot_dot_dot(input: &str) -> ParseResult<Expression> {
 }
 
 pub fn parse_literal_string(input: &str) -> ParseResult<Expression> {
-    // TODO(?): I'm ignoring string literals that aren't in double quotes for now
+    // Skipping string literals that aren't in double quotes for now
     map(ws(parse_string), Expression::LiteralString)(input)
 }

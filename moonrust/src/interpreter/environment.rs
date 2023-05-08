@@ -1,7 +1,3 @@
-// TODO
-// 6. Clean up code (delete unused lines, clippy code)
-// 7. Final docs with demo prep (measure time)
-// Prime check demo: https://oeis.org/wiki/Higher-order_prime_numbers#:~:text=%7B3%2C%205%2C%2011%2C,%2C%20859%2C%20...%7D&text=.,-(Dressler%20%26%20Parker%201975 - 9737333
 use crate::interpreter::{LuaVal, LuaValue};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -195,20 +191,6 @@ impl<'a> Env<'a> {
     pub fn pop_local_env(&mut self) {
         self.local.pop_env();
     }
-
-    // Used for function (closures) capturing variables
-    // TODO: probably not going to use it
-    // pub fn vec_to_env(
-    //     captured_vars: &Vec<(String, LuaValue<'a>)>,
-    //     global_env: EnvTable<'a>,
-    // ) -> Env<'a> {
-    //     let mut new_env = Env::new();
-    //     new_env.set_global_env(global_env);
-    //     for (name, var) in captured_vars {
-    //         new_env.insert_local(name.clone(), var.clone_rc());
-    //     }
-    //     new_env
-    // }
 
     pub fn get_local_env(&self) -> &LocalEnv<'a> {
         &self.local

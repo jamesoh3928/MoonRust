@@ -77,12 +77,6 @@ mod tests {
         test_interpreter(src, expected_output);
     }
 
-    // TODO: Not working right now
-    // #[test]
-    // fn test_donut_lua() {
-
-    // }
-
     #[test]
     fn test_factorial_lua() {
         let expected_output = "2432902008176640000";
@@ -295,6 +289,4 @@ mod tests {
         let src = "assets/fibonacci_fixed.lua";
         test_interpreter(src, expected_output);
     }
-
-    // TODO: add more test cases
 }

@@ -38,8 +38,6 @@ We were able to finish our MVP by implementing following features:
 9. Table evaluation
 10. Some standard library functions (print, read, random)
 
--- TODO -- Add Demo
-
 ### Challenges/Lessons
 
 We had multiple challenges throughout the projects and we were able to find solutions for most of them by trying different approaches. The details of the different approaches we took can be found in the _Different Approaches_ section.
@@ -345,10 +343,11 @@ where closure captures `Some(EnvTable({'a': 1}))` but not `Some(EnvTable({'b': 3
 We added multiple unit tests and integration tests to ensure that our interpreter behaves correctly.
 ```
 $ cargo test -q
-running 90 tests
-........................................................................................ 88/90
-..
-test result: ok. 90 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+running 92 tests
+........................................................................................ 88/92
+....
+test result: ok. 92 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
 
 
 running 0 tests
@@ -358,7 +357,7 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 running 33 tests
 .................................
-test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
 
 
 running 1 test

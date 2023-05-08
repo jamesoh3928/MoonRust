@@ -171,7 +171,7 @@ impl Expression {
                         exec_ints(i1, i2)
                     }
                 }
-                // TODO: string coercion to numbers (maybe skip for now)
+                // Skipping string coercion to numbers for now
                 _ => {
                     return Err(ASTExecError(String::from(
                         "Cannot execute opration on values that are not numbers",

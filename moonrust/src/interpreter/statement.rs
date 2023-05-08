@@ -261,7 +261,7 @@ impl Statement {
             }
             Statement::ForGeneric((_names, exp_list, _block)) => {
                 // Generic for statement must be used with iterator
-                // TODO: finish implementing this if there is extra time
+                // Skipping for now
                 if exp_list.len() != 1 {
                     return Err(ASTExecError(String::from(
                         "Generic for loop must use iterator function",
@@ -285,7 +285,6 @@ impl Statement {
             Statement::LocalFuncDecl((name, par_list, block)) => {
                 let captured_env = env.get_local_env().capture_env();
                 env.extend_local_without_scope();
-                // TODO: changed for testing
                 env.insert_local(
                     name.clone(),
                     LuaValue::new(LuaVal::Function(LuaFunction {
