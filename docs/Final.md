@@ -355,7 +355,7 @@ where closure captures `Some(EnvTable({'a': 1}))` but not `Some(EnvTable({'b': 3
 
 1. **Testing**
 
-We added multiple unit tests and integration tests to ensure that our parser and interpreter behave correctly.
+We added multiple 92 unit tests and 33 integration tests to ensure that our parser and interpreter behave correctly.
 
 ```
 $ cargo test -q
@@ -363,7 +363,7 @@ $ cargo test -q
 running 92 tests
 ........................................................................................ 88/92
 ....
-test result: ok. 92 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test result: ok. 92 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
 
 
 running 0 tests
@@ -373,12 +373,7 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 running 33 tests
 .................................
-test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
-
-
-running 1 test
-.
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
 
 
 running 0 tests
@@ -387,6 +382,8 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 2. **Comparison with official Lua**
+
+Following is comparisons of the execution speed of MoonRust and the official Lua compiler. As a nature of the interpreter, we assumed our implementation will be slower than the compiler, but the speed difference was very huge. This shows that even though Rust is a very fast language, to build an efficient interpreter, developers have to spend a lot of time to figure out how to optimize each operation.
 
 4829449
 Calculating first 25 fibonacci numbers
