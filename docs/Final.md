@@ -30,6 +30,8 @@ We were able to finish our MVP by implementing following features:
 9. Table evaluation
 10. Some standard library functions (print, read, random)
 
+-- TODO -- Add Demo
+
 ### Challenges/Lessons
 
 We had multiple challenges throughout the projects and we were able to find solutions for most of them by trying different approaches. The details of the different approaches we took can be found in the _Different Approaches_ section.
@@ -38,7 +40,7 @@ We had multiple challenges throughout the projects and we were able to find solu
 
 Detail: can be found in _Different Approaches_ section.
 
-Lesson: --TODO--
+Lesson: --TODO-- (Matt, Renee)
 
 2. Implementing Environment
 
@@ -55,7 +57,7 @@ Lesson: Enhanced understanding of the lifetime parameter, that they are used to 
 
 4. Following some unique behaviors of Lua
 
-Detail: Lua has some unique behavior such as the condition in repeat until can refer to the local variable inside the loop, and all of the assignments are global by default. There are many behaviors we needed to consider and we needed to update our design constantly as we realized there are behaviors we are missing. 
+Detail: Lua has some unique behaviors. For instance, the condition of repeat until loop in Lua can access local variables that are defined inside the loop. This required different approach from for or while loop because when we are executing the body (`block`) of the loop, we just extended the scope and the scopes were automatically popped when the execution of the `block` is done. Since repeat until condition needed to access the local variables inside that body, we could not simply pop the scope after finishing each iteration. We created another function `Block::exec_without_pop` specifically for repeat until loop so that we can manually pop the scope when we are executing repeat until loop. There were many behaviors like this we needed to consider and we updated our design constantly as we realized the behaviors we missed. 
 
 Lesson: Having a strong understanding of Lua semantics could have reduced our development time since we might have had a stronger design in the beginning. However, considering the limited time we had and the nature of software engineering (iterative development), I think our initial design was a good start. We still learned some of the things we might want to consider in the initial design process. Also, setting up test infrastructure in the early stage can be a huge advantage since it is easy to add edge cases and check if our program is misbehaving.
 
@@ -151,46 +153,216 @@ Just like the parser, users interface with the interpreter through the `interpre
 The sub-modules are stored in the `interpreter` folder which is `environment.rs`, `expression.rs`, and `statement.rs`. The environment module defines all types and functions that are related to the environment (eg. `EnvTable`, `LocalEnv`, etc). The expression module contains all `eval` methods for expressions and corresponding unit tests. The statement module contains all `exec` methods for statements and also contains all corresponding unit tests. We separated expression and statement into different submodules for the same reason as the parser.
 
 ### Rusty code
--- TODO --
-- Choose (at least) one code excerpt that is a particularly good example of Rust
-  features, idioms, and/or style and describe what makes it “Rusty”.
+
+1. Match Expression for Enums
+Both `Expression` and `Statement` is enums with many variants, so in other languages, it is easy to miss all the cases. However, Rust's match expression came in handy because the compiler enforced it to cover all possible variants. Our team noticed that this led to far fewer logic errors than developing in other programming languages.
+
+```Rust
+pub fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
+        let val = match self {
+            Expression::Nil => vec![LuaValue::new(LuaVal::LuaNil)],
+            Expression::False => vec![LuaValue::new(LuaVal::LuaBool(false))],
+            Expression::True => vec![LuaValue::new(LuaVal::LuaBool(true))],
+            Expression::Numeral(n) => match n {
+                Numeral::Integer(i) => vec![LuaValue::new(LuaVal::LuaNum(i.to_be_bytes(), false))],
+                Numeral::Float(f) => vec![LuaValue::new(LuaVal::LuaNum(f.to_be_bytes(), true))],
+            },
+            Expression::LiteralString(s) => vec![LuaValue::new(LuaVal::LuaString(s.clone()))],
+            Expression::DotDotDot => unimplemented!(),
+            Expression::FunctionDef((par_list, block)) => {
+                let captured_env = env.get_local_env().capture_env();
+                vec![LuaValue::new(LuaVal::Function(LuaFunction {
+                    par_list,
+                    block,
+                    captured_env,
+                }))]
+            }
+            Expression::PrefixExp(prefixexp) => prefixexp.eval(env)?,
+            Expression::TableConstructor(fields) => {
+                let table = build_table(fields, env)?;
+                vec![LuaValue::new(LuaVal::LuaTable(table))]
+            }
+            Expression::BinaryOp((left, op, right)) => {
+                vec![Expression::eval_binary_exp(op, left, right, env)?]
+            }
+            Expression::UnaryOp((op, exp)) => vec![Expression::eval_unary_exp(op, exp, env)?],
+        };
+        Ok(val)
+    }
+```
+2. Use of `Rc` and `RefCell` in the Environment
+We believe that this project is a good example of where we want to use `Rc` and `RefCell` since Lua allows multiple owners to have the same value. For example:
+
+```Rust
+pub struct EnvTable<'a>(Rc<RefCell<HashMap<String, LuaValue<'a>>>>);
+
+pub struct LuaValue<'a>(Rc<LuaVal<'a>>);
+
+pub struct LuaTable<'a>(RefCell<HashMap<TableKey, LuaValue<'a>>>)
+```
+We wrapped around `Rc<RefCell<...>>` around `HashMap` inside `EnvTable` because `EnvTable` can be owned by multiple variables and it can be mutated. However, we only wrapped around `Rc` inside `LuaValue` because we don't need to update the `LuaVal` inside in most cases, but multiple owners are possible. However, we need to update the value inside when the value is a table, so we added `RefCell` inside the `LuaTable`. We think this is a good use case of `Rc` and `RefCell`.
+
+3. `Display` trait
+We also implemented the `Display` trait for `AST` to verify if our parsing is working correctly and `LuaValue` for debugging purposes.
+
+```Rust
+impl<'a> Display for LuaValue<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &*self.0 {
+            LuaVal::LuaNil => write!(f, "nil"),
+            LuaVal::LuaBool(b) => write!(f, "{b}"),
+            LuaVal::LuaNum(n, is_float) => {
+                if *is_float {
+                    let n = f64::from_be_bytes(*n);
+                    if n.floor() != n.ceil() {
+                        write!(f, "{n}")
+                    } else {
+                        // If n = 23.0, make it print as 23.0 instead of 23
+                        write!(f, "{:.1}", n)
+                    }
+                } else {
+                    write!(f, "{}", i64::from_be_bytes(*n))
+                }
+            }
+            LuaVal::LuaString(s) => write!(f, "{}", s),
+            LuaVal::LuaTable(t) => write!(f, "{:p}", t),
+            // Display function as reference
+            LuaVal::Function(func) => write!(f, "{:p}", func),
+            LuaVal::Print => write!(f, "print"),
+            LuaVal::TestPrint(_) => write!(f, "print"),
+            LuaVal::Read => write!(f, "read"),
+            LuaVal::Random => write!(f, "random"),
+        }
+    }
+}
+```
 
 ### Difficult to Express in Rust
--- TODO --
-- Were any parts of the code particularly difficult to expres using Rust? What
-  are the challenges in refining and/or refactoring this code to be a better
-  example of idiomatic Rust?
+
+1. Lot of `Rc` and `RefCell` were needed to implement the environment that allows multiple owners. Details can be found in the _Different Approaches_ section.
+2. We wished that Rust allows default parameters for functions. For example, instead of having `Block::exec` and `Block::exec_without_pop`, we can just have the default parameter of a boolean flag which will make it easier to add new behavior to the program. However, we also understand that this might go against a strong type system and make it more difficult to read or debug.
 
 ### Different Approaches
-
-- Describe any approaches attempted and then abandoned and the reasons why. What
-  did you learn by undertaking this project?
 
 1. Parser
 
 When implementing the parser, we initially tried to write the parsing functions directly from the syntax specified in the Lua manual. However, this didn't work. Nom is a top-down parsing library, meaning it suffers from the same issue that all top-down parsers have: left recursion. Thus, we had several issues where running the parser would overflow the stack, since the parser would just infinitely expand some mutually recursive syntax rules. We solved this issue by changing our parsing strategy to factor out left recursion. For expressions, this was a matter of parsing according the operator precedence hierarchy. For prefix expressions, we parsed according to a "flattened" representation of the syntax in order to remove any ambiguity that was there in the original specification. One challenge there was that, since we were already using the AST to implement the interpreter, we could not change it build in this flattened prefix expression. Our workaround was to parse into an intermediate data structure, and then convert it back to our actual AST representation after a successful parse.
 
-2. Defining eval/exec methods
+2. Defining `Expression::eval` and `Statement::exec`
 
-First made eval/exec consume AST, but changed to take immutable reference in order to make function work
+For the `Expression::eval` and `Statement::exec` methods, we first defined them to take ownership of `self`, because it seemed reasonable to consume AST so that the same piece of code does not get executed multiple times. However, the function body and the code inside the loop needed to be executed multiple times, which made us use `&self` instead. Borrowing immutably actually makes sense since we can ensure no one is mutating the parsed AST, but many `LuaValues` can point to the part of AST. The final signatures of the two methods look like this:
 
-3. Different approaches to implement Environment
+```Rust
+pub fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError>
+```
 
-Capturing variables/environment for closure..... Environment cannot be shared, traverse through the block
+```Rust
+pub fn exec<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Option<Vec<LuaValue>>, ASTExecError>)
+```
+Note that `eval` returns the result of the vector of `LuaValue` because, in Lua, multiple values can be returned by expressions. The reason why `exec` returns the result of the option of a vector is to have a way to signal a `break` statement. When `None` is returned, it means the break statement has been called meaning that if the caller is one of `for`, `while`, or `repeat`, it should exit the loop. 
 
+Also, using immutable references means that we need to specify lifetime parameters. Note that the lifetime of `self` and `env` is different, because the lifetime of part of AST does not have any relation with the lifetime of environment. However, we can see that `env` is taking in a lifetime of `self` as a parameter (`(&'a self, env: &'b mut Env<'a>)`). This is because we need a lifetime parameter that can specify the lifetime of the function body when `LuaValue` is a function. Functions will have reference to the block which lives in AST, so the lifetime parameters that can represent the lifetime of AST are needed when we define `LuaValue` and `Env`. This was a tricky problem because if we link wrong lifetime parameters, the compiler will throw an error but the error messages are not always about the lifetimes, which may lead to the incorrect direction. Having a good understanding of the relationship between these lifetimes was crucial to make sure the compiler understand the behavior correctly.
+
+3. Implementing Environment
+
+We had to change our implementation of the environment multiple times. Our first approach was having a `Vec<EnvTable>` as an environment where `EnvTable` is `Vec<(String, LuaValue)>`. However, if the name of the variable can only be String, using a `HashMap` is more efficient so we updated both `Vec`s to `HashMap`s. Since our Luavalue is defined as:
 ```Rust
 struct LuaValue<'a>(Rc<LuaVal<'a>>);
 ```
+multiple variables could be the owners of the same `LuaVal`.
 
-4. Lifetime parameters for Environment
+However, we later noticed that Lua's functions can act as a closure. There were two possible approaches we could take from here: 1. Go through the closure body and identify the captured variables, 2. Wrap around `Rc` and `RefCell` around `EnvTable`. First, we took the approach of identifying captured variables inside the closure's body. However, this increased the number of lines of code significantly and was not very efficient since we had to go through the entire function body even when it is not getting called. Also, it did not behave like Lua because when captured variables get updated, the entire `LuaValue` is overwritten inside the `Env`, not updating the `LuaVal` inside `Rc`. For example,
 
-Lifetime parameters were tricky (Function will have reference to block which lives in AST, so the lifetime parameters will basically represent the lifetime of AST tokens, had to expand the lifetime parameters to many structs since lot of them are related, however, it was crucial to not link the lifetime of environment with AST, the lifetime parameter is for LuaValue stored in env, but that doesn't mean env also needs to have equal lifetime as AST) - immutable ref was needed because of function call and loops (need to re-evaluate the expressions)
+```Lua
+local a = 2
+function f()
+    print(a)
+end
+a = a + 1
+f()
+```
+should output `3`, but the explained design printed `2` because reassignment to environment overwrites the entire `LuaValue` inside the `HashMap` of the `EnvTable`, not the actual value inside the `Rc`. This means that captured variable `a` and the `a` outside of the function will be owning different values after line `a = a + 1`.
 
-5. Repeat until can refer to local variables in the loop for condition expression
+Our next approach was wrapping `Rc` and `RefCell` around `EnvTable` so that the closure can capture the scope where it is defined and mutate the captured scope. However, this brought a new problem in that we cannot differentiate between variables that are captured by the closure and the variables that are not captured by the closure if they are in the same scope. For example, 
 
-6. Lifetime errors....
+```Lua
+local a = 1
+function g()
+    print(a)
+    print(b)
+end
+local b = 3
+g()
+```
+should print `1 nil`, but the explained design will print `1 3` because the captured scope can access variables that are defined in the scope even though they are defined after the function definition. The solution to this problem was having multiple `EnvTable` to represent one scope instead of one `EnvTable` representing one scope. Our `LocalEnv` is defined as a vector of `Option` of `EnvTable`, and scopes will be divided with `None` inside the vector. For example, the local environment will look like `LocalEnv: [None, Some(EnvTable1), Some(EnvTable2), None, Some(EnvTable3)]` when `EnvTable1` and `EnvTable2` are in the same scope and `EnvTable3` is in different scope. More specifically, our definitions of environment will be the following:
+```Rust
+pub struct EnvTable<'a>(Rc<RefCell<HashMap<String, LuaValue<'a>>>>);
+
+pub struct LocalEnv<'a>(Vec<Option<EnvTable<'a>>>);
+
+pub struct Env<'a> {
+    global: EnvTable<'a>,
+    local: LocalEnv<'a>,
+}
+```
+
+How does this help to solve our problem? We updated our `Block::exec` function as follows:
+
+```Rust
+fn exec<'a, 'b>(
+        &'a self,
+        env: &'b mut Env<'a>,
+    ) -> Result<Option<Vec<LuaValue<'a>>>, ASTExecError> {
+        let return_vals = self.exec_without_pop(env)?;
+        // Remove environment when exiting a scope
+        env.pop_local_env();
+        // Add another table in the caller's scope
+        // Avoiding local variable being inserted after closure is created
+        env.extend_local_without_scope();
+
+        Ok(return_vals)
+    }
+```
+We call `env.extend_local_without_scope();` before we return to the caller so that the variables that are defined after the closure is defined in `EnvTable` that is not captured by the closure. For the example code above, the environment will look like this:
+```
+LocalEnv: [None, Some(EnvTable({'a': 1})), Some(EnvTable({'b': 3}))]
+```
+where closure captures `Some(EnvTable({'a': 1}))` but not `Some(EnvTable({'b': 3}))`, which will make printed value `1 nil`.
+
 
 ### Relevant aspects
--- TODO --
-- Review the final project grading rubric and discuss any relevant aspects of
-  the project.
+
+1. Testing
+
+We added multiple unit tests and integration tests to ensure that our interpreter behaves correctly.
+```
+$ cargo test -q
+running 90 tests
+........................................................................................ 88/90
+..
+test result: ok. 90 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 33 tests
+.................................
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+running 1 test
+.
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+2. Conclusion
+
+This project was quite challenging to finish in a couple of weeks during the semester, but our team was able to accomplish the goals of the project by implementing all the features of MVP (build an interpreter that will execute a subset of Lua given a file to read). We had to change our design multiple times and throw away some of our implementations, but we practiced our skills in Rust and learned valuable lessons along the way (e.g. enhanced understanding of programming language design and parsing). We were able to use advanced features like  `Rc` and `RefCell` in multiple places and structure our project with modules. Overall, our team enjoyed working on a project with Rust because the code was very readable and the compiler catches simple logic errors that developers can easily miss.

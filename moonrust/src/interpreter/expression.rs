@@ -1089,7 +1089,6 @@ mod tests {
         let mut env = Env::new();
 
         // Integer, float, boolean, string, nil, function
-        // TODO: add table after implementing table (print reference)
         let par_list = ParList(vec![], false);
         let block = Block {
             statements: vec![],
@@ -1105,15 +1104,8 @@ mod tests {
             Expression::Nil,
             var_exp("f"),
         ]);
-        let print_call = FunctionCall::Standard((
-            Box::new(PrefixExp::Var(Var::Name("print".to_string()))),
-            args.clone(),
-        ));
-        let print_exp = PrefixExp::FunctionCall(print_call);
 
         // Capture the output of `print`
-        assert_eq!(print_exp.eval(&mut env), Ok(vec![]));
-
         let mut output = Vec::new();
         assert_eq!(
             FunctionCall::print_fn(args.eval(&mut env).unwrap(), &mut output),

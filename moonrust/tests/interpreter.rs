@@ -234,6 +234,13 @@ mod tests {
     }
 
     #[test]
+    fn test_prob5_lua() {
+        let expected_output = "3";
+        let src = "assets/prob5.lua";
+        test_interpreter(src, expected_output);
+    }
+
+    #[test]
     fn test_repeat_break_lua() {
         let expected_output = "1\n2\n3\n4\nLoop ended";
         let src = "assets/repeat_break.lua";
