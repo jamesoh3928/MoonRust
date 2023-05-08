@@ -1,7 +1,6 @@
 # MoonRust
 
 TODO for James
-1. Add demo video (come up with some interesting example)
 2. Proof read the document
 3. Work on the presentation
 4. Practice presentation
@@ -19,6 +18,9 @@ Team members:
 ## Summary Description
 
 The goal of this project was to build an interpreter that will execute a subset of Lua given a file to read. The details of functionality are specified in the _Project Breakdown_ section. (Note: our implementation logic differs from Lua's reference implementation since we are not supporting the full features of Lua. Our interpreter should be able to run a simple Lua standalone program).
+
+### Demo
+[MoonRust Demo](https://youtu.be/mAzZ4ySGXfQ)
 
 ## Project Breakdown
 
@@ -369,6 +371,66 @@ running 0 tests
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 ```
 
-2. Conclusion
+2. Comparison with official Lua
+4829449
+Calculating first 25 fibonacci numbers
+**MoonRust**
+```
+$ cargo run -q assets/fibonacci.lua -s
+Enter a number: 
+25
+0
+1
+1
+2
+3
+5
+8
+13
+21
+34
+55
+89
+144
+233
+377
+610
+987
+1597
+2584
+4181
+6765
+10946
+17711
+28657
+46368
+75025
+
+exec time   : 15.2333448000 seconds
+```
+**Official Lua**
+```
+TODO: Matt
+```
+
+
+Checking if 4829449 is prime
+
+**MoonRust**
+```
+$ cargo run -q assets/prime_checker.lua -s
+Enter a number: 
+4829449
+4829449 is prime
+
+exec time   : 34.2837148000 seconds
+```
+
+**Official Lua**
+```
+TODO: Matt
+```
+
+3. Conclusion
 
 This project was quite challenging to finish in a couple of weeks during the semester, but our team was able to accomplish the goals of the project by implementing all the features of MVP (build an interpreter that will execute a subset of Lua given a file to read). We had to change our design multiple times and throw away some of our implementations, but we practiced our skills in Rust and learned valuable lessons along the way (e.g. enhanced understanding of programming language design and parsing). We were able to use advanced features like  `Rc` and `RefCell` in multiple places and structure our project with modules. Overall, our team enjoyed working on a project with Rust because the code was very readable and the compiler catches simple logic errors that developers can easily miss. In the future, we would like to add syntactic sugars we skipped (for generic, literal string formats, etc) and possibly implement more standard libraries.
