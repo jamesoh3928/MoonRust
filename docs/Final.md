@@ -180,7 +180,6 @@ pub fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>,
                 Numeral::Float(f) => vec![LuaValue::new(LuaVal::LuaNum(f.to_be_bytes(), true))],
             },
             Expression::LiteralString(s) => vec![LuaValue::new(LuaVal::LuaString(s.clone()))],
-            Expression::DotDotDot => unimplemented!(),
             Expression::FunctionDef((par_list, block)) => {
                 let captured_env = env.get_local_env().capture_env();
                 vec![LuaValue::new(LuaVal::Function(LuaFunction {
@@ -386,7 +385,7 @@ Calculating first 25 fibonacci numbers
 ```
 $ cargo run -q assets/fibonacci.lua -s
 Enter a number: 
-25
+30
 0
 1
 1
@@ -413,8 +412,13 @@ Enter a number:
 28657
 46368
 75025
+121393
+196418
+317811
+514229
+832040
 
-exec time   : 15.2333448000 seconds
+exec time   : 163.4942114000 seconds
 ```
 **Official Lua**
 ```
