@@ -166,6 +166,7 @@ The sub-modules are stored in the `interpreter` folder which is `environment.rs`
 ### Rusty code
 
 1. **Match Expression for Enums**
+
 Both `Expression` and `Statement` is enums with many variants In other languages, it is easy to miss all possible cases. However, Rust's match expression came in handy because the compiler enforced it to cover all possible variants. Our team noticed that this led to far fewer logic errors than developing in other programming languages.
 
 ```Rust
@@ -202,6 +203,7 @@ pub fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>,
     }
 ```
 2. **Use of `Rc` and `RefCell` in the Environment**
+
 We believe that this project is a good example of where we want to use `Rc` and `RefCell` since Lua allows multiple owners of the same value. For instance:
 
 ```Rust
@@ -213,7 +215,8 @@ pub struct LuaTable<'a>(RefCell<HashMap<TableKey, LuaValue<'a>>>)
 ```
 We wrapped around `Rc<RefCell<...>>` around `HashMap` inside `EnvTable` because `EnvTable` can be owned by multiple environments (main environment or closure environments), and it can be mutated. However, we only wrapped around `Rc` inside `LuaValue` because we don't need to update the `LuaVal` inside in most cases, but multiple owners are possible. We need to update the value inside when the `LuaValue` is a table, so we added `RefCell` inside the `LuaTable`. We think this is a good use case of `Rc` and `RefCell`.
 
-3. `Display` trait
+3. **`Display` trait**
+
 We also implemented the `Display` trait for `AST` to verify if our parsing is working correctly and for `LuaValue` for debugging purposes.
 
 ```Rust
@@ -255,11 +258,11 @@ impl<'a> Display for LuaValue<'a> {
 
 ### Different Approaches
 
-1. Parser
+1. **Parser**
 
 When implementing the parser, we initially tried to write the parsing functions directly from the syntax specified in the Lua manual. However, this didn't work. Nom is a top-down parsing library, meaning it suffers from the same issue that all top-down parsers have: left recursion. Thus, we had several issues where running the parser would overflow the stack, since the parser would just infinitely expand some mutually recursive syntax rules. We solved this issue by changing our parsing strategy to factor out left recursion. For expressions, this was a matter of parsing according the operator precedence hierarchy. For prefix expressions, we parsed according to a "flattened" representation of the syntax in order to remove any ambiguity that was there in the original specification. One challenge there was that, since we were already using the AST to implement the interpreter, we could not change it build in this flattened prefix expression. Our workaround was to parse into an intermediate data structure, and then convert it back to our actual AST representation after a successful parse.
 
-2. Defining `Expression::eval` and `Statement::exec`
+2. **Defining `Expression::eval` and `Statement::exec`**
 
 For the `Expression::eval` and `Statement::exec` methods, we first defined them to take ownership of `self`, because it seemed reasonable to consume AST so that the same piece of code does not get executed multiple times. However, function bodies and code inside loops needed to be executed multiple times, which made us use `&self` instead. Borrowing immutably actually makes sense since we can ensure no one is mutating the parsed AST, but many `LuaValues` can point to the part of AST. The final signatures of the two methods look like this:
 
@@ -274,7 +277,7 @@ Note that `eval` returns the result of the vector of `LuaValue` because, in Lua,
 
 Also, using immutable references means that we need to specify lifetime parameters. Note that the lifetime of `self` and `env` is different, because the lifetime of AST does not have a relationship with the lifetime of environment. However, we can see that `env` is taking in a lifetime of `self` as an argument (`(&'a self, env: &'b mut Env<'a>)`). This is because we need a lifetime parameter that can specify the lifetime of the function body when `LuaValue` is a function. Functions will have references to blocks that live inside AST, so the lifetime parameters that can represent the lifetime of AST are needed when we define `LuaValue` and `Env`. This was a tricky problem because if we link wrong lifetime parameters, the compiler will throw an error but the error messages are not always about the lifetimes, which may lead developers to incorrect directions. Having a good understanding of the relationship between these lifetimes was crucial to make sure the compiler understand the behavior correctly.
 
-3. Implementing Environment
+3. **Implementing Environment**
 
 We had to change our implementation of the environment multiple times. Our first approach was having a `Vec<EnvTable>` as an environment where `EnvTable` is `Vec<(String, LuaValue)>`. However, if the name of the variable can only be String, using a `HashMap` is more efficient so we updated both `Vec`s to `HashMap`s. Since our Luavalue is defined as:
 ```Rust
@@ -343,7 +346,7 @@ where closure captures `Some(EnvTable({'a': 1}))` but not `Some(EnvTable({'b': 3
 
 ### Relevant aspects
 
-1. Testing
+1. **Testing**
 
 We added multiple unit tests and integration tests to ensure that our parser and interpreter behave correctly.
 ```
@@ -375,7 +378,8 @@ running 0 tests
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 ```
 
-2. Comparison with official Lua
+2. **Comparison with official Lua**
+
 4829449
 Calculating first 25 fibonacci numbers
 **MoonRust**
@@ -435,6 +439,6 @@ exec time   : 34.2837148000 seconds
 TODO: Matt
 ```
 
-3. Conclusion
+3. **Conclusion**
 
 This project was quite challenging to finish in a couple of weeks during the semester, but our team was able to accomplish the goals of the project by implementing all the features of MVP. We had to change our design multiple times and throw away some of our implementations, but we practiced our skills in Rust and learned valuable lessons along the way (e.g. enhanced understanding of programming language design and parsing, Rust's lifetime). We were able to structure our project with modules and use advanced features like  `Rc` and `RefCell` in multiple places. Overall, our team enjoyed working on a project with Rust because the code was very readable and the compiler catches simple logic errors that developers can easily miss. In the future, we would like to add syntactic sugars we skipped (for generic, literal string formats, etc.) and possibly implement more standard libraries.
