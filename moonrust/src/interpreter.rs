@@ -396,22 +396,6 @@ impl Block {
         }
         Ok(Some(return_vals))
     }
-
-    // Find captured variables in the block
-    // Dead code
-    // fn capture_variables<'a>(&self, env: &Env<'a>) -> Vec<(String, LuaValue<'a>)> {
-    //     // CONTINUE: not capturing variables correctly
-    //     let mut captured_vars = vec![];
-    //     for statement in &self.statements {
-    //         captured_vars.append(&mut statement.capture_variables(env));
-    //     }
-    //     if let Some(return_stat) = &self.return_stat {
-    //         for exp in return_stat {
-    //             captured_vars.append(&mut exp.capture_variables(env));
-    //         }
-    //     }
-    //     captured_vars
-    // }
 }
 
 #[cfg(test)]
