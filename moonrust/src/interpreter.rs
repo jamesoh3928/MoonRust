@@ -325,11 +325,15 @@ impl<'a> LuaTable<'a> {
             let number = idx.to_be_bytes();
             let table_key = TableKey::Number(number);
             // if current idx's associated value is nil
-            if table.get(&table_key).is_none() {
+            if table.get(&table_key).is_none() || table.get_key_value(&table_key).unwrap().1.is_nil(){
                 // return previous idx
                 return (idx as usize) - 1;
             }
             idx += 1;
+        }
+
+        if table.len() == 0 {
+            return 0;
         }
 
         idx as usize
@@ -433,20 +437,49 @@ mod tests {
 
         let table = LuaTable(RefCell::new(HashMap::from([
             (
-                TableKey::String(String::from("age")),
+                TableKey::Number(i64::to_be_bytes(1)),
                 LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(23), false)),
             ),
             (
-                TableKey::Number(i64::to_be_bytes(1)),
+                TableKey::Number(i64::to_be_bytes(2)),
                 LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(5), false)),
             ),
             (
-                TableKey::Number(f64::to_be_bytes(3.14)),
+                TableKey::Number(i64::to_be_bytes(3)),
                 LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
             ),
         ])));
         let result = 3;
         assert_eq!(table.calculate_border(), result);
+
+    }
+
+    #[test]
+    fn accepts_calculate_border2() {
+
+        let table2 = LuaTable(RefCell::new(HashMap::from([
+            (
+                TableKey::Number(i64::to_be_bytes(1)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(23), false)),
+            ),
+            (
+                TableKey::Number(i64::to_be_bytes(2)),
+                LuaValue::new(LuaVal::LuaNil),
+            ),
+            (
+                TableKey::Number(i64::to_be_bytes(3)),
+                LuaValue::new(LuaVal::LuaNum(i64::to_be_bytes(999), false)),
+            ),
+        ])));
+        let result2 = 1;
+        assert_eq!(table2.calculate_border(), result2);
+    }
+
+    #[test]
+    fn accepts_calculate_border3() {
+        let table3 = LuaTable(RefCell::new(HashMap::new()));
+        let result3 = 0;
+        assert_eq!(table3.calculate_border(), result3);
     }
 }
 
