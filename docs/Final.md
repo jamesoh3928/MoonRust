@@ -1,5 +1,11 @@
 # MoonRust
 
+TODO for James
+1. Add demo video (come up with some interesting example)
+2. Proof read the document
+3. Work on the presentation
+4. Practice presentation
+
 ![alt text](../assets/moon.jpg)
 
 MoonRust is Rust implementation of Lua interpreter. Lua means "moon" in Portuguese.
@@ -365,4 +371,4 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 2. Conclusion
 
-This project was quite challenging to finish in a couple of weeks during the semester, but our team was able to accomplish the goals of the project by implementing all the features of MVP (build an interpreter that will execute a subset of Lua given a file to read). We had to change our design multiple times and throw away some of our implementations, but we practiced our skills in Rust and learned valuable lessons along the way (e.g. enhanced understanding of programming language design and parsing). We were able to use advanced features like  `Rc` and `RefCell` in multiple places and structure our project with modules. Overall, our team enjoyed working on a project with Rust because the code was very readable and the compiler catches simple logic errors that developers can easily miss.
+This project was quite challenging to finish in a couple of weeks during the semester, but our team was able to accomplish the goals of the project by implementing all the features of MVP (build an interpreter that will execute a subset of Lua given a file to read). We had to change our design multiple times and throw away some of our implementations, but we practiced our skills in Rust and learned valuable lessons along the way (e.g. enhanced understanding of programming language design and parsing). We were able to use advanced features like  `Rc` and `RefCell` in multiple places and structure our project with modules. Overall, our team enjoyed working on a project with Rust because the code was very readable and the compiler catches simple logic errors that developers can easily miss. In the future, we would like to add syntactic sugars we skipped (for generic, literal string formats, etc) and possibly implement more standard libraries.
