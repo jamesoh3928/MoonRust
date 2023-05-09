@@ -165,7 +165,7 @@ The sub-modules `environment.rs`, `expression.rs`, and `statement.rs` are stored
 
 1. **Match Expression for Enums**
 
-Both `Expression` and `Statement` is enums with many variants In other languages, it is easy to miss all possible cases. However, Rust's match expression came in handy because the compiler enforced it to cover all possible variants. Our team noticed that this led to far fewer logic errors than developing in other programming languages.
+Both `Expression` and `Statement` are enums with many variants. In other languages, it is easy to miss all possible cases. However, Rust's match expression came in handy because the compiler enforced it to cover all possible variants. Our team noticed that this led to far fewer logic errors than developing in other programming languages.
 
 ```Rust
 pub fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
