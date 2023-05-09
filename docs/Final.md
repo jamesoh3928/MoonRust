@@ -43,7 +43,7 @@ We had multiple challenges throughout the project and we found solutions for mos
 
 Problem: Nom is a top-down parser, and is thus unable to recognize grammars with left recursion. The specification for the syntax in the Lua manual (https://www.lua.org/manual/5.4/manual.html#9) contains a few ambiguous and left-recursive rules, meaning that our initial attempt to parse directly as it's written in the manual causes the parser to overflow the stack.
 
-Lesson: For expressions, the main way we factored out left recursion is by establishing a sort of parsing hierarchy according to Lua's operator precedence rules. In effect, this forces expression "atoms" like primitive values, table constructors, etc. to get parsed first, and certain types of expressions (arithmetic, and expressions, or expressions, etc.) get parsed in order of the operator precedence. This eliminates any ambiguity. Prefix expressions also had left recursion issues because the `prefixexp` rule was mutually recursive with the `var` and `functioncall` rules. We solved this issue by flattening out those rules into one unambiguous rule. An unfortunate complication of this was that we couldn't update our abstract syntax tree to accomodate this (since doing so would have broken parts of the interpreter code). We worked around this by parsing prefix expressions into an intermediate data structure that we then convert back into our AST representation. The overall lesson we learned was that parsing is not as straightforward as we initially thought. Language grammars can be ambiguous, so it's important that we really understand their structure before we try parsing with them.
+Lesson: We explain how we approached this issue in the _Different Approaches_ section. Tackling this problem taught us that parsing is not as straightforward as we initially thought. Language grammars can be ambiguous, so it's important that we really understand their structure before we try parsing with them. Additionally, it's important to understand the properties of our parser so we can use it effectively and properly deal with its limitations. Besides our issues with left recursion, we found Nom to be a great parsing tool. It's fairly easy to understand what a Nom parsing function does just by looking at it, and it was pretty straightforward to write.
 
 2. **Implementing Environment**
 
@@ -165,7 +165,7 @@ The sub-modules `environment.rs`, `expression.rs`, and `statement.rs` are stored
 
 1. **Match Expression for Enums**
 
-Both `Expression` and `Statement` are enums with many variants. In other languages, it is easy to miss all possible cases. However, Rust's match expression came in handy because the compiler enforced it to cover all possible variants. Our team noticed that this led to far fewer logic errors than developing in other programming languages.
+Both `Expression` and `Statement` are enums with many variants. In other languages, it is easy to miss all possible cases. However, Rust's match expression came in handy because the compiler enforces covering all possible variants. We noticed that this led to far fewer logic errors compared to developing in other programming languages.
 
 ```Rust
 pub fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError> {
@@ -212,7 +212,7 @@ pub struct LuaValue<'a>(Rc<LuaVal<'a>>);
 pub struct LuaTable<'a>(RefCell<HashMap<TableKey, LuaValue<'a>>>)
 ```
 
-We wrapped around `Rc<RefCell<...>>` around `HashMap` inside `EnvTable` because `EnvTable` can be owned by multiple environments (main environment or closure environments), and it can be mutated. However, we only wrapped around `Rc` inside `LuaValue` because we don't need to update the `LuaVal` inside in most cases, but multiple owners are possible. We need to update the value inside when the `LuaValue` is a table, so we added `RefCell` inside the `LuaTable`. We think this is a good use case of `Rc` and `RefCell`.
+We wrapped `Rc<RefCell<...>>` around a `HashMap` inside `EnvTable` because `EnvTable` can be owned by multiple environments (main environment or closure environments), and it can be mutated by adding variables from a given scope. However, we only wrapped `Rc` around `LuaValue` because we don't need to update the inner `LuaVal` in most cases, but it's still possible to have multiple owners. We need to update the value inside when the `LuaValue` is a table, so we added `RefCell` inside the `LuaTable`.
 
 3. **`Display` trait**
 
@@ -252,18 +252,18 @@ impl<'a> Display for LuaValue<'a> {
 
 ### Difficult to Express in Rust
 
-1. Lot of `Rc` and `RefCell` were needed to implement the environment that allows multiple owners. Details can be found in the _Different Approaches_ section.
-2. We wished that Rust allows default parameters for functions. For example, instead of having `Block::exec` and `Block::exec_without_pop`, we can just have the default parameter of a boolean flag which will make it easier to add new behavior to the program. However, we also understand that this might go against Rust's philosophy of zero-cost abstraction (code may be less efficient when default value is not used) and make it more difficult to debug.
+1. Lots of `Rc`s and `RefCell`s were needed to implement the environment that allows multiple owners. Details can be found in the _Different Approaches_ section.
+2. We wish that Rust allowed default parameters for functions. For example, instead of having `Block::exec` and `Block::exec_without_pop`, we can just have the default parameter of a boolean flag which will make it easier to add new behavior to the program. However, we also understand that this might go against Rust's philosophy of zero-cost abstraction (code may be less efficient when default value is not used) and make it more difficult to debug.
 
 ### Different Approaches
 
 1. **Parser**
 
-When implementing the parser, we initially tried to write the parsing functions directly from the syntax specified in the Lua manual. However, this didn't work. Nom is a top-down parsing library, meaning it suffers from the same issue that all top-down parsers have: left recursion. Thus, we had several issues where running the parser would overflow the stack, since the parser would just infinitely expand some mutually recursive syntax rules. We solved this issue by changing our parsing strategy to factor out left recursion. For expressions, this was a matter of parsing according the operator precedence hierarchy. For prefix expressions, we parsed according to a "flattened" representation of the syntax in order to remove any ambiguity that was there in the original specification. One challenge there was that, since we were already using the AST to implement the interpreter, we could not change it build in this flattened prefix expression. Our workaround was to parse into an intermediate data structure, and then convert it back to our actual AST representation after a successful parse.
+As explained earlier, we had issues with Lua's left-recursive grammar as specified in the Lua manual. We solved these issue by changing our parsing strategy to factor out left recursion. For expressions, this was a matter of parsing according the operator precedence hierarchy. In effect, this forces expression "atoms" like primitive values, table constructors, etc. to get parsed first, and certain types of expressions (arithmetic, and expressions, or expressions, etc.) to then get parsed in the order of the established operator precedence. For prefix expressions, we had issues where the `prefixexp` rule was mutually recursive with the `var` and `functioncall` rules. We solved this issue by flattening out those rules into one unambiguous rule. An unfortunate complication of this was that we couldn't update our abstract syntax tree to accomodate the new strategy (since doing so would have broken parts of the interpreter code). We worked around this by parsing prefix expressions into an intermediate data structure that we then convert back into our AST representation.
 
 2. **Defining `Expression::eval` and `Statement::exec`**
 
-For the `Expression::eval` and `Statement::exec` methods, we first defined them to take ownership of `self`, because it seemed reasonable to consume AST so that the same piece of code does not get executed multiple times. However, function bodies and code inside loops needed to be executed multiple times, which made us use `&self` instead. Borrowing immutably actually makes sense since we can ensure no one is mutating the parsed AST, but many `LuaValues` can point to the part of AST. The final signatures of the two methods look like this:
+For the `Expression::eval` and `Statement::exec` methods, we first defined them to take ownership of `self`, because it seemed reasonable to consume the AST so that the same piece of code does not get executed multiple times. However, function bodies and code inside loops needed to be executed multiple times, which necessitated the use of `&self` instead. Borrowing immutably actually makes sense since we can ensure no one is mutating the parsed AST, but many `LuaValues` can point to the part of AST. The final signatures of the two methods look like this:
 
 ```Rust
 pub fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>, ASTExecError>
@@ -273,13 +273,13 @@ pub fn eval<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Vec<LuaValue<'a>>,
 pub fn exec<'a, 'b>(&'a self, env: &'b mut Env<'a>) -> Result<Option<Vec<LuaValue>>, ASTExecError>
 ```
 
-Note that `eval` returns the result of the vector of `LuaValue` because, in Lua, multiple values can be returned by expressions. The reason why `exec` returns the `Result` of the `Option` of a vector is to have a way to signal a `break` statement. When `None` is returned, it means the break statement has been called meaning that if the caller is one of `for`, `while`, or `repeat`, it should exit the loop.
+Note that `eval` returns the result of the vector of `LuaValue` because, in Lua, multiple values can be returned by expressions. The reason why `exec` returns the `Result` of the `Option` of a vector is to have a way to signal a `break` statement. When `None` is returned, it means the break statement has been called, meaning that if the caller is one of `for`, `while`, or `repeat`, it should exit the loop.
 
-Also, using immutable references means that we need to specify lifetime parameters. Note that the lifetime of `self` and `env` is different, because the lifetime of AST does not have a relationship with the lifetime of environment. However, we can see that `env` is taking in a lifetime of `self` as an argument (`(&'a self, env: &'b mut Env<'a>)`). This is because we need a lifetime parameter that can specify the lifetime of the function body when `LuaValue` is a function. Functions will have references to blocks that live inside AST, so the lifetime parameters that can represent the lifetime of AST are needed when we define `LuaValue` and `Env`. This was a tricky problem because if we link wrong lifetime parameters, the compiler will throw an error but the error messages are not always about the lifetimes, which may lead developers to incorrect directions. Having a good understanding of the relationship between these lifetimes was crucial to make sure the compiler understand the behavior correctly.
+Additionally, using immutable references means that we need to specify lifetime parameters. Note that the lifetime of `self` and `env` is different, because the lifetime of the AST does not have a relationship with the lifetime of the environment. However, we can see that `env` is taking in a lifetime of `self` as an argument (`(&'a self, env: &'b mut Env<'a>)`). This is because we need to specify the lifetime of the function body when `LuaValue` is a function. Functions will have references to blocks that live inside the AST, so the lifetime parameters that can represent the lifetime of AST are needed when we define `LuaValue` and `Env`. This was a tricky problem because if we link the wrong lifetime parameters, the compiler will throw an error, but the error messages are not always about the lifetimes, which may lead developers down the wrong path. Having a good understanding of the relationship between these lifetimes was crucial to make sure the compiler understand the behavior correctly.
 
 3. **Implementing Environment**
 
-We had to change our implementation of the environment multiple times. Our first approach was having a `Vec<EnvTable>` as an environment where `EnvTable` is `Vec<(String, LuaValue)>`. However, if the name of the variable can only be String, using a `HashMap` is more efficient so we updated both `Vec`s to `HashMap`s. Since our Luavalue is defined as:
+We had to change our implementation of the environment multiple times. Our first approach was having a `Vec<EnvTable>` as an environment where `EnvTable` is `Vec<(String, LuaValue)>`. However, if the name of the variable can only be String, using a `HashMap` is more efficient, so we updated both `Vec`s to `HashMap`s. Since our `LuaValue` is defined as:
 
 ```Rust
 struct LuaValue<'a>(Rc<LuaVal<'a>>);
@@ -287,7 +287,7 @@ struct LuaValue<'a>(Rc<LuaVal<'a>>);
 
 multiple variables could be the owners of the same `LuaVal`.
 
-However, we later noticed that Lua's functions can act as a closure. There were two possible approaches we could take from here: 1. Go through the closure body and identify the captured variables, 2. Capture the environment where closure is defined. First, we took the approach of identifying captured variables inside the closure's body. However, this increased the number of lines of code significantly and was not very efficient since we had to go through the entire function body even when it is not getting called. Also, it did not behave like Lua because when captured variables get updated, the entire `LuaValue` is overwritten inside the `Env`, not updating the `LuaVal` inside `Rc`. For example,
+However, we later noticed that Lua's functions can act as a closure. There were two possible approaches we could take from here: 1. Go through the closure body and identify the captured variables, or 2. Capture the environment where closure is defined. First, we took the approach of identifying captured variables inside the closure's body. However, this increased the number of lines of code significantly and was not very efficient since we had to go through the entire function body even when it is not getting called. It also didn't behave like Lua because when captured variables get updated, the entire `LuaValue` is overwritten inside the `Env`, not updating the `LuaVal` inside `Rc`. For example,
 
 ```Lua
 local a = 2
@@ -300,7 +300,7 @@ f()
 
 should output `3`, but the explained design printed `2` because reassignment to environment overwrites the entire `LuaValue` inside the `HashMap` of the `EnvTable`, not the actual value inside the `Rc`. This means that captured variable `a` and the `a` outside of the function will be owning different values after line `a = a + 1`.
 
-Our next approach was wrapping `Rc` and `RefCell` around `EnvTable` so that the closure can capture the scope where it is defined and mutate the captured scope. However, this brought a new problem in that we cannot differentiate between variables that are captured by the closure and the variables that are not captured by the closure if they are in the same scope. For example,
+Our next approach was wrapping `Rc` and `RefCell` around `EnvTable` so that the closure can capture the scope where it is defined and mutate the captured scope. However, this brought a new problem where we cannot differentiate between variables that are captured by the closure and the variables that are not captured by the closure if they are in the same scope. For example,
 
 ```Lua
 local a = 1
@@ -355,7 +355,7 @@ where closure captures `Some(EnvTable({'a': 1}))` but not `Some(EnvTable({'b': 3
 
 1. **Testing**
 
-We added multiple unit tests and integration tests to ensure that our parser and interpreter behave correctly.
+We added multiple 92 unit tests and 33 integration tests to ensure that our parser and interpreter behave correctly.
 
 ```
 $ cargo test -q
@@ -363,7 +363,7 @@ $ cargo test -q
 running 92 tests
 ........................................................................................ 88/92
 ....
-test result: ok. 92 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test result: ok. 92 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
 
 
 running 0 tests
@@ -373,12 +373,7 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 running 33 tests
 .................................
-test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
-
-
-running 1 test
-.
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
 
 
 running 0 tests
@@ -388,8 +383,9 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 2. **Comparison with official Lua**
 
-4829449
-Calculating first 25 fibonacci numbers
+
+**Calculating first 30 fibonacci numbers**
+
 **MoonRust**
 
 ```
@@ -434,10 +430,45 @@ exec time   : 163.4942114000 seconds
 **Official Lua**
 
 ```
-TODO: Matt
+$ lua fib.lua
+Enter a number:
+30
+0
+1
+1
+2
+3
+5
+8
+13
+21
+34
+55
+89
+144
+233
+377
+610
+987
+1597
+2584
+4181
+6765
+10946
+17711
+28657
+46368
+75025
+121393
+196418
+317811
+514229
+832040
+Elapsed time: 1.0 (in seconds)
 ```
 
-Checking if 4829449 is prime
+
+**Checking if 4829449 is prime**
 
 **MoonRust**
 
@@ -453,9 +484,16 @@ exec time   : 34.2837148000 seconds
 **Official Lua**
 
 ```
-TODO: Matt
+lua prime_checker.lua
+Enter a number:
+4829449
+4829449 is prime
+Elapsed time: 0.0 (runs in less than a second)
 ```
 
-3. **Conclusion**
+Clearly, the official C implementation of Lua is faster than our interpreter, but to give ourselves some credit, this isn't a fair comparison. Interpreters are naturally going to be slower since we're not compiling down to some bytecode or assembly. Additionally, we're not doing any code optimization like official Lua is. However, this shows that even though Rust is a very fast language, to build an efficient interpreter, developers have to spend a lot of time to figure out how to optimize each operation.
 
-This project was quite challenging to finish in a couple of weeks during the semester, but our team was able to accomplish the goals of the project by implementing all the features of MVP. We had to change our design multiple times and throw away some of our implementations, but we practiced our skills in Rust and learned valuable lessons along the way (e.g. enhanced understanding of programming language design and parsing, Rust's lifetime). We were able to structure our project with modules and use advanced features like `Rc` and `RefCell` in multiple places. Overall, our team enjoyed working on a project with Rust because the code was very readable and the compiler catches simple logic errors that developers can easily miss. In the future, we would like to add syntactic sugars we skipped (for generic, literal string formats, etc.) and possibly implement more standard libraries.
+## Conclusion
+
+This project was quite challenging to finish in a couple of weeks during the semester, but our team successfully accomplished the goals of the project. We had to change our design multiple times and throw away some of our implementation, but we made it in the end. On top of that, this project was a great opportunity to hone our skills in Rust and learn valuable lessons along the way (e.g. enhanced understanding of programming language design and parsing, Rust's lifetimes, etc.).
+Additionally, Rust proved to be a great language for developing a real project. Our code was readable, and Rust's powerhouse type system ensured that the compiler caught many errors that we would otherwise miss. If we continue this project in the future, we would like to add some syntactic sugar we skipped (generic for-loops, literal string formats, etc.) and possibly implement more of the standard library.
