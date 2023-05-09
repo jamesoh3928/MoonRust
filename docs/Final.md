@@ -383,10 +383,9 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 2. **Comparison with official Lua**
 
-Following is comparisons of the execution speed of MoonRust and the official Lua compiler. As a nature of the interpreter, we assumed our implementation will be slower than the compiler, but the speed difference was very huge. This shows that even though Rust is a very fast language, to build an efficient interpreter, developers have to spend a lot of time to figure out how to optimize each operation.
 
-4829449
-Calculating first 25 fibonacci numbers
+**Calculating first 30 fibonacci numbers**
+
 **MoonRust**
 
 ```
@@ -468,7 +467,8 @@ Enter a number:
 Elapsed time: 1.0 (in seconds)
 ```
 
-Checking if 4829449 is prime
+
+**Checking if 4829449 is prime**
 
 **MoonRust**
 
@@ -491,7 +491,7 @@ Enter a number:
 Elapsed time: 0.0 (runs in less than a second)
 ```
 
-Clearly, the official C implementation of Lua is faster than our interpreter, but to give ourselves some credit, this isn't a fair comparison. Interpreters are naturally going to be slower since we're not compiling down to some bytecode or assembly. Additionally, we're not doing any code optimization like official Lua is.
+Clearly, the official C implementation of Lua is faster than our interpreter, but to give ourselves some credit, this isn't a fair comparison. Interpreters are naturally going to be slower since we're not compiling down to some bytecode or assembly. Additionally, we're not doing any code optimization like official Lua is. However, this shows that even though Rust is a very fast language, to build an efficient interpreter, developers have to spend a lot of time to figure out how to optimize each operation.
 
 ## Conclusion
 
